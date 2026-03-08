@@ -286,7 +286,27 @@ class EmailMonitor:
             poll_interval=config.imap.poll_interval_seconds,
         )
         monitor.quarantine_folder = config.imap.quarantine_folder
+        monitor._load_recent_from_disk("data/results.jsonl")
         return monitor
+
+    def _load_recent_from_disk(self, jsonl_path: str):
+        """Pre-populate _recent_results from the JSONL log so data survives restarts."""
+        path = Path(jsonl_path)
+        if not path.exists():
+            return
+        try:
+            lines = path.read_text(encoding="utf-8").strip().splitlines()
+            for line in lines[-self._MAX_RECENT:]:
+                try:
+                    entry = json.loads(line)
+                    # Normalise field names to match live records
+                    entry.setdefault("quarantined", False)
+                    self._recent_results.append(entry)
+                except Exception:
+                    pass
+            logger.info(f"Loaded {len(self._recent_results)} recent results from {jsonl_path}")
+        except Exception as e:
+            logger.warning(f"Could not load recent results from {jsonl_path}: {e}")
 
     async def run(self, max_iterations: Optional[int] = None):
         """
