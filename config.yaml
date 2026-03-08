@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════════════
+# Phishing Detection Pipeline — Configuration
+# ═══════════════════════════════════════════════════════════════════
+#
+# All values here serve as DEFAULTS. Environment variables always
+# override YAML values (e.g., VIRUSTOTAL_API_KEY overrides api.virustotal_key).
+#
+# Secrets (API keys, passwords) should go in .env, NOT here.
+# This file is safe to commit; .env is gitignored.
+
+# ── API Client Configuration ──────────────────────────────────────
+api:
+  # Threat intelligence providers
+  virustotal_key: ""          # env: VIRUSTOTAL_API_KEY
+  urlscan_key: ""             # env: URLSCAN_API_KEY
+  abuseipdb_key: ""           # env: ABUSEIPDB_API_KEY
+  google_safebrowsing_key: "" # env: GOOGLE_SAFE_BROWSING_API_KEY
+
+  # Sandbox provider: hybrid_analysis | anyrun | joesandbox
+  sandbox_provider: "hybrid_analysis"   # env: SANDBOX_PROVIDER
+  hybrid_analysis_key: ""               # env: HYBRID_ANALYSIS_API_KEY
+  anyrun_key: ""                        # env: ANYRUN_API_KEY
+  joesandbox_key: ""                    # env: JOESANDBOX_API_KEY
+
+  # LLM for NLP intent classification: anthropic | openai
+  llm_provider: "anthropic"   # env: LLM_PROVIDER
+  anthropic_key: ""           # env: ANTHROPIC_API_KEY
+  openai_key: ""              # env: OPENAI_API_KEY
+
+# ── IMAP Polling Configuration ────────────────────────────────────
+imap:
+  host: "imap.example.com"    # env: IMAP_HOST
+  port: 993                   # env: IMAP_PORT
+  user: ""                    # env: IMAP_USER
+  password: ""                # env: IMAP_PASSWORD
+  folder: "INBOX"             # env: IMAP_FOLDER
+  poll_interval_seconds: 60
+
+# ── Scoring & Verdict Configuration ───────────────────────────────
+scoring:
+  # Analyzer weights (must sum to 1.0)
+  weights:
+    header_analysis: 0.10
+    url_reputation: 0.15
+    domain_intelligence: 0.10
+    url_detonation: 0.15
+    brand_impersonation: 0.10
+    attachment_analysis: 0.15
+    nlp_intent: 0.15
+    sender_profiling: 0.10
+
+  # Verdict score ranges: [lower_bound, upper_bound)
+  thresholds:
+    CLEAN: [0.0, 0.3]
+    SUSPICIOUS: [0.3, 0.6]
+    LIKELY_PHISHING: [0.6, 0.8]
+    CONFIRMED_PHISHING: [0.8, 1.0]
+
+# ── Pipeline Runtime Configuration ────────────────────────────────
+pipeline:
+  max_concurrent_analyzers: 10        # env: MAX_CONCURRENT_ANALYZERS
+  url_detonation_timeout: 30          # env: URL_DETONATION_TIMEOUT_SECONDS
+  pipeline_timeout: 120               # env: ANALYSIS_PIPELINE_TIMEOUT_SECONDS
+  feedback_db_path: "data/feedback.db"  # env: FEEDBACK_DB_PATH
+  log_level: "INFO"                   # env: LOG_LEVEL
+  dashboard_port: 8000                # env: DASHBOARD_PORT
+  analyst_api_token: ""               # env: ANALYST_API_TOKEN
+  max_concurrent_browser: 3
