@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from src.models import PipelineResult, Verdict
@@ -47,13 +48,13 @@ class PhishingDashboard:
         self.router.get("/api/pending")(self.api_pending_reviews)
         self.router.get("/api/stats")(self.api_stats)
 
-    async def get_dashboard(self) -> str:
+    async def get_dashboard(self) -> HTMLResponse:
         """
         GET /dashboard
         Main dashboard page showing pending review queue.
 
         Returns:
-            HTML string for dashboard main page.
+            HTMLResponse for dashboard main page.
         """
         try:
             template = self.env.get_template("dashboard.html") if self.env else None
@@ -61,7 +62,7 @@ class PhishingDashboard:
             template = None
 
         if template is None:
-            return self._generate_fallback_dashboard()
+            return HTMLResponse(content=self._generate_fallback_dashboard())
 
         # Fetch pending reviews from storage
         pending = []
@@ -78,15 +79,15 @@ class PhishingDashboard:
             "current_time": datetime.utcnow().isoformat(),
         }
 
-        return template.render(context)
+        return HTMLResponse(content=template.render(context))
 
-    async def get_stats(self) -> str:
+    async def get_stats(self) -> HTMLResponse:
         """
         GET /dashboard/stats
         Dashboard page showing verdict distribution and statistics.
 
         Returns:
-            HTML string with statistics visualization.
+            HTMLResponse with statistics visualization.
         """
         # Fetch statistics from storage
         stats = {
@@ -107,8 +108,7 @@ class PhishingDashboard:
             except Exception as e:
                 logger.error(f"Error fetching statistics: {e}")
 
-        # Generate HTML
-        return self._generate_stats_page(stats)
+        return HTMLResponse(content=self._generate_stats_page(stats))
 
     async def get_email_detail(self, email_id: str) -> str:
         """
@@ -134,7 +134,7 @@ class PhishingDashboard:
             raise HTTPException(status_code=404, detail="Analysis result not found")
 
         # Generate HTML from result
-        return self._generate_email_detail_page(result)
+        return HTMLResponse(content=self._generate_email_detail_page(result))
 
     async def api_pending_reviews(self, limit: int = Query(50, ge=1, le=1000)) -> dict:
         """
