@@ -175,10 +175,8 @@ class IOCExporter:
             Tuple of (Indicator, Observable, Relationship, Note) objects.
         """
         # Create observable
-        observable = Observable(
-            object_type="url",
-            object_path="0",
-            url=url,
+        observable = URL(
+            value=url,
             allow_custom=True,
         )
 
@@ -229,9 +227,7 @@ class IOCExporter:
             Tuple of (Indicator, Observable, Relationship, Note) objects.
         """
         # Create observable
-        observable = Observable(
-            object_type="domain-name",
-            object_path="0",
+        observable = DomainName(
             value=domain,
             allow_custom=True,
         )
@@ -283,9 +279,7 @@ class IOCExporter:
             Tuple of (Indicator, Observable, Relationship, Note) objects.
         """
         # Create observable
-        observable = Observable(
-            object_type="ipv4-addr",
-            object_path="0",
+        observable = IPv4Address(
             value=ip,
             allow_custom=True,
         )
@@ -337,9 +331,7 @@ class IOCExporter:
             Tuple of (Indicator, Observable, Relationship, Note) objects.
         """
         # Create observable
-        observable = Observable(
-            object_type="file",
-            object_path="0",
+        observable = File(
             hashes={hash_type.upper(): hash_value},
             allow_custom=True,
         )
@@ -388,7 +380,6 @@ class IOCExporter:
         """Create STIX Sighting for malicious IOCs."""
         return Sighting(
             sighting_of_ref=ioc_refs[0] if ioc_refs else None,
-            observed_data_refs=ioc_refs,
             count=1,
             first_seen=result.timestamp,
             last_seen=result.timestamp,
