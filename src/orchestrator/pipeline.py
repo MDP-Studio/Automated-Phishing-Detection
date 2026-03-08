@@ -366,7 +366,39 @@ class PhishingPipeline:
         async def run_analyzer():
             # Call analyzer with the correct arguments based on its type
             if name == "header_analysis":
-                return await analyzer.analyze(email)
+                # HeaderAnalyzer.analyze() is synchronous — call without await
+                detail = analyzer.analyze(email)
+                # Convert HeaderAnalysisDetail → AnalyzerResult
+                failures = sum([
+                    detail.spf_pass is False,
+                    detail.dkim_pass is False,
+                    detail.dmarc_pass is False,
+                    detail.from_reply_to_mismatch,
+                    detail.display_name_spoofing,
+                    detail.envelope_from_mismatch,
+                    detail.suspicious_received_chain,
+                ])
+                auth_checks = sum([
+                    detail.spf_pass is not None,
+                    detail.dkim_pass is not None,
+                    detail.dmarc_pass is not None,
+                ])
+                risk_score = min(failures / 4.0, 1.0)
+                confidence = 0.5 + (auth_checks / 3.0) * 0.5
+                return AnalyzerResult(
+                    analyzer_name="header_analysis",
+                    risk_score=risk_score,
+                    confidence=confidence,
+                    details={
+                        "spf_pass": detail.spf_pass,
+                        "dkim_pass": detail.dkim_pass,
+                        "dmarc_pass": detail.dmarc_pass,
+                        "from_reply_to_mismatch": detail.from_reply_to_mismatch,
+                        "display_name_spoofing": detail.display_name_spoofing,
+                        "envelope_from_mismatch": detail.envelope_from_mismatch,
+                        "suspicious_received_chain": detail.suspicious_received_chain,
+                    },
+                )
             elif name == "url_reputation":
                 return await analyzer.analyze(urls)
             elif name == "domain_intelligence":
@@ -523,7 +555,7 @@ class PhishingPipeline:
                 if api.joesandbox_key:
                     sandbox_providers["joesandbox"] = {"api_key": api.joesandbox_key}
                 sandbox_client = SandboxClient(sandbox_providers) if sandbox_providers else None
-                analyzer = URLDetonationAnalyzer(sandbox_client=sandbox_client)
+                analyzer = URLDetonationAnalyzer(browser_client=sandbox_client)
             elif name == "brand_impersonation":
                 from src.analyzers.brand_impersonation import BrandImpersonationAnalyzer
                 analyzer = BrandImpersonationAnalyzer()
@@ -542,7 +574,11 @@ class PhishingPipeline:
                 analyzer = AttachmentSandboxAnalyzer(sandbox_client=sandbox_client)
             elif name == "nlp_intent":
                 from src.analyzers.nlp_intent import NLPIntentAnalyzer
-                analyzer = NLPIntentAnalyzer()
+                llm_client = None
+                if self.config.api.anthropic_key:
+                    from src.analyzers.clients.anthropic_client import AnthropicLLMClient
+                    llm_client = AnthropicLLMClient(self.config.api.anthropic_key)
+                analyzer = NLPIntentAnalyzer(llm_client=llm_client)
             elif name == "sender_profiling":
                 from src.analyzers.sender_profiling import SenderProfileAnalyzer
                 analyzer = SenderProfileAnalyzer()

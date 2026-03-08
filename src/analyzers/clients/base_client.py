@@ -10,7 +10,7 @@ from typing import Any, Optional, Tuple
 from datetime import datetime, timedelta
 
 import aiohttp
-from asyncio_throttle import AsyncThrottle
+from asyncio_throttle import Throttler as AsyncThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class BaseAPIClient(ABC):
         self.cache = TTLCache()
 
         # Rate limiter: (max_requests, time_period_seconds)
-        self.throttler = AsyncThrottle(max_rate=rate_limit[0], time_period=rate_limit[1])
+        self.throttler = AsyncThrottle(rate_limit=rate_limit[0], period=rate_limit[1])
 
         # Circuit breaker
         self.circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=300)
