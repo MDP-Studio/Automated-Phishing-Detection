@@ -82,3 +82,15 @@ reports/generated/
 # ===== Sample Emails (contain PII — do not commit) =====
 tests/sample_emails/*.eml
 tests/sample_emails/*.msg
+
+# ===== Generated Summary / Doc Files =====
+*_SUMMARY.md
+*_GUIDE.md
+*_README.md
+*_INDEX.md
+IMPLEMENTATION_COMPLETE.txt
+TEST_CHECKLIST.md
+TEST_GUIDE.md
+TESTS_SUMMARY.md
+EXTRACTOR_USAGE_EXAMPLES.md
+FEEDBACK_SYSTEM_QUICKSTART.md
