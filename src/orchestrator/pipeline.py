@@ -425,6 +425,18 @@ class PhishingPipeline:
         for analyzer_name, result in analyzer_results.items():
             weight = weights.get(analyzer_name, 0.0)
             if weight > 0:
+                # Skip analyzers that produced no data (confidence == 0 means
+                # the analyzer couldn't run, e.g. missing API key). Including
+                # them with score=0 would artificially drag the average down.
+                if result.confidence == 0.0:
+                    self.logger.debug(
+                        f"Skipping {analyzer_name} in scoring (confidence=0, no data)"
+                    )
+                    analyzer_details.append(
+                        f"{analyzer_name}: skipped (no API key / no data)"
+                    )
+                    continue
+
                 weighted_sum += result.risk_score * weight
                 confidence_sum += result.confidence * weight
                 total_weight += weight
@@ -433,11 +445,12 @@ class PhishingPipeline:
                     f"{analyzer_name}: {result.risk_score:.3f} (conf: {result.confidence:.3f})"
                 )
 
-        # Normalize
+        # Normalize over analyzers that actually ran
         if total_weight > 0:
             overall_score = weighted_sum / total_weight
             overall_confidence = confidence_sum / total_weight
         else:
+            # No analyzer produced usable data — treat as uncertain
             overall_score = 0.5
             overall_confidence = 0.0
 
