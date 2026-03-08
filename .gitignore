@@ -20,9 +20,10 @@ env/
 *.key
 api_keys.json
 
-# ===== IDE =====
+# ===== IDE / Tools =====
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
