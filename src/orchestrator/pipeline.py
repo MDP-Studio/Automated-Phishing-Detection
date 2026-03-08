@@ -324,7 +324,8 @@ class PhishingPipeline:
                     task,
                     timeout=self.config.url_detonation_timeout
                     if "detonation" in analyzer_name
-                    else 15  # Default 15s timeout
+                    else 60 if analyzer_name in ("url_reputation", "domain_intelligence")
+                    else 15
                 )
                 results[analyzer_name] = result
                 self.logger.debug(
@@ -551,17 +552,8 @@ class PhishingPipeline:
                 analyzer = DomainIntelAnalyzer(whois_client=WhoisClient())
             elif name == "url_detonation":
                 from src.analyzers.url_detonator import URLDetonationAnalyzer
-                from src.analyzers.clients.sandbox_client import SandboxClient
-                api = self.config.api
-                sandbox_providers = {}
-                if api.hybrid_analysis_key:
-                    sandbox_providers["hybrid_analysis"] = {"api_key": api.hybrid_analysis_key}
-                if api.anyrun_key:
-                    sandbox_providers["anyrun"] = {"api_key": api.anyrun_key}
-                if api.joesandbox_key:
-                    sandbox_providers["joesandbox"] = {"api_key": api.joesandbox_key}
-                sandbox_client = SandboxClient(sandbox_providers) if sandbox_providers else None
-                analyzer = URLDetonationAnalyzer(browser_client=sandbox_client)
+                # browser_client requires a Playwright-based browser; no implementation yet
+                analyzer = URLDetonationAnalyzer(browser_client=None)
             elif name == "brand_impersonation":
                 from src.analyzers.brand_impersonation import BrandImpersonationAnalyzer
                 analyzer = BrandImpersonationAnalyzer()

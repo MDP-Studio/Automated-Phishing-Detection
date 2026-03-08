@@ -206,7 +206,10 @@ class PhishingDetectionApp:
                     "overall_confidence": result.overall_confidence,
                     "timestamp": result.timestamp.isoformat(),
                     "analyzer_results": analyzer_results,
-                    "extracted_urls": result.extracted_urls or [],
+                    "extracted_urls": [
+                        u.url if hasattr(u, 'url') else str(u)
+                        for u in (result.extracted_urls or [])
+                    ],
                     "reasoning": result.reasoning if isinstance(result.reasoning, list) else [str(result.reasoning)],
                     "iocs": {"headers": headers_out},
                 }

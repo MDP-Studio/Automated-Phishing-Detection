@@ -205,11 +205,10 @@ class VirusTotalClient(BaseAPIClient):
         Encode URL for VirusTotal v3 API.
         VT v3 uses URL ID which is base64url of SHA-256 hash.
         """
-        url_bytes = url.encode("utf-8")
-        url_hash = hashlib.sha256(url_bytes).digest()
-        # Base64-url encode without padding
         import base64
-        encoded = base64.urlsafe_b64encode(url_hash).decode().rstrip("=")
+        url_bytes = url.encode("utf-8")
+        # VT v3: URL identifier is base64url of the raw URL (no hashing)
+        encoded = base64.urlsafe_b64encode(url_bytes).decode().rstrip("=")
         return encoded
 
     @staticmethod

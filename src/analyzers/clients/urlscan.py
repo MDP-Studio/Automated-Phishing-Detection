@@ -26,7 +26,7 @@ class URLScanClient(BaseAPIClient):
         super().__init__(
             api_key=api_key,
             base_url="https://urlscan.io/api/v1",
-            rate_limit=(1, 15),  # Conservative: 1 request per 15 seconds
+            rate_limit=(5, 60),  # 5 requests per minute
             cache_ttl=7200,  # 2 hours default
         )
 

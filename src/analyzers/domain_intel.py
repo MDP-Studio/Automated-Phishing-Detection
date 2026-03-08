@@ -88,6 +88,8 @@ class DomainIntelAnalyzer:
             creation_date = whois_data.get("creation_date")
             if creation_date:
                 try:
+                    if isinstance(creation_date, list):
+                        creation_date = creation_date[0]
                     if isinstance(creation_date, str):
                         creation_date = datetime.fromisoformat(creation_date.replace("Z", "+00:00"))
 

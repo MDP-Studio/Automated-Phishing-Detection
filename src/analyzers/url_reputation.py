@@ -97,9 +97,16 @@ class URLReputationAnalyzer:
             return 0.0, 0.0, {}
 
         try:
-            result = await self.urlscan_client.submit_scan(url)
+            # Cap at 20s — urlscan scans take time; skip rather than block pipeline
+            result = await asyncio.wait_for(
+                self.urlscan_client.submit_scan(url),
+                timeout=20.0,
+            )
             return result.risk_score, result.confidence, result.details
 
+        except asyncio.TimeoutError:
+            logger.debug(f"urlscan.io timed out for {url} (scan still pending)")
+            return 0.0, 0.0, {"urlscan_note": "scan_pending_timeout"}
         except Exception as e:
             logger.warning(f"urlscan.io check failed for {url}: {e}")
             return 0.0, 0.0, {"urlscan_error": str(e)}
@@ -157,30 +164,23 @@ class URLReputationAnalyzer:
                     details={"message": "no_urls_to_analyze"},
                 )
 
-            # Collect all checks for all URLs
-            url_results: dict[str, dict] = {}
+            # Cap to 5 URLs — urlscan polling is slow; checking more degrades latency
+            urls_to_check = urls[:5]
 
-            for extracted_url in urls:
+            async def _check_one_url(extracted_url: ExtractedURL) -> tuple[str, dict]:
                 try:
-                    # Run all checks concurrently for this URL
-                    vt_score, vt_conf, vt_details = await self._check_virustotal(
-                        extracted_url.url
+                    (vt_score, vt_conf, vt_details), \
+                    (sb_score, sb_conf, sb_details), \
+                    (us_score, us_conf, us_details), \
+                    (ab_score, ab_conf, ab_details) = await asyncio.gather(
+                        self._check_virustotal(extracted_url.url),
+                        self._check_safe_browsing(extracted_url.url),
+                        self._check_urlscan(extracted_url.url),
+                        self._check_abuseipdb(extracted_url.url),
                     )
-                    sb_score, sb_conf, sb_details = await self._check_safe_browsing(
-                        extracted_url.url
-                    )
-                    us_score, us_conf, us_details = await self._check_urlscan(
-                        extracted_url.url
-                    )
-                    ab_score, ab_conf, ab_details = await self._check_abuseipdb(
-                        extracted_url.url
-                    )
-
-                    # Per-URL: max-across-services logic
                     per_url_risk = max(vt_score, sb_score, us_score, ab_score)
                     per_url_confidence = max(vt_conf, sb_conf, us_conf, ab_conf)
-
-                    url_results[extracted_url.url] = {
+                    return extracted_url.url, {
                         "risk_score": per_url_risk,
                         "confidence": per_url_confidence,
                         "virustotal": vt_details,
@@ -190,13 +190,17 @@ class URLReputationAnalyzer:
                         "source": extracted_url.source.value,
                         "source_detail": extracted_url.source_detail,
                     }
-
                 except Exception as e:
                     logger.error(f"Error analyzing URL {extracted_url.url}: {e}")
-                    url_results[extracted_url.url] = {
+                    return extracted_url.url, {
                         "error": str(e),
                         "source": extracted_url.source.value,
                     }
+
+            # Run all URLs concurrently
+            url_results: dict[str, dict] = dict(
+                await asyncio.gather(*[_check_one_url(u) for u in urls_to_check])
+            )
 
             # Overall: max across all URLs
             url_scores = [

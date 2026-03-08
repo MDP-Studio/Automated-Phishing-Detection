@@ -277,6 +277,34 @@ class WhoisClient(BaseAPIClient):
             details=details,
         )
 
+    async def lookup(self, domain: str) -> dict:
+        """
+        Simple WHOIS lookup returning raw dict (called by DomainIntelAnalyzer).
+
+        Returns a dict with registrar, creation_date, privacy_contact, registrant_email.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(self.executor, self._whois_lookup, domain)
+
+    async def check_dns_records(self, domain: str) -> dict:
+        """
+        Return DNS records grouped by type (called by DomainIntelAnalyzer).
+
+        Returns {"SPF": [...], "DKIM": [...], "DMARC": [...], "MX": [...]}.
+        """
+        txt_records = await self.get_dns_records(domain, "TXT")
+        mx_records = await self.get_dns_records(domain, "MX")
+        return {
+            "SPF": [r for r in txt_records if "v=spf1" in r.lower()],
+            "DKIM": [r for r in txt_records if "v=dkim1" in r.lower()],
+            "DMARC": [r for r in txt_records if "v=dmarc1" in r.lower()],
+            "MX": mx_records,
+        }
+
+    async def check_phishing_feeds(self, domain: str) -> dict:
+        """Stub — no external phishing feed integration (called by DomainIntelAnalyzer)."""
+        return {"found_in_feeds": False, "suspicious_patterns": False}
+
     async def get_dns_records(self, domain: str, record_type: str) -> list[str]:
         """
         Get specific DNS records for a domain.

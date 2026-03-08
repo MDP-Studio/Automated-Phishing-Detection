@@ -219,6 +219,52 @@ Respond in JSON format:
             logger.error(f"sklearn analysis failed: {e}")
             return IntentCategory.UNKNOWN, 0.0, f"sklearn error: {str(e)}", 0.0
 
+    PHISHING_KEYWORDS = [
+        "verify your account", "confirm your email", "click here to verify",
+        "update your payment", "your account has been suspended",
+        "unusual activity", "secure your account", "login to your account",
+        "reset your password", "your password has expired",
+        "wire transfer", "gift card", "invoice attached",
+        "urgent action required", "your account will be closed",
+        "you have won", "claim your prize",
+    ]
+
+    CREDENTIAL_KEYWORDS = ["password", "username", "login", "sign in", "verify", "confirm account"]
+    BEC_KEYWORDS = ["wire transfer", "invoice", "payment", "bank account", "routing number"]
+    GIFT_CARD_KEYWORDS = ["gift card", "itunes", "amazon card", "google play"]
+    MALWARE_KEYWORDS = ["attachment", "download", "open file", "enable macros"]
+
+    def _analyze_with_keywords(
+        self, email: EmailObject
+    ) -> tuple["IntentCategory", float, str, float]:
+        """
+        Keyword-based intent analysis fallback (no external API needed).
+
+        Returns:
+            Tuple of (intent_category, confidence, reasoning, urgency_score)
+        """
+        text = f"{email.subject} {email.body_plain[:2000]}".lower()
+        urgency_score = self._calculate_urgency_score(text)
+
+        phishing_hits = sum(1 for kw in self.PHISHING_KEYWORDS if kw in text)
+        credential_hits = sum(1 for kw in self.CREDENTIAL_KEYWORDS if kw in text)
+        bec_hits = sum(1 for kw in self.BEC_KEYWORDS if kw in text)
+        gift_card_hits = sum(1 for kw in self.GIFT_CARD_KEYWORDS if kw in text)
+        malware_hits = sum(1 for kw in self.MALWARE_KEYWORDS if kw in text)
+
+        if gift_card_hits >= 1:
+            return IntentCategory.GIFT_CARD_SCAM, 0.55, "Gift card keywords detected", urgency_score
+        if bec_hits >= 2:
+            return IntentCategory.BEC_WIRE_FRAUD, 0.55, "BEC keywords detected", urgency_score
+        if malware_hits >= 2:
+            return IntentCategory.MALWARE_DELIVERY, 0.5, "Malware delivery keywords detected", urgency_score
+        if credential_hits >= 2 or phishing_hits >= 1:
+            return IntentCategory.CREDENTIAL_HARVESTING, 0.5, "Credential harvesting keywords detected", urgency_score
+        if urgency_score >= 0.4:
+            return IntentCategory.UNKNOWN, 0.4, "High urgency language detected", urgency_score
+
+        return IntentCategory.LEGITIMATE, 0.4, "No suspicious keywords found", urgency_score
+
     async def analyze(self, email: EmailObject) -> AnalyzerResult:
         """
         Analyze email intent.
@@ -240,14 +286,14 @@ Respond in JSON format:
                     details={"message": "no_email_content"},
                 )
 
-            # Try LLM first, fall back to sklearn if needed
+            # Try LLM first, fall back to sklearn, then keyword analysis
             if self.use_llm:
                 intent_category, confidence, reasoning, urgency_score = (
                     await self._analyze_with_llm(email)
                 )
                 method = "llm"
 
-                if intent_category == IntentCategory.UNKNOWN and self.sklearn_classifier:
+                if confidence == 0.0 and self.sklearn_classifier:
                     logger.info("LLM failed or inconclusive, falling back to sklearn")
                     intent_category, confidence, reasoning, urgency_score = (
                         await self._analyze_with_sklearn(email)
@@ -258,6 +304,13 @@ Respond in JSON format:
                     await self._analyze_with_sklearn(email)
                 )
                 method = "sklearn"
+
+            # Final fallback: keyword-based analysis (always produces a result)
+            if confidence == 0.0:
+                intent_category, confidence, reasoning, urgency_score = (
+                    self._analyze_with_keywords(email)
+                )
+                method = "keywords"
 
             # Map intent to risk score
             base_risk_score = self.INTENT_RISK_MAPPING.get(
