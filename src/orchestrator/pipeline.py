@@ -109,7 +109,7 @@ class PhishingPipeline:
             iocs, extracted_urls = await self._phase_extraction(email)
 
             # Phase 1.5: Blocklist/Allowlist check (fast-path)
-            list_result = await self.list_checker.check(email, [])
+            list_result = await self.list_checker.check(email, extracted_urls)
             if list_result.override_verdict is not None:
                 self.logger.info(
                     f"Blocklist/allowlist override for {email.email_id}: "
@@ -244,11 +244,10 @@ class PhishingPipeline:
                 self._extractors["url_extractor"] = URLExtractor()
 
             url_extractor = self._extractors["url_extractor"]
-            extracted_url_objs = url_extractor.extract_all(
+            extracted_urls = url_extractor.extract_all(
                 plaintext=email.body_plain or "",
                 html=email.body_html or "",
             )
-            extracted_urls = [u.url for u in extracted_url_objs]
 
         except Exception as e:
             self.logger.warning(f"URL extraction failed: {e}")
@@ -257,7 +256,14 @@ class PhishingPipeline:
             # Extract QR codes from attachments
             qr_codes = await self._extract_qr_codes(email)
             iocs["qr_codes"] = qr_codes
-            extracted_urls.extend(qr_codes)
+            for qr_url in qr_codes:
+                if isinstance(qr_url, str):
+                    from src.models import ExtractedURL, URLSource
+                    extracted_urls.append(ExtractedURL(
+                        url=qr_url,
+                        source=URLSource.QR_CODE,
+                        source_detail="qr_extraction",
+                    ))
 
         except Exception as e:
             self.logger.warning(f"QR code extraction failed: {e}")
