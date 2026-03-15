@@ -157,6 +157,33 @@ class URLReputationAnalyzer:
                     details={"message": "no_urls_to_analyze"},
                 )
 
+            # Check if any clients are configured at all
+            has_any_client = any([
+                self.virustotal_client,
+                self.safe_browsing_client,
+                self.urlscan_client,
+                self.abuseipdb_client,
+            ])
+            if not has_any_client:
+                logger.warning("URL reputation skipped: no API clients configured")
+                return AnalyzerResult(
+                    analyzer_name=analyzer_name,
+                    risk_score=0.0,
+                    confidence=0.0,
+                    details={"message": "no_clients_configured"},
+                )
+
+            configured = []
+            if self.virustotal_client:
+                configured.append("virustotal")
+            if self.safe_browsing_client:
+                configured.append("safe_browsing")
+            if self.urlscan_client:
+                configured.append("urlscan")
+            if self.abuseipdb_client:
+                configured.append("abuseipdb")
+            logger.info(f"URL reputation checking with services: {', '.join(configured)}")
+
             # Cap to 5 URLs — urlscan polling is slow; checking more degrades latency
             urls_to_check = urls[:5]
 

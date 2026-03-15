@@ -28,7 +28,8 @@
     .status-pill.stopped { background: #1f0000; color: #f87171; border: 1px solid #991b1b; }
     .status-pill.unconfigured { background: #1c1400; color: #fbbf24; border: 1px solid #78350f; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-    .dot.pulse { animation: pulse 2s infinite; }
+    .dot.pulse { -webkit-animation: pulse 2s infinite; animation: pulse 2s infinite; }
+    @-webkit-keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
     /* Stats row */
@@ -78,18 +79,54 @@
     .from-cell { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .subj-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* Unconfigured notice */
-    .notice {
-      background: #1c1400; border: 1px solid #78350f; border-radius: 10px;
-      padding: 24px 28px; color: #fbbf24; font-size: 14px; line-height: 1.7;
-    }
-    .notice h3 { font-size: 16px; margin-bottom: 8px; }
-    .notice code { background: #0f1117; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-
     .refresh-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 13px; color: #475569; }
     .btn-sm { padding: 6px 14px; background: #2d3148; color: #94a3b8; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
     .btn-sm:hover { background: #363b55; color: #e2e8f0; }
     #last-refresh { font-size: 12px; color: #4c4f6b; }
+
+    /* ── Account panel ── */
+    .acct-panel {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px;
+      padding: 20px 24px; margin-bottom: 28px;
+    }
+    .acct-panel-header {
+      display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+    }
+    .acct-panel-header h3 { font-size: 15px; font-weight: 700; }
+    .acct-toggle { background: none; border: 1px solid #2d3148; color: #94a3b8; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .acct-toggle:hover { background: #2d3148; color: #e2e8f0; }
+    .acct-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .acct-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #0f1117; border: 1px solid #2d3148; border-radius: 8px;
+      padding: 6px 12px; font-size: 13px;
+    }
+    .acct-badge .x { cursor: pointer; color: #f87171; font-size: 14px; font-weight: bold; margin-left: 4px; }
+    .acct-badge .x:hover { color: #ef4444; }
+    .acct-add-form { display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #2d3148; }
+    .acct-add-form.open { display: block; }
+    .acct-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .acct-field { display: flex; flex-direction: column; gap: 4px; }
+    .acct-field label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .3px; }
+    .acct-field input {
+      padding: 9px 12px; background: #0f1117; border: 1px solid #2d3148; border-radius: 6px;
+      color: #e2e8f0; font-size: 14px; outline: none; -webkit-transition: border-color .2s; transition: border-color .2s;
+    }
+    .acct-field input:focus { border-color: #7c3aed; }
+    .acct-field input::placeholder { color: #3b3f57; }
+    .acct-connect-btn {
+      padding: 9px 20px; background: #7c3aed; color: #fff; border: none; border-radius: 6px;
+      font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      -webkit-transition: background .2s; transition: background .2s;
+    }
+    .acct-connect-btn:hover:not(:disabled) { background: #6d28d9; }
+    .acct-connect-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .acct-helper { font-size: 11px; color: #4c4f6b; margin-top: 8px; line-height: 1.5; }
+    .acct-helper a { color: #7c3aed; }
+    .acct-msg { font-size: 13px; margin-top: 10px; padding: 8px 12px; border-radius: 6px; display: none; }
+    .acct-msg.ok { background: #052e16; border: 1px solid #166534; color: #4ade80; display: block; }
+    .acct-msg.err { background: #1f0000; border: 1px solid #991b1b; color: #f87171; display: block; }
+    .no-accounts { color: #4c4f6b; font-size: 13px; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -112,20 +149,35 @@
     <div id="status-pill" class="status-pill stopped"><span class="dot"></span> <span id="status-text">Loading…</span></div>
   </div>
 
-  <!-- unconfigured notice (hidden when running) -->
-  <div id="unconfigured-notice" class="notice" style="display:none; margin-bottom:28px;">
-    <h3>IMAP not configured</h3>
-    Add these to your <code>.env</code> file to enable automatic inbox monitoring:
-    <pre style="margin-top:10px;font-size:12px;color:#cbd5e1;">
-IMAP_HOST=imap.gmail.com
-IMAP_PORT=993
-IMAP_USER=you@example.com
-IMAP_PASSWORD=your-app-password
-IMAP_FOLDER=INBOX
-IMAP_QUARANTINE_FOLDER=Quarantine</pre>
-    Then restart the server. The monitor will poll your inbox every 60 seconds,
-    run each new email through the detection pipeline, and move flagged emails
-    to the quarantine folder automatically.
+  <!-- Account Management Panel -->
+  <div class="acct-panel">
+    <div class="acct-panel-header" onclick="toggleAddForm()">
+      <h3>Connected Accounts <span id="acct-count" style="color:#4c4f6b;font-weight:400"></span></h3>
+      <button class="acct-toggle" id="acct-toggle-btn">+ Add Email</button>
+    </div>
+    <div class="acct-badges" id="acct-badges">
+      <span class="no-accounts" id="no-accounts">No accounts connected</span>
+    </div>
+    <div class="acct-add-form" id="acct-add-form">
+      <div class="acct-row">
+        <div class="acct-field" style="flex:2">
+          <label>Email Address</label>
+          <input type="email" id="add-email" placeholder="you@gmail.com" />
+        </div>
+        <div class="acct-field" style="flex:2">
+          <label>App Password</label>
+          <input type="password" id="add-password" placeholder="App-specific password" />
+        </div>
+        <button class="acct-connect-btn" id="add-btn" onclick="addAccount()">Connect</button>
+      </div>
+      <div class="acct-helper">
+        Works with any email. Use an app password:
+        <a href="https://myaccount.google.com/apppasswords" target="_blank">Gmail</a> ·
+        <a href="https://account.live.com/proofs/AppPassword" target="_blank">Outlook</a> ·
+        <a href="https://login.yahoo.com/account/security/app-passwords" target="_blank">Yahoo</a>
+      </div>
+      <div class="acct-msg" id="acct-msg"></div>
+    </div>
   </div>
 
   <!-- Stats -->
@@ -190,15 +242,132 @@ IMAP_QUARANTINE_FOLDER=Quarantine</pre>
 </div>
 
 <script>
-  let currentTab = 'live';
+  var currentTab = 'live';
+
+  // ── IMAP auto-detection ────────────────────────────────────────────
+  var IMAP_SERVERS = {
+    'gmail.com': 'imap.gmail.com', 'googlemail.com': 'imap.gmail.com',
+    'outlook.com': 'outlook.office365.com', 'hotmail.com': 'outlook.office365.com',
+    'live.com': 'outlook.office365.com', 'msn.com': 'outlook.office365.com',
+    'yahoo.com': 'imap.mail.yahoo.com', 'ymail.com': 'imap.mail.yahoo.com',
+    'aol.com': 'imap.aol.com', 'zoho.com': 'imap.zoho.com',
+    'fastmail.com': 'imap.fastmail.com',
+    'icloud.com': 'imap.mail.me.com', 'me.com': 'imap.mail.me.com',
+    'mail.com': 'imap.mail.com', 'gmx.com': 'imap.gmx.com',
+    'yandex.com': 'imap.yandex.com', 'mail.ru': 'imap.mail.ru',
+    'comcast.net': 'imap.comcast.net', 'att.net': 'imap.mail.att.net',
+    'protonmail.com': '127.0.0.1', 'proton.me': '127.0.0.1',
+  };
+
+  function detectIMAPHost(email) {
+    var at = email.indexOf('@');
+    if (at < 0) return '';
+    var domain = email.substring(at + 1).toLowerCase();
+    return IMAP_SERVERS[domain] || ('imap.' + domain);
+  }
+
+  // ── Account panel ──────────────────────────────────────────────────
+  function toggleAddForm() {
+    document.getElementById('acct-add-form').classList.toggle('open');
+  }
+
+  async function loadAccounts() {
+    try {
+      var r = await fetch('/api/accounts');
+      var data = await r.json();
+      var accounts = data.accounts || data || [];
+      renderAccountBadges(accounts);
+    } catch(e) {}
+  }
+
+  function renderAccountBadges(accounts) {
+    var el = document.getElementById('acct-badges');
+    var countEl = document.getElementById('acct-count');
+    var noEl = document.getElementById('no-accounts');
+
+    if (!accounts || !accounts.length) {
+      el.innerHTML = '<span class="no-accounts">No accounts connected — click "+ Add Email" above</span>';
+      countEl.textContent = '';
+      return;
+    }
+    countEl.textContent = '(' + accounts.length + ')';
+    el.innerHTML = accounts.map(function(a) {
+      var email = a.email || a.user || 'unknown';
+      return '<span class="acct-badge">' +
+        '&#9993; ' + esc(email) +
+        '<span class="x" onclick="removeAcct(\'' + esc(email) + '\')">&times;</span>' +
+      '</span>';
+    }).join('');
+  }
+
+  async function addAccount() {
+    var email = document.getElementById('add-email').value.trim();
+    var password = document.getElementById('add-password').value;
+    if (!email || !password) { showAcctMsg('err', 'Enter email and app password'); return; }
+
+    var host = detectIMAPHost(email);
+    var port = (host === '127.0.0.1') ? 1143 : 993;
+
+    document.getElementById('add-btn').disabled = true;
+    document.getElementById('add-btn').textContent = 'Connecting...';
+
+    try {
+      var r = await fetch('/api/accounts/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'imap', host: host, port: port, user: email, password: password, folder: 'INBOX' }),
+      });
+      var data = await r.json();
+      if (r.ok && data.status === 'added') {
+        showAcctMsg('ok', 'Connected ' + email);
+        document.getElementById('add-email').value = '';
+        document.getElementById('add-password').value = '';
+        loadAccounts();
+        // Reload stats to pick up new monitor state
+        setTimeout(loadAll, 1000);
+      } else {
+        showAcctMsg('err', data.detail || 'Failed to connect');
+      }
+    } catch(e) {
+      showAcctMsg('err', e.message);
+    }
+
+    document.getElementById('add-btn').disabled = false;
+    document.getElementById('add-btn').textContent = 'Connect';
+  }
+
+  async function removeAcct(email) {
+    if (!confirm('Remove ' + email + '?')) return;
+    try {
+      var r = await fetch('/api/accounts/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email }),
+      });
+      if (r.ok) { loadAccounts(); setTimeout(loadAll, 1000); }
+    } catch(e) {}
+  }
+
+  function showAcctMsg(type, text) {
+    var el = document.getElementById('acct-msg');
+    el.className = 'acct-msg ' + type;
+    el.textContent = text;
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 6000);
+  }
+
+  // Allow Enter to submit
+  document.getElementById('add-password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addAccount();
+  });
 
   function switchTab(name) {
     currentTab = name;
-    document.querySelectorAll('.tab').forEach((t, i) => {
-      const names = ['live','alerts','log'];
+    document.querySelectorAll('.tab').forEach(function(t, i) {
+      var names = ['live','alerts','log'];
       t.classList.toggle('active', names[i] === name);
     });
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
     document.getElementById('tab-' + name).classList.add('active');
   }
 
@@ -210,37 +379,34 @@ IMAP_QUARANTINE_FOLDER=Quarantine</pre>
 
   async function loadStats() {
     try {
-      const r = await fetch('/api/monitor/stats');
-      const d = await r.json();
+      var r = await fetch('/api/monitor/stats');
+      var d = await r.json();
 
       // Status pill
-      const pill = document.getElementById('status-pill');
-      const txt  = document.getElementById('status-text');
-      if (!d.imap_configured) {
-        pill.className = 'status-pill unconfigured';
-        txt.textContent = 'IMAP not configured';
-        document.getElementById('unconfigured-notice').style.display = '';
-      } else if (d.running) {
+      var pill = document.getElementById('status-pill');
+      var txt  = document.getElementById('status-text');
+      if (d.running) {
         pill.className = 'status-pill running';
         txt.textContent = 'Running';
-        document.getElementById('unconfigured-notice').style.display = 'none';
         document.querySelector('.dot').classList.add('pulse');
+      } else if (d.imap_configured === false && (!d.stats || !d.stats.accounts)) {
+        pill.className = 'status-pill unconfigured';
+        txt.textContent = 'No accounts';
       } else {
         pill.className = 'status-pill stopped';
         txt.textContent = 'Stopped';
-        document.getElementById('unconfigured-notice').style.display = 'none';
       }
 
       // Stats
-      const s = d.stats || {};
-      set('s-processed',   s.emails_processed ?? '—');
-      set('s-phishing',    s.phishing_detected ?? '—');
-      set('s-quarantined', s.quarantined ?? '—');
-      set('s-errors',      s.errors ?? '—');
+      var s = d.stats || {};
+      set('s-processed',   s.emails_processed != null ? s.emails_processed : '—');
+      set('s-phishing',    s.phishing_detected != null ? s.phishing_detected : '—');
+      set('s-quarantined', s.quarantined != null ? s.quarantined : '—');
+      set('s-errors',      s.errors != null ? s.errors : '—');
       set('s-last-poll',   s.last_poll ? fmtTime(s.last_poll) : '—');
 
       // Live table
-      const rows = d.recent || [];
+      var rows = d.recent || [];
       renderLive(rows);
 
     } catch(e) { console.error('stats error', e); }
@@ -319,6 +485,7 @@ IMAP_QUARANTINE_FOLDER=Quarantine</pre>
   }
 
   // ── Init ──────────────────────────────────────────────────────────
+  loadAccounts();
   loadAll();
   setInterval(loadAll, 15000);
 </script>

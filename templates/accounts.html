@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accounts — PhishDetect</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+    nav {
+      background: #1a1d27; border-bottom: 1px solid #2d3148;
+      padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 24px;
+    }
+    nav .logo { font-size: 17px; font-weight: 700; color: #a78bfa; text-decoration: none; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 14px; padding: 6px 12px; border-radius: 6px; -webkit-transition: background .2s, color .2s; transition: background .2s, color .2s; }
+    nav a:hover, nav a.active { background: #2d3148; color: #e2e8f0; }
+
+    .page { max-width: 560px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 36px; line-height: 1.5; }
+
+    /* ── Account Cards ── */
+    .accounts-list { margin-bottom: 36px; }
+    .acct-card {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .acct-icon {
+      width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center;
+      justify-content: center; font-size: 16px; flex-shrink: 0;
+      background: #1e3a2f; color: #4ade80;
+    }
+    .acct-info { flex: 1; }
+    .acct-email { font-size: 15px; font-weight: 500; }
+    .acct-server { font-size: 12px; color: #4c4f6b; margin-top: 2px; }
+    .remove-btn {
+      background: none; border: 1px solid #3f1515; color: #f87171; padding: 5px 12px;
+      border-radius: 6px; font-size: 12px; cursor: pointer; -webkit-transition: background .2s; transition: background .2s;
+    }
+    .remove-btn:hover { background: #1f0000; }
+    .empty-state { color: #4c4f6b; font-size: 14px; text-align: center; padding: 32px; }
+
+    /* ── Add Account Form ── */
+    .add-section {
+      background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px;
+      padding: 28px;
+    }
+    .add-section h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .add-section .hint { font-size: 13px; color: #4c4f6b; margin-bottom: 24px; line-height: 1.5; }
+
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
+    .field input {
+      width: 100%; padding: 12px 14px; background: #0f1117; border: 1px solid #2d3148;
+      border-radius: 8px; color: #e2e8f0; font-size: 15px; outline: none;
+      -webkit-transition: border-color .2s; transition: border-color .2s;
+    }
+    .field input:focus { border-color: #7c3aed; }
+    .field input::placeholder { color: #3b3f57; }
+    .field .helper { font-size: 12px; color: #4c4f6b; margin-top: 6px; line-height: 1.5; }
+    .field .helper a { color: #7c3aed; }
+
+    .connect-btn {
+      width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 700;
+      cursor: pointer; border: none; background: #7c3aed; color: #fff;
+      -webkit-transition: background .2s; transition: background .2s;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .connect-btn:hover:not(:disabled) { background: #6d28d9; }
+    .connect-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; -webkit-animation: spin .6s linear infinite; animation: spin .6s linear infinite; display: none; }
+    @-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); transform: rotate(360deg); } }
+    @keyframes spin { to { -webkit-transform: rotate(360deg); transform: rotate(360deg); } }
+
+    .msg { padding: 14px 18px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; display: none; line-height: 1.5; }
+    .msg.success { background: #052e16; border: 1px solid #166534; color: #4ade80; display: block; }
+    .msg.error { background: #1f0000; border: 1px solid #991b1b; color: #f87171; display: block; }
+
+    .advanced-toggle {
+      font-size: 13px; color: #4c4f6b; cursor: pointer; margin-top: 18px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .advanced-toggle:hover { color: #94a3b8; }
+    .advanced-fields { display: none; margin-top: 14px; }
+    .advanced-fields.open { display: block; }
+    .advanced-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="/">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    PhishDetect
+  </a>
+  <a href="/">Analyze</a>
+  <a href="/dashboard">Dashboard</a>
+  <a href="/monitor">Monitor</a>
+  <a href="/accounts" class="active">Accounts</a>
+  <a href="/status">API Status</a>
+</nav>
+
+<div class="page">
+  <h1>Email Accounts</h1>
+  <p class="subtitle">Connect your email to automatically scan every incoming message for phishing.</p>
+
+  <div id="msg" class="msg"></div>
+
+  <!-- Current accounts -->
+  <div class="accounts-list" id="accounts-list">
+    <div class="empty-state">Loading...</div>
+  </div>
+
+  <!-- Add account — single simple form -->
+  <div class="add-section">
+    <h2>Connect an Email</h2>
+    <p class="hint">Works with Gmail, Outlook, Yahoo, Zoho, ProtonMail, or any email provider.</p>
+
+    <div class="field">
+      <label>Email Address</label>
+      <input type="email" id="email" placeholder="you@gmail.com" autocomplete="email" />
+    </div>
+
+    <div class="field">
+      <label>App Password</label>
+      <input type="password" id="password" placeholder="Your app-specific password" autocomplete="current-password" />
+      <div class="helper" id="password-helper">
+        For <strong>Gmail</strong>: create one at <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a><br>
+        For <strong>Outlook</strong>: use your regular password or <a href="https://account.live.com/proofs/AppPassword" target="_blank">create an app password</a><br>
+        For <strong>Yahoo</strong>: <a href="https://login.yahoo.com/account/security/app-passwords" target="_blank">generate an app password</a>
+      </div>
+    </div>
+
+    <div class="advanced-toggle" onclick="toggleAdvanced()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      Advanced settings
+    </div>
+    <div class="advanced-fields" id="advanced-fields">
+      <div class="advanced-row">
+        <div class="field">
+          <label>IMAP Server (auto-detected)</label>
+          <input type="text" id="imap-host" placeholder="Auto-detected from email" />
+        </div>
+        <div class="field">
+          <label>Port</label>
+          <input type="number" id="imap-port" value="993" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Folder</label>
+        <input type="text" id="imap-folder" value="INBOX" />
+      </div>
+    </div>
+
+    <button class="connect-btn" id="connect-btn" onclick="connectAccount()">
+      <span id="btn-text">Connect Email</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+  </div>
+</div>
+
+<script>
+  // ── IMAP server auto-detection map ────────────────────────────────
+  var IMAP_SERVERS = {
+    'gmail.com':        { host: 'imap.gmail.com',           port: 993 },
+    'googlemail.com':   { host: 'imap.gmail.com',           port: 993 },
+    'outlook.com':      { host: 'outlook.office365.com',    port: 993 },
+    'hotmail.com':      { host: 'outlook.office365.com',    port: 993 },
+    'live.com':         { host: 'outlook.office365.com',    port: 993 },
+    'msn.com':          { host: 'outlook.office365.com',    port: 993 },
+    'yahoo.com':        { host: 'imap.mail.yahoo.com',      port: 993 },
+    'ymail.com':        { host: 'imap.mail.yahoo.com',      port: 993 },
+    'aol.com':          { host: 'imap.aol.com',             port: 993 },
+    'zoho.com':         { host: 'imap.zoho.com',            port: 993 },
+    'protonmail.com':   { host: '127.0.0.1',                port: 1143 },
+    'proton.me':        { host: '127.0.0.1',                port: 1143 },
+    'fastmail.com':     { host: 'imap.fastmail.com',        port: 993 },
+    'icloud.com':       { host: 'imap.mail.me.com',         port: 993 },
+    'me.com':           { host: 'imap.mail.me.com',         port: 993 },
+    'mac.com':          { host: 'imap.mail.me.com',         port: 993 },
+    'mail.com':         { host: 'imap.mail.com',            port: 993 },
+    'gmx.com':          { host: 'imap.gmx.com',             port: 993 },
+    'gmx.net':          { host: 'imap.gmx.net',             port: 993 },
+    'yandex.com':       { host: 'imap.yandex.com',          port: 993 },
+    'yandex.ru':        { host: 'imap.yandex.com',          port: 993 },
+    'mail.ru':          { host: 'imap.mail.ru',             port: 993 },
+    'comcast.net':      { host: 'imap.comcast.net',         port: 993 },
+    'att.net':          { host: 'imap.mail.att.net',        port: 993 },
+    'verizon.net':      { host: 'incoming.verizon.net',     port: 993 },
+    'cox.net':          { host: 'imap.cox.net',             port: 993 },
+  };
+
+  // Auto-detect IMAP server when email changes
+  document.getElementById('email').addEventListener('input', function() {
+    var email = this.value.trim();
+    var at = email.indexOf('@');
+    if (at < 0) return;
+    var domain = email.substring(at + 1).toLowerCase();
+    var server = IMAP_SERVERS[domain];
+    if (server) {
+      document.getElementById('imap-host').value = server.host;
+      document.getElementById('imap-port').value = server.port;
+      document.getElementById('imap-host').placeholder = server.host + ' (auto-detected)';
+    } else {
+      document.getElementById('imap-host').value = '';
+      document.getElementById('imap-host').placeholder = 'imap.' + domain;
+    }
+  });
+
+  function toggleAdvanced() {
+    var el = document.getElementById('advanced-fields');
+    el.classList.toggle('open');
+  }
+
+  // ── Load accounts ────────────────────────────────────────────────
+  async function loadAccounts() {
+    try {
+      var r = await fetch('/api/accounts');
+      var data = await r.json();
+      var accounts = data.accounts || data || [];
+      renderAccounts(accounts);
+    } catch (e) {
+      document.getElementById('accounts-list').innerHTML =
+        '<div class="empty-state">Could not load accounts</div>';
+    }
+  }
+
+  function renderAccounts(accounts) {
+    var el = document.getElementById('accounts-list');
+    if (!accounts || !accounts.length) {
+      el.innerHTML = '<div class="empty-state">No accounts connected yet.</div>';
+      return;
+    }
+    el.innerHTML = accounts.map(function(a) {
+      var email = a.email || a.user || 'Unknown';
+      var host = a.host || '';
+      return '<div class="acct-card">' +
+        '<div class="acct-icon">&#9993;</div>' +
+        '<div class="acct-info">' +
+          '<div class="acct-email">' + esc(email) + '</div>' +
+          (host ? '<div class="acct-server">' + esc(host) + '</div>' : '') +
+        '</div>' +
+        '<button class="remove-btn" onclick="removeAccount(\'' + esc(email) + '\')">Remove</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ── Connect ──────────────────────────────────────────────────────
+  async function connectAccount() {
+    var email = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+
+    if (!email || !password) {
+      showMsg('error', 'Enter your email address and app password.');
+      return;
+    }
+
+    // Auto-detect or use manual IMAP server
+    var host = document.getElementById('imap-host').value.trim();
+    var port = parseInt(document.getElementById('imap-port').value) || 993;
+    var folder = document.getElementById('imap-folder').value.trim() || 'INBOX';
+
+    if (!host) {
+      var at = email.indexOf('@');
+      var domain = at >= 0 ? email.substring(at + 1).toLowerCase() : '';
+      var server = IMAP_SERVERS[domain];
+      if (server) {
+        host = server.host;
+        port = server.port;
+      } else {
+        host = 'imap.' + domain;
+      }
+    }
+
+    setLoading(true);
+
+    try {
+      var r = await fetch('/api/accounts/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'imap',
+          host: host,
+          port: port,
+          user: email,
+          password: password,
+          folder: folder,
+        }),
+      });
+      var data = await r.json();
+
+      if (r.ok && data.status === 'added') {
+        showMsg('success', 'Connected ' + email + ' successfully!');
+        document.getElementById('email').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('imap-host').value = '';
+        loadAccounts();
+      } else {
+        showMsg('error', data.detail || data.error || 'Failed to connect. Check your credentials.');
+      }
+    } catch (e) {
+      showMsg('error', 'Connection error: ' + e.message);
+    }
+
+    setLoading(false);
+  }
+
+  // ── Remove ───────────────────────────────────────────────────────
+  async function removeAccount(email) {
+    if (!confirm('Remove ' + email + '?')) return;
+
+    try {
+      var r = await fetch('/api/accounts/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email }),
+      });
+      var data = await r.json();
+      if (r.ok) {
+        showMsg('success', 'Removed ' + email);
+        loadAccounts();
+      } else {
+        showMsg('error', data.detail || 'Failed to remove');
+      }
+    } catch (e) {
+      showMsg('error', e.message);
+    }
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  function setLoading(on) {
+    var btn = document.getElementById('connect-btn');
+    var txt = document.getElementById('btn-text');
+    var spin = document.getElementById('spinner');
+    btn.disabled = on;
+    txt.textContent = on ? 'Connecting...' : 'Connect Email';
+    spin.style.display = on ? 'inline-block' : 'none';
+  }
+
+  function showMsg(type, text) {
+    var el = document.getElementById('msg');
+    el.className = 'msg ' + type;
+    el.textContent = text;
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 8000);
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Allow Enter key to submit
+  document.getElementById('password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') connectAccount();
+  });
+
+  // Init
+  loadAccounts();
+</script>
+</body>
+</html>

@@ -468,11 +468,22 @@ class PhishingPipeline:
                 # the analyzer couldn't run, e.g. missing API key). Including
                 # them with score=0 would artificially drag the average down.
                 if result.confidence == 0.0:
+                    # Determine the actual reason for zero confidence
+                    skip_reason = getattr(result, "skip_reason", None)
+                    if not skip_reason:
+                        # Infer reason from details
+                        details = result.details or {}
+                        if details.get("message") == "not_implemented":
+                            skip_reason = "not implemented yet"
+                        elif details.get("message") == "no_clients_configured":
+                            skip_reason = "no API key configured"
+                        else:
+                            skip_reason = "no data returned from services"
                     self.logger.debug(
-                        f"Skipping {analyzer_name} in scoring (confidence=0, no data)"
+                        f"Skipping {analyzer_name} in scoring (confidence=0: {skip_reason})"
                     )
                     analyzer_details.append(
-                        f"{analyzer_name}: skipped (no API key / no data)"
+                        f"{analyzer_name}: skipped ({skip_reason})"
                     )
                     continue
 
@@ -552,7 +563,9 @@ class PhishingPipeline:
                 analyzer = DomainIntelAnalyzer(whois_client=WhoisClient())
             elif name == "url_detonation":
                 from src.analyzers.url_detonator import URLDetonationAnalyzer
-                # browser_client requires a Playwright-based browser; no implementation yet
+                # browser_client requires a Playwright-based browser; not implemented yet.
+                # Return a stub analyzer that clearly reports "not implemented"
+                # rather than misleadingly saying "no API key".
                 analyzer = URLDetonationAnalyzer(browser_client=None)
             elif name == "brand_impersonation":
                 from src.analyzers.brand_impersonation import BrandImpersonationAnalyzer

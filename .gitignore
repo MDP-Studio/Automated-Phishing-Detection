@@ -57,6 +57,13 @@ data/alerts.jsonl
 data/feedback.db
 data/sender_profiles.db
 
+# ===== Account Credentials & Tokens =====
+data/accounts.json
+data/gmail_token.json
+data/outlook_token.json
+data/*_token.json
+credentials.json
+
 # ===== Docker =====
 docker-compose.override.yml
 

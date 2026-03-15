@@ -15,7 +15,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.responses import HTMLResponse
 from uvicorn import run
 
@@ -250,7 +250,6 @@ class PhishingDetectionApp:
                 "imap": {
                     "configured":         bool(self.config.imap.user and self.config.imap.password),
                     "host":               self.config.imap.host if self.config.imap.user else None,
-                    "user":               self.config.imap.user or None,
                     "folder":             self.config.imap.folder,
                     "quarantine_folder":  self.config.imap.quarantine_folder,
                     "poll_interval":      self.config.imap.poll_interval_seconds,
@@ -328,6 +327,121 @@ class PhishingDetectionApp:
                     pass
             return {"alerts": alerts}
 
+        # ── Account management routes ─────────────────────────────
+        @app.get("/accounts", response_class=HTMLResponse)
+        async def accounts_page():
+            """Serve the account management page."""
+            accounts_path = Path("./templates/accounts.html")
+            return HTMLResponse(content=accounts_path.read_text(encoding="utf-8"))
+
+        @app.get("/api/accounts")
+        async def api_list_accounts():
+            """List all configured email accounts (passwords masked)."""
+            from src.automation.multi_account_monitor import list_accounts
+            accounts = list_accounts()
+            return {"accounts": accounts}
+
+        @app.post("/api/accounts/add")
+        async def api_add_account(request: Request):
+            """
+            Add a new email account.
+
+            Expects JSON body with:
+            - type: "gmail" | "outlook" | "imap"
+            - For gmail: credentials (JSON object from Google Cloud Console)
+            - For outlook: client_id
+            - For imap: host, port, user, password
+            """
+            import json as _json
+            from src.automation.multi_account_monitor import add_account_to_file
+
+            payload = await request.json()
+            acct_type = payload.get("type", "").lower()
+
+            if acct_type == "gmail":
+                credentials = payload.get("credentials")
+                if not credentials:
+                    raise HTTPException(status_code=400, detail="Gmail credentials JSON required")
+
+                # Save credentials to a temp file for the OAuth flow
+                creds_path = f"data/gmail_creds_{len(list_accounts_helper())}.json"
+                Path(creds_path).parent.mkdir(parents=True, exist_ok=True)
+                with open(creds_path, "w") as f:
+                    if isinstance(credentials, str):
+                        f.write(credentials)
+                    else:
+                        _json.dump(credentials, f)
+
+                token_path = f"data/gmail_token_{len(list_accounts_helper())}.json"
+
+                add_account_to_file({
+                    "type": "gmail",
+                    "email": payload.get("email", ""),
+                    "credentials_path": creds_path,
+                    "token_path": token_path,
+                })
+                return {
+                    "status": "added",
+                    "type": "gmail",
+                    "note": "OAuth authentication needed. Run 'python main.py add-account gmail' to complete auth flow, or authenticate via the Gmail provider on first monitor start.",
+                }
+
+            elif acct_type == "outlook":
+                client_id = payload.get("client_id", "").strip()
+                if not client_id:
+                    raise HTTPException(status_code=400, detail="Outlook client_id required")
+
+                token_path = f"data/outlook_token_{len(list_accounts_helper())}.json"
+
+                add_account_to_file({
+                    "type": "outlook",
+                    "email": payload.get("email", ""),
+                    "client_id": client_id,
+                    "token_path": token_path,
+                })
+                return {
+                    "status": "added",
+                    "type": "outlook",
+                    "note": "Device code authentication needed on first monitor start.",
+                }
+
+            elif acct_type == "imap":
+                host = payload.get("host", "").strip()
+                user = payload.get("user", "").strip()
+                password = payload.get("password", "")
+                port = int(payload.get("port", 993))
+
+                if not all([host, user, password]):
+                    raise HTTPException(status_code=400, detail="IMAP requires host, user, and password")
+
+                add_account_to_file({
+                    "type": "imap",
+                    "host": host,
+                    "port": port,
+                    "user": user,
+                    "password": password,
+                    "folder": payload.get("folder", "INBOX"),
+                })
+                return {"status": "added", "type": "imap", "email": user}
+
+            else:
+                raise HTTPException(status_code=400, detail=f"Unknown account type: {acct_type}")
+
+        @app.post("/api/accounts/remove")
+        async def api_remove_account(request: Request):
+            """Remove an account by email or type."""
+            from src.automation.multi_account_monitor import remove_account_from_file
+            payload = await request.json()
+            email_or_type = payload.get("email") or payload.get("identifier", "")
+            if not email_or_type:
+                raise HTTPException(status_code=400, detail="email or identifier required")
+            remove_account_from_file(email_or_type)
+            return {"status": "removed", "identifier": email_or_type}
+
+        def list_accounts_helper():
+            from src.automation.multi_account_monitor import list_accounts
+            return list_accounts()
+
         # Include dashboard routes
         app.include_router(self.dashboard.router)
 
@@ -346,25 +460,42 @@ class PhishingDetectionApp:
 
         app = self.create_fastapi_app()
 
-        # Start IMAP monitor in background if credentials are configured
-        if self.config.imap.user and self.config.imap.password:
-            from src.automation.email_monitor import EmailMonitor
+        # Start monitor in background — uses MultiAccountMonitor if accounts.json
+        # exists, falls back to legacy IMAP monitor if IMAP env vars are set
+        from src.automation.multi_account_monitor import MultiAccountMonitor, load_providers_from_file
 
-            @app.on_event("startup")
-            async def start_monitor():
-                self._monitor = EmailMonitor.from_config(self.config)
-                asyncio.create_task(self._monitor.run())
-                logger.info(
-                    f"IMAP monitor started: {self.config.imap.user}@"
-                    f"{self.config.imap.host} → quarantine='{self.config.imap.quarantine_folder}'"
-                )
+        @app.on_event("startup")
+        async def start_monitor():
+            try:
+                monitor = MultiAccountMonitor.from_config(self.config)
+                if monitor.providers:
+                    self._monitor = monitor
+                    asyncio.create_task(monitor.run())
+                    accounts = [p.account_id for p in monitor.providers]
+                    logger.info(
+                        f"Multi-account monitor started: {len(accounts)} account(s) "
+                        f"[{', '.join(accounts)}]"
+                    )
+                elif self.config.imap.user and self.config.imap.password:
+                    from src.automation.email_monitor import EmailMonitor
+                    self._monitor = EmailMonitor.from_config(self.config)
+                    asyncio.create_task(self._monitor.run())
+                    logger.info(
+                        f"IMAP monitor started: {self.config.imap.user}@"
+                        f"{self.config.imap.host} → quarantine='{self.config.imap.quarantine_folder}'"
+                    )
+                else:
+                    logger.info(
+                        "No email accounts configured — monitor inactive. "
+                        "Add accounts at /accounts or set IMAP env vars."
+                    )
+            except Exception as e:
+                logger.error(f"Failed to start monitor: {e}", exc_info=True)
 
-            @app.on_event("shutdown")
-            async def stop_monitor():
-                if self._monitor:
-                    self._monitor.stop()
-        else:
-            logger.info("IMAP not configured — monitor inactive (set IMAP_HOST, IMAP_USER, IMAP_PASSWORD)")
+        @app.on_event("shutdown")
+        async def stop_monitor():
+            if self._monitor:
+                self._monitor.stop()
 
         logger.info(f"Starting server on {host}:{port}")
         logger.info(f"Dashboard: http://{host}:{port}/dashboard")
@@ -379,41 +510,217 @@ class PhishingDetectionApp:
         )
 
 
+def _cmd_add_account(args):
+    """Interactive guided flow to add an email account."""
+    import json
+    from src.automation.multi_account_monitor import add_account_to_file
+
+    acct_type = args.type
+
+    print(f"\n{'='*50}")
+    print(f"  Add {acct_type.upper()} Account")
+    print(f"{'='*50}\n")
+
+    if acct_type == "gmail":
+        print("Step 1: Go to https://console.cloud.google.com")
+        print("Step 2: Enable the Gmail API")
+        print("Step 3: Create OAuth 2.0 Client ID (Desktop app)")
+        print("Step 4: Download the credentials JSON file")
+        print()
+
+        creds_path = input("Path to credentials.json [credentials.json]: ").strip() or "credentials.json"
+        if not Path(creds_path).exists():
+            print(f"\n  Error: {creds_path} not found.")
+            print("  Download it from Google Cloud Console first.\n")
+            sys.exit(1)
+
+        token_path = f"data/gmail_token_{len(_list_accounts())}.json"
+
+        # Authenticate immediately
+        from src.ingestion.gmail_provider import GmailProvider
+        provider = GmailProvider(credentials_path=creds_path, token_path=token_path)
+        print("\nOpening browser for Google sign-in...")
+        if not provider.authenticate():
+            print("\n  Authentication failed. Please try again.\n")
+            sys.exit(1)
+
+        add_account_to_file({
+            "type": "gmail",
+            "email": provider.account_id,
+            "credentials_path": creds_path,
+            "token_path": token_path,
+        })
+        print(f"\n  Added: {provider.account_id} (Gmail)")
+        print(f"  Token saved to: {token_path}\n")
+
+    elif acct_type == "outlook":
+        print("Step 1: Go to https://portal.azure.com → App Registrations")
+        print("Step 2: Register new app (redirect: http://localhost)")
+        print("Step 3: Add API permissions: Mail.Read, Mail.ReadWrite")
+        print("Step 4: Copy the Application (client) ID")
+        print()
+
+        client_id = args.client_id or input("Application (client) ID: ").strip()
+        if not client_id:
+            print("\n  Error: Client ID required.\n")
+            sys.exit(1)
+
+        token_path = f"data/outlook_token_{len(_list_accounts())}.json"
+
+        from src.ingestion.outlook_provider import OutlookProvider
+        provider = OutlookProvider(client_id=client_id, token_path=token_path)
+        print("\nFollow the device code flow to sign in...")
+        if not provider.authenticate():
+            print("\n  Authentication failed. Please try again.\n")
+            sys.exit(1)
+
+        add_account_to_file({
+            "type": "outlook",
+            "email": provider.account_id,
+            "client_id": client_id,
+            "token_path": token_path,
+        })
+        print(f"\n  Added: {provider.account_id} (Outlook)")
+
+    elif acct_type == "imap":
+        print("Works with: Yahoo, ProtonMail, Zoho, FastMail, or any IMAP server")
+        print()
+
+        host = args.host or input("IMAP server (e.g., imap.yahoo.com): ").strip()
+        port = args.port or int(input("Port [993]: ").strip() or "993")
+        user = args.user or input("Email address: ").strip()
+
+        import getpass
+        password = getpass.getpass("Password/app-password: ")
+
+        if not all([host, user, password]):
+            print("\n  Error: All fields required.\n")
+            sys.exit(1)
+
+        add_account_to_file({
+            "type": "imap",
+            "host": host,
+            "port": port,
+            "user": user,
+            "password": password,
+            "folder": "INBOX",
+        })
+        print(f"\n  Added: {user}@{host} (IMAP)")
+
+    else:
+        print(f"Unknown account type: {acct_type}")
+        print("Supported: gmail, outlook, imap")
+        sys.exit(1)
+
+    print(f"\nRun 'python main.py monitor' to start monitoring.\n")
+
+
+def _cmd_accounts(args):
+    """List or remove configured accounts."""
+    from src.automation.multi_account_monitor import list_accounts, remove_account_from_file
+
+    if args.action == "list":
+        accounts = list_accounts()
+        if not accounts:
+            print("\nNo accounts configured.")
+            print("Add one with: python main.py add-account gmail|outlook|imap\n")
+            return
+        print(f"\nConfigured accounts ({len(accounts)}):\n")
+        for i, a in enumerate(accounts, 1):
+            email = a.get("email") or a.get("user") or "unknown"
+            print(f"  {i}. [{a['type'].upper():8s}]  {email}")
+        print()
+
+    elif args.action == "remove":
+        if not args.email:
+            print("Usage: python main.py accounts remove <email-or-type>")
+            sys.exit(1)
+        remove_account_from_file(args.email)
+        print(f"Removed account matching: {args.email}")
+
+
+def _list_accounts():
+    """Helper to list accounts for internal use."""
+    from src.automation.multi_account_monitor import list_accounts
+    return list_accounts()
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Automated phishing detection system",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Analyze email from file
-  python main.py --analyze email.eml
+Quick Start:
+  1. Add an email account:
+     python main.py add-account gmail
+     python main.py add-account outlook --client-id YOUR_ID
+     python main.py add-account imap --host imap.yahoo.com --user you@yahoo.com
 
-  # Analyze and generate all reports
-  python main.py --analyze email.eml --format all
+  2. Start monitoring:
+     python main.py monitor
 
-  # Start server with dashboard
-  python main.py --serve
+  3. Or analyze a single email file:
+     python main.py analyze suspicious.eml
 
-  # Start server on custom port
-  python main.py --serve --port 9000
-
-  # Monitor inbox continuously
-  python main.py monitor
-
-  # Monitor with custom poll interval
-  python main.py monitor --interval 30
+  4. Or start the web dashboard:
+     python main.py serve
         """,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    # Analyze subcommand
-    analyze_parser = subparsers.add_parser("analyze", help="Analyze email file")
-    analyze_parser.add_argument(
-        "email_file",
-        help="Path to email file (.eml)",
+    # ── add-account ──────────────────────────────────────────────
+    add_acct = subparsers.add_parser(
+        "add-account",
+        help="Connect an email account (Gmail, Outlook, or IMAP)",
     )
+    add_acct.add_argument(
+        "type",
+        choices=["gmail", "outlook", "imap"],
+        help="Email provider type",
+    )
+    add_acct.add_argument("--host", help="IMAP server hostname")
+    add_acct.add_argument("--port", type=int, help="IMAP port (default: 993)")
+    add_acct.add_argument("--user", help="Email address / username")
+    # NOTE: --password deliberately omitted — passwords on CLI are visible
+    # in process listings (ps aux). Always use interactive getpass prompt.
+    add_acct.add_argument("--client-id", help="Azure/Outlook Application Client ID")
+
+    # ── accounts ─────────────────────────────────────────────────
+    accts = subparsers.add_parser(
+        "accounts",
+        help="List or remove configured email accounts",
+    )
+    accts.add_argument(
+        "action",
+        choices=["list", "remove"],
+        help="list = show all accounts, remove = delete an account",
+    )
+    accts.add_argument("email", nargs="?", help="Email to remove (for 'remove' action)")
+
+    # ── monitor ──────────────────────────────────────────────────
+    monitor_parser = subparsers.add_parser(
+        "monitor",
+        help="Monitor all connected accounts for phishing emails",
+    )
+    monitor_parser.add_argument(
+        "--interval",
+        type=int,
+        default=30,
+        help="Poll interval in seconds (default: 30)",
+    )
+    monitor_parser.add_argument(
+        "--accounts",
+        help="Comma-separated list of specific accounts to monitor",
+    )
+
+    # ── analyze ──────────────────────────────────────────────────
+    analyze_parser = subparsers.add_parser(
+        "analyze",
+        help="Analyze a single .eml email file",
+    )
+    analyze_parser.add_argument("email_file", help="Path to .eml file")
     analyze_parser.add_argument(
         "--format",
         choices=["json", "html", "stix", "all"],
@@ -421,81 +728,78 @@ Examples:
         help="Output format (default: json)",
     )
 
-    # Serve subcommand
-    serve_parser = subparsers.add_parser("serve", help="Start API server")
-    serve_parser.add_argument(
-        "--host",
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)",
+    # ── serve ────────────────────────────────────────────────────
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start web dashboard and API server",
     )
-    serve_parser.add_argument(
-        "--port",
-        type=int,
-        help="Port to bind to (default from config)",
-    )
+    serve_parser.add_argument("--host", default="0.0.0.0")
+    serve_parser.add_argument("--port", type=int)
 
-    # Monitor subcommand
-    monitor_parser = subparsers.add_parser(
-        "monitor",
-        help="Continuously monitor inbox for phishing emails",
-    )
-    monitor_parser.add_argument(
-        "--interval",
-        type=int,
-        help="Poll interval in seconds (default from config, usually 60)",
-    )
-
-    # Legacy: support old --analyze and --serve flags
-    parser.add_argument(
-        "--analyze",
-        metavar="EMAIL_FILE",
-        help="Path to email file to analyze (legacy flag)",
-    )
-    parser.add_argument(
-        "--serve",
-        action="store_true",
-        help="Start server mode (legacy flag)",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        help="Port for server mode",
-    )
-    parser.add_argument(
-        "--format",
-        choices=["json", "html", "stix", "all"],
-        default="json",
-        help="Output format for analysis",
-    )
+    # ── Legacy flags ─────────────────────────────────────────────
+    parser.add_argument("--analyze", metavar="EMAIL_FILE", help=argparse.SUPPRESS)
+    parser.add_argument("--serve", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--port", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--format", choices=["json", "html", "stix", "all"],
+                        default="json", help=argparse.SUPPRESS)
 
     args = parser.parse_args()
 
-    # Initialize app
-    app = PhishingDetectionApp()
+    # ── Route to handler ─────────────────────────────────────────
 
-    # Handle legacy flags
+    # Legacy flags
     if args.analyze:
+        app = PhishingDetectionApp()
         asyncio.run(app.analyze_email_file(args.analyze, args.format))
-    elif args.serve:
+        return
+    if args.serve:
+        app = PhishingDetectionApp()
         app.run_server(port=args.port)
-    # Handle new subcommands
-    elif args.command == "analyze":
-        asyncio.run(app.analyze_email_file(args.email_file, args.format))
-    elif args.command == "serve":
-        app.run_server(host=args.host, port=args.port)
+        return
+
+    # Subcommands
+    if args.command == "add-account":
+        _cmd_add_account(args)
+
+    elif args.command == "accounts":
+        _cmd_accounts(args)
+
     elif args.command == "monitor":
-        from src.automation.email_monitor import EmailMonitor
+        from src.automation.multi_account_monitor import MultiAccountMonitor
         config = PipelineConfig.from_env()
-        monitor = EmailMonitor.from_config(config)
+        monitor = MultiAccountMonitor.from_config(config)
+
         if args.interval:
             monitor.poll_interval = args.interval
+
+        if not monitor.providers:
+            print("\nNo email accounts configured yet.\n")
+            print("Add one first:")
+            print("  python main.py add-account gmail")
+            print("  python main.py add-account outlook --client-id YOUR_ID")
+            print("  python main.py add-account imap --host HOST --user USER\n")
+            sys.exit(1)
+
+        accounts = [p.account_id for p in monitor.providers]
+        print(f"\nMonitoring {len(accounts)} account(s): {', '.join(accounts)}")
+        print(f"Poll interval: {monitor.poll_interval}s")
+        print(f"Quarantine: '{monitor.quarantine_destination}'")
+        print("Press Ctrl+C to stop.\n")
+
         asyncio.run(monitor.run())
+
+    elif args.command == "analyze":
+        app = PhishingDetectionApp()
+        asyncio.run(app.analyze_email_file(args.email_file, args.format))
+
+    elif args.command == "serve":
+        app = PhishingDetectionApp()
+        app.run_server(host=args.host, port=args.port)
+
     else:
-        # No command specified
         if len(sys.argv) == 1:
             parser.print_help()
         else:
-            logger.error("Invalid command")
             parser.print_help()
             sys.exit(1)
 

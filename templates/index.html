@@ -84,9 +84,10 @@
       font-weight: 600;
       cursor: pointer;
       border: none;
+      -webkit-transition: opacity .2s, -webkit-transform .1s;
       transition: opacity .2s, transform .1s;
     }
-    .btn:active { transform: scale(.98); }
+    .btn:active { -webkit-transform: scale(.98); transform: scale(.98); }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
     .btn-primary { background: #7c3aed; color: #fff; }
     .btn-primary:hover:not(:disabled) { background: #6d28d9; }
@@ -106,10 +107,12 @@
       border: 2px solid rgba(255,255,255,.3);
       border-top-color: #fff;
       border-radius: 50%;
+      -webkit-animation: spin .7s linear infinite;
       animation: spin .7s linear infinite;
       display: none;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); transform: rotate(360deg); } }
+    @keyframes spin { to { -webkit-transform: rotate(360deg); transform: rotate(360deg); } }
 
     /* ── Results ── */
     #results { display: none; }
@@ -464,7 +467,8 @@
     }
 
     document.getElementById('results').style.display = 'block';
-    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    try { document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    catch(e) { document.getElementById('results').scrollIntoView(true); }
   }
 
   function kv(rows) {

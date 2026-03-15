@@ -129,7 +129,8 @@
     .dot.red    { background: #f87171; }
     .dot.yellow { background: #fbbf24; }
     .dot.grey   { background: #4c4f6b; }
-    .dot.pulse  { animation: pulse 2s infinite; }
+    .dot.pulse  { -webkit-animation: pulse 2s infinite; animation: pulse 2s infinite; }
+    @-webkit-keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
     /* ── Table ── */

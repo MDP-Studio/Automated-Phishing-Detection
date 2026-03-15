@@ -173,6 +173,17 @@ class URLDetonationAnalyzer:
                     details={"message": "no_urls_to_analyze"},
                 )
 
+            # If no browser client is configured, return immediately with
+            # a clear message rather than silently producing zero confidence
+            if not self.browser_client:
+                logger.info("URL detonation skipped: no browser client configured")
+                return AnalyzerResult(
+                    analyzer_name=analyzer_name,
+                    risk_score=0.0,
+                    confidence=0.0,
+                    details={"message": "not_implemented"},
+                )
+
             detonation_results: dict[str, dict] = {}
 
             for extracted_url in urls:
