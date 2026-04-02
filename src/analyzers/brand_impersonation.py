@@ -144,6 +144,72 @@ class BrandImpersonationAnalyzer:
             ],
             "body_keywords": ["facebook", "instagram", "meta", "login alert"],
         },
+        "roblox": {
+            "display_names": ["roblox"],
+            "legit_domains": ["roblox.com", "roblox.cn", "email.roblox.com"],
+            "body_keywords": ["roblox", "robux", "roblox studio", "roblox account"],
+        },
+        "steam": {
+            "display_names": ["steam", "valve"],
+            "legit_domains": ["steampowered.com", "store.steampowered.com", "valvesoftware.com"],
+            "body_keywords": ["steam", "valve", "steam guard", "steam account"],
+        },
+        "discord": {
+            "display_names": ["discord"],
+            "legit_domains": ["discord.com", "discordapp.com", "discord.gg"],
+            "body_keywords": ["discord", "nitro", "server invite"],
+        },
+        "booking": {
+            "display_names": ["booking.com", "booking"],
+            "legit_domains": ["booking.com", "mail.booking.com", "hotels.booking.com"],
+            "body_keywords": ["booking.com", "reservation", "hotel booking", "property"],
+        },
+        "twitch": {
+            "display_names": ["twitch"],
+            "legit_domains": ["twitch.tv", "email.twitch.tv"],
+            "body_keywords": ["twitch", "streamer", "subscribe"],
+        },
+        "github": {
+            "display_names": ["github"],
+            "legit_domains": ["github.com", "github.io", "github.dev", "noreply.github.com"],
+            "body_keywords": ["github", "repository", "pull request", "commit"],
+        },
+        "chase": {
+            "display_names": ["chase", "jp morgan"],
+            "legit_domains": ["chase.com", "jpmorgan.com", "jpmchase.com"],
+            "body_keywords": ["chase", "jpmorgan", "checking account", "credit card"],
+        },
+        "wells_fargo": {
+            "display_names": ["wells fargo"],
+            "legit_domains": ["wellsfargo.com", "email.wellsfargo.com"],
+            "body_keywords": ["wells fargo", "wellsfargo"],
+        },
+        "bank_of_america": {
+            "display_names": ["bank of america", "bofa"],
+            "legit_domains": ["bankofamerica.com", "ealerts.bankofamerica.com"],
+            "body_keywords": ["bank of america", "bankofamerica", "bofa"],
+        },
+        "citibank": {
+            "display_names": ["citi", "citibank"],
+            "legit_domains": ["citi.com", "citibank.com", "email.citigroup.com"],
+            "body_keywords": ["citibank", "citi ", "citigroup"],
+        },
+        # Government agencies
+        "irs": {
+            "display_names": ["irs", "internal revenue service", "tax refund"],
+            "legit_domains": ["irs.gov"],
+            "body_keywords": ["irs", "internal revenue", "tax refund", "tax return", "w-2", "1099", "filing"],
+        },
+        "ssa": {
+            "display_names": ["social security", "ssa"],
+            "legit_domains": ["ssa.gov", "socialsecurity.gov"],
+            "body_keywords": ["social security", "ssa", "benefits", "social security number"],
+        },
+        "hmrc": {
+            "display_names": ["hmrc", "hm revenue"],
+            "legit_domains": ["hmrc.gov.uk", "tax.service.gov.uk"],
+            "body_keywords": ["hmrc", "hm revenue", "tax rebate", "self assessment", "national insurance"],
+        },
     }
 
     def __init__(
@@ -220,34 +286,69 @@ class BrandImpersonationAnalyzer:
 
         return matched_brands
 
+    # Government TLDs — emails claiming .gov origin from non-.gov domains are suspicious
+    GOV_TLDS = {".gov", ".gov.uk", ".gov.au", ".gc.ca", ".gov.in", ".go.jp", ".gob.mx"}
+
     def _check_lookalike_domain(self, domain: str) -> list[tuple[str, float]]:
         """
         Check if a domain is a look-alike of a known brand domain.
-        Detects: indeed-verify.com, indeedhr.com, lndeed.com, indeed.evil.com
+        Detects: indeed-verify.com, indeedhr.com, lndeed.com, indeed.evil.com,
+                 roblox.com.py, booking-com-clone.vercel.app, taxrefund-irs.com
         """
         if not domain:
             return []
 
         matches = []
         domain_parts = domain.split(".")
+        domain_lower = domain.lower()
 
         for brand_name, brand_info in self.BRANDS.items():
+            already_matched = False
             for legit_domain in brand_info["legit_domains"]:
+                if already_matched:
+                    break
                 legit_base = legit_domain.split(".")[0]
 
-                if len(legit_base) < 3:
-                    continue
+                if len(legit_base) < 5:
+                    continue  # Skip short bases (mail, e, me, fb) — too many false positives
 
                 # Brand name in domain but not a legit domain
-                if legit_base in domain and not self._is_legit_domain_for_brand(domain, brand_info):
+                if legit_base in domain_lower and not self._is_legit_domain_for_brand(domain, brand_info):
                     matches.append((brand_name, 0.7))
+                    already_matched = True
                     break
 
                 # Subdomain abuse: brand.evil.com
                 if legit_base in domain_parts[0] and len(domain_parts) > 2:
                     if not self._is_legit_domain_for_brand(domain, brand_info):
                         matches.append((brand_name, 0.6))
+                        already_matched = True
                         break
+
+            # TLD-swap typosquat: roblox.com.py, amazon.com.br (when not legit)
+            if not already_matched:
+                for legit_domain in brand_info["legit_domains"]:
+                    if already_matched:
+                        break
+                    legit_no_tld = legit_domain.rsplit(".", 1)[0]  # "roblox.com" from "roblox.com"
+                    if len(legit_no_tld) >= 5 and domain_lower.startswith(legit_no_tld + "."):
+                        if not self._is_legit_domain_for_brand(domain, brand_info):
+                            matches.append((brand_name, 0.75))
+                            already_matched = True
+                            break
+
+            # Government domain validation: brand claims .gov but sender isn't .gov
+            if not already_matched:
+                for legit_domain in brand_info["legit_domains"]:
+                    is_gov = any(legit_domain.endswith(g) for g in self.GOV_TLDS)
+                    if is_gov:
+                        # Check if the brand name appears in this non-.gov domain
+                        legit_base = legit_domain.split(".")[0]
+                        sender_is_gov = any(domain_lower.endswith(g) for g in self.GOV_TLDS)
+                        if legit_base in domain_lower and not sender_is_gov:
+                            matches.append((brand_name, 0.85))
+                            already_matched = True
+                            break
 
         return matches
 
@@ -322,6 +423,16 @@ class BrandImpersonationAnalyzer:
             for brand in display_brands:
                 brand_info = self.BRANDS[brand]
                 if from_domain and not self._is_legit_domain_for_brand(from_domain, brand_info):
+                    # Check if sender is a known legitimate brand — skip generic matches
+                    # e.g., Google "Security alert" matching bank_generic should not fire
+                    is_sender_known = False
+                    for bn, bi in self.BRANDS.items():
+                        if bn != brand and self._is_legit_domain_for_brand(from_domain, bi):
+                            is_sender_known = True
+                            break
+                    if is_sender_known and brand == "bank_generic":
+                        continue  # Generic security keywords from known brands are normal
+
                     risk = 0.75
                     signals.append({
                         "signal": "display_name_brand_mismatch",
@@ -333,10 +444,24 @@ class BrandImpersonationAnalyzer:
                     max_risk = max(max_risk, risk)
 
             # ── Signal 2: Brand in body content but sender domain doesn't match ──
+            # First, check if the sender domain belongs to ANY known brand (legitimate cross-brand mentions)
+            sender_is_known_brand = False
+            sender_brand_name = None
+            if from_domain:
+                for bn, bi in self.BRANDS.items():
+                    if self._is_legit_domain_for_brand(from_domain, bi):
+                        sender_is_known_brand = True
+                        sender_brand_name = bn
+                        break
+
             body_brands = self._detect_brand_in_text(combined_text)
             for brand, strength in body_brands:
                 brand_info = self.BRANDS[brand]
                 if from_domain and not self._is_legit_domain_for_brand(from_domain, brand_info):
+                    # Skip if sender is a different known legitimate brand —
+                    # e.g., Amazon email mentioning USPS tracking is normal, not impersonation
+                    if sender_is_known_brand and brand != sender_brand_name:
+                        continue
                     if strength >= 0.3:
                         risk = min(0.5 + strength * 0.4, 0.85)
                         signals.append({
@@ -348,10 +473,14 @@ class BrandImpersonationAnalyzer:
                         })
                         max_risk = max(max_risk, risk)
 
-            # ── Signal 3: Look-alike domain ──
+            # ── Signal 3: Look-alike domain (sender) ──
             if from_domain:
                 lookalikes = self._check_lookalike_domain(from_domain)
                 for brand, risk in lookalikes:
+                    # Skip if the domain is actually legitimate for a different brand
+                    # e.g., mailer.netflix.com triggering booking lookalike
+                    if sender_is_known_brand and brand != sender_brand_name:
+                        continue
                     signals.append({
                         "signal": "lookalike_domain",
                         "brand": brand,
@@ -359,6 +488,27 @@ class BrandImpersonationAnalyzer:
                         "risk": risk,
                     })
                     max_risk = max(max_risk, risk)
+
+            # ── Signal 3b: Look-alike domains in email body URLs ──
+            if extracted_urls:
+                checked_domains = set()
+                for url_obj in extracted_urls:
+                    url_str = url_obj.url if hasattr(url_obj, "url") else str(url_obj)
+                    url_domain = self._extract_domain(url_str)
+                    if not url_domain or url_domain == from_domain or url_domain in checked_domains:
+                        continue
+                    checked_domains.add(url_domain)
+                    url_lookalikes = self._check_lookalike_domain(url_domain)
+                    for brand, risk in url_lookalikes:
+                        brand_info = self.BRANDS[brand]
+                        if not self._is_legit_domain_for_brand(url_domain, brand_info):
+                            signals.append({
+                                "signal": "url_lookalike_domain",
+                                "brand": brand,
+                                "url_domain": url_domain,
+                                "risk": risk,
+                            })
+                            max_risk = max(max_risk, risk)
 
             # ── Signal 4: Reply-To domain mismatch ──
             if reply_domain and from_domain and reply_domain != from_domain:

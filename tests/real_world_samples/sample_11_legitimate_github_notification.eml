@@ -1,0 +1,35 @@
+Received: from o10.sgmail.github.com (o10.sgmail.github.com [167.89.101.2])
+        by mx.example.com with ESMTPS id bcd890
+        for <dev@example.com>; Thu, 02 Apr 2026 09:15:00 +0000
+Authentication-Results: mx.example.com;
+       spf=pass (sender SPF authorized) smtp.mailfrom=github.com;
+       dkim=pass header.d=github.com;
+       dmarc=pass (p=REJECT) header.from=github.com
+From: GitHub <noreply@github.com>
+To: dev@example.com
+Subject: [rf-peixoto/phishing_pot] New issue: Update sample anonymization script (#342)
+Date: Thu, 02 Apr 2026 09:15:00 +0000
+Message-ID: <github-issue-342@github.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+List-Unsubscribe: <https://github.com/notifications/unsubscribe/ABC123>
+
+<html>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;margin:0;padding:0;background:#f6f8fa">
+<div style="max-width:600px;margin:20px auto;background:#fff;border:1px solid #e1e4e8;border-radius:6px">
+<div style="padding:16px 24px;border-bottom:1px solid #e1e4e8">
+<a href="https://github.com" style="color:#24292e;text-decoration:none;font-size:16px;font-weight:600">GitHub</a>
+</div>
+<div style="padding:24px">
+<p style="color:#586069;font-size:14px;margin:0 0 16px"><a href="https://github.com/user123" style="color:#0366d6;font-weight:600;text-decoration:none">user123</a> opened a new issue in <a href="https://github.com/rf-peixoto/phishing_pot" style="color:#0366d6;text-decoration:none">rf-peixoto/phishing_pot</a></p>
+<h2 style="font-size:20px;color:#24292e;margin:0 0 12px;font-weight:600">#342 Update sample anonymization script</h2>
+<div style="background:#f6f8fa;border:1px solid #e1e4e8;border-radius:6px;padding:16px;font-size:14px;color:#24292e;line-height:1.5">
+<p style="margin:0 0 10px">The current anonymization script in <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px">tools/anonymize.py</code> doesn't handle embedded images properly. When processing samples with inline base64 images, it crashes with a UnicodeDecodeError.</p>
+<p style="margin:0"><strong>Steps to reproduce:</strong><br>1. Run <code>python tools/anonymize.py email/sample-1842.eml</code><br>2. Script fails at line 47</p>
+</div>
+<p style="margin:20px 0 0;text-align:center"><a href="https://github.com/rf-peixoto/phishing_pot/issues/342" style="background:#2ea44f;color:#fff;padding:8px 16px;text-decoration:none;border-radius:6px;font-size:14px;font-weight:500;display:inline-block">View Issue</a></p>
+</div>
+<div style="padding:12px 24px;background:#f6f8fa;border-top:1px solid #e1e4e8;font-size:12px;color:#586069">
+<p style="margin:0">You are receiving this because you are subscribed to this repository. <a href="https://github.com/notifications/unsubscribe/ABC123" style="color:#0366d6">Unsubscribe</a></p>
+</div></div>
+</body></html>

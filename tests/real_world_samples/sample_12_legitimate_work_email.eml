@@ -1,0 +1,42 @@
+Received: from mail-wr1-f54.google.com (mail-wr1-f54.google.com [209.85.221.54])
+        by mx.company.com with ESMTPS id efg123
+        for <you@company.com>; Wed, 01 Apr 2026 14:30:00 -0400
+Authentication-Results: mx.company.com;
+       spf=pass smtp.mailfrom=company.com;
+       dkim=pass header.d=company.com;
+       dmarc=pass header.from=company.com
+From: "David Park" <david.park@company.com>
+To: you@company.com
+Subject: Re: Q2 sprint planning - action items from today's meeting
+Date: Wed, 01 Apr 2026 18:30:00 +0000
+Message-ID: <CABr8+H3KxZ7mN=Lp2Qw@mail.gmail.com>
+In-Reply-To: <CABr8+H2xyz@mail.gmail.com>
+References: <CABr8+H2xyz@mail.gmail.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Hey,
+
+Good meeting today. Here's a quick summary of what we agreed on:
+
+1. Feature freeze for v2.4 is April 10th — no exceptions
+2. Sarah's team will handle the auth migration (estimated 3 sprints)
+3. We're deprioritizing the dashboard redesign to Q3
+4. Need to finalize the API contracts with the mobile team by Friday
+
+I've updated the Jira board with the new priorities. Can you review the
+estimates for the payment integration tickets? I think some of them are
+underscoped.
+
+Also, reminder that the engineering all-hands is tomorrow at 2pm PT.
+Mike wants us to present the observability improvements.
+
+Let me know if you have any questions.
+
+David
+
+--
+David Park
+Senior Engineering Manager
+Engineering Platform Team
+david.park@company.com

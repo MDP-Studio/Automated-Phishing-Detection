@@ -1,0 +1,34 @@
+Received: from relay1.hostinger.com (relay1.hostinger.com [153.92.0.100])
+        by mx.victim.com with ESMTPS id def456
+        for <recipient@example.com>; Wed, 01 Apr 2026 09:45:00 +0100
+From: "DHL Express Notification" <noreply@dhl-tracking-delivery.com>
+To: recipient@example.com
+Subject: DHL Shipment Notification: Your package is waiting for delivery [AWB: 7492830164]
+Date: Wed, 01 Apr 2026 08:45:00 +0000
+Message-ID: <dhl-7492830164@dhl-tracking-delivery.com>
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+
+<html>
+<body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f0f0f0">
+<div style="max-width:600px;margin:0 auto;background:#fff">
+<div style="background:#fc0;padding:15px 25px;display:flex;align-items:center">
+<span style="font-weight:bold;font-size:24px;color:#c00">DHL</span><span style="color:#333;margin-left:auto;font-size:13px">Express</span>
+</div>
+<div style="padding:25px">
+<h2 style="color:#333;font-size:18px">Delivery Notification</h2>
+<p>Dear Customer,</p>
+<p>We attempted to deliver your parcel today but were unable to do so. A shipping fee of <strong>$2.99</strong> is required to reschedule delivery.</p>
+<table style="width:100%;border-collapse:collapse;margin:15px 0;background:#f8f8f8;border-radius:4px">
+<tr><td style="padding:10px 15px;font-weight:bold;color:#666;width:40%">Tracking Number:</td><td style="padding:10px 15px">7492830164</td></tr>
+<tr><td style="padding:10px 15px;font-weight:bold;color:#666">Status:</td><td style="padding:10px 15px;color:#c00">Delivery Failed - Action Required</td></tr>
+<tr><td style="padding:10px 15px;font-weight:bold;color:#666">Estimated Weight:</td><td style="padding:10px 15px">1.2 kg</td></tr>
+<tr><td style="padding:10px 15px;font-weight:bold;color:#666">Origin:</td><td style="padding:10px 15px">Shenzhen, China</td></tr>
+</table>
+<p>To schedule a new delivery attempt, please confirm your shipping address and pay the rescheduling fee:</p>
+<p style="text-align:center;margin:20px 0"><a href="http://dhl-tracking-delivery.com/reschedule?awb=7492830164&fee=2.99&token=a8f3e2" style="background:#d40511;color:#fff;padding:12px 36px;text-decoration:none;border-radius:4px;font-weight:bold;display:inline-block">Schedule Delivery</a></p>
+<p style="font-size:12px;color:#666">If your package is not claimed within 5 business days, it will be returned to the sender.</p>
+<hr style="border:none;border-top:1px solid #ddd;margin:20px 0">
+<p style="font-size:11px;color:#999">This is an automated message from DHL Express. DHL International GmbH. Charles-de-Gaulle-Str. 20, 53113 Bonn, Germany.</p>
+</div></div>
+</body></html>

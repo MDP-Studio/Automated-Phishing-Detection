@@ -1,0 +1,36 @@
+MIME-Version: 1.0
+From: info@mailer.netflix.com
+To: customer@example.com
+Subject: New on Netflix: What to Watch This Weekend
+Date: Fri, 28 Mar 2026 10:00:00 -0700
+Message-ID: <weekly-nf-8833@mailer.netflix.com>
+Content-Type: text/html; charset="UTF-8"
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=mailer.netflix.com;
+    dkim=pass header.d=netflix.com;
+    dmarc=pass header.from=mailer.netflix.com
+Return-Path: <bounce@mailer.netflix.com>
+
+<html>
+<body style="font-family: Netflix Sans, Helvetica, Arial, sans-serif; background: #000; color: #fff;">
+<table width="600" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+<tr><td style="padding: 20px;">
+<span style="color: #E50914; font-size: 24px; font-weight: bold;">NETFLIX</span>
+</td></tr>
+<tr><td style="padding: 20px;">
+<h2>What's New This Week</h2>
+<p>Hey there,</p>
+<p>Here are the top new releases and returning favorites we think you'll love:</p>
+<h3 style="color: #E50914;">Stranger Things: Season 6</h3>
+<p>The Hawkins crew faces their final battle. Now streaming.</p>
+<p><a href="https://www.netflix.com/title/80057281" style="color: #fff; background: #E50914; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Watch Now</a></p>
+<h3 style="color: #E50914;">Glass Onion 2</h3>
+<p>Benoit Blanc returns for another mind-bending mystery.</p>
+<p><a href="https://www.netflix.com/title/81458416" style="color: #fff; background: #E50914; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Watch Now</a></p>
+<hr style="border-color: #333;">
+<p style="font-size: 12px; color: #999;">This email was sent to customer@example.com because you asked to receive Netflix recommendations.</p>
+<p style="font-size: 11px; color: #666;"><a href="https://www.netflix.com/ManageSubscriptions" style="color: #666;">Unsubscribe</a> | Netflix, Inc., 100 Winchester Circle, Los Gatos, CA 95032</p>
+</td></tr>
+</table>
+</body>
+</html>

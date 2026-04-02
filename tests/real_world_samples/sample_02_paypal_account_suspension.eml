@@ -1,0 +1,35 @@
+Received: from mta-out.someisp.net (mta-out.someisp.net [91.189.112.45])
+        by mx.victim.com with ESMTP id xyz789
+        for <user@example.com>; Tue, 31 Mar 2026 14:32:00 -0500
+Received: from localhost (unknown [10.0.0.1])
+        by mta-out.someisp.net with SMTP; Tue, 31 Mar 2026 14:31:55 -0500
+From: "PayPal Security Center" <service@paypal-accountreview.com>
+To: user@example.com
+Subject: Your PayPal account has been limited - Immediate action required
+Date: Tue, 31 Mar 2026 19:31:55 +0000
+Message-ID: <pp-review-83726@paypal-accountreview.com>
+Reply-To: service@paypal-accountreview.com
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+X-Priority: 1
+
+<html>
+<body style="font-family:Helvetica,Arial,sans-serif;margin:0;padding:20px;background:#f5f5f5">
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+<div style="background:#003087;padding:20px 30px"><img src="https://www.paypalobjects.com/webstatic/icon/pp258.png" height="30" alt="PayPal"></div>
+<div style="padding:30px">
+<h2 style="color:#2c2e2f;margin-top:0">Your account access has been limited</h2>
+<p style="color:#687173;line-height:1.6">Dear Customer,</p>
+<p style="color:#687173;line-height:1.6">We've noticed unusual activity in your PayPal account. As a security precaution, we have limited your account until you verify your identity.</p>
+<p style="color:#687173;line-height:1.6"><strong>What happened?</strong></p>
+<ul style="color:#687173;line-height:1.8">
+<li>Multiple failed login attempts detected</li>
+<li>Unrecognized device access from a new location</li>
+<li>Potential unauthorized transaction attempt of $847.99</li>
+</ul>
+<p style="color:#687173;line-height:1.6">To restore full access to your account, please verify your identity by clicking the button below:</p>
+<p style="text-align:center;margin:25px 0"><a href="http://paypal-accountreview.com/signin/verify?token=eyJhbGciOiJSUzI1NiJ9&dispatch=5885d80a13c0db1f" style="background:#0070ba;color:#fff;padding:14px 40px;text-decoration:none;border-radius:24px;font-weight:bold;display:inline-block">Verify My Identity</a></p>
+<p style="font-size:12px;color:#999;border-top:1px solid #eee;padding-top:15px;margin-top:30px">If you believe you received this email in error, please call PayPal at 1-888-221-1161. Please do not reply to this email. This mailbox is not monitored.</p>
+<p style="font-size:11px;color:#bbb">PayPal, Inc. | 2211 North First Street | San Jose, CA 95131</p>
+</div></div>
+</body></html>

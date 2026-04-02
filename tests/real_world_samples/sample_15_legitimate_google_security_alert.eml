@@ -1,0 +1,38 @@
+MIME-Version: 1.0
+From: no-reply@accounts.google.com
+To: customer@example.com
+Subject: Security alert - New sign-in from Chrome on Windows
+Date: Sat, 29 Mar 2026 16:45:00 +0000
+Message-ID: <alert-goog-2468@accounts.google.com>
+Content-Type: text/html; charset="UTF-8"
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=accounts.google.com;
+    dkim=pass header.d=accounts.google.com;
+    dmarc=pass header.from=accounts.google.com
+Return-Path: <no-reply@accounts.google.com>
+
+<html>
+<body style="font-family: Google Sans, Roboto, Arial, sans-serif; color: #202124;">
+<table width="500" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+<tr><td style="padding: 20px;">
+<img alt="Google" width="74" height="24">
+<h2>New sign-in to your Google Account</h2>
+<p>Hi Customer,</p>
+<p>Your Google Account customer@example.com was just signed in to from a new Windows device.</p>
+<table style="background: #f8f9fa; border-radius: 8px; padding: 16px; width: 100%;">
+<tr><td>
+<strong>New sign-in</strong><br>
+Device: Windows PC<br>
+Location: New York, United States (approximate)<br>
+Time: March 29, 2026 4:45 PM UTC
+</td></tr>
+</table>
+<p>If this was you, you don't need to do anything. If you don't recognize this activity,
+<a href="https://myaccount.google.com/notifications">review your account activity</a>.</p>
+<hr>
+<p style="font-size: 12px; color: #5f6368;">You received this email to let you know about important changes to your Google Account and services.</p>
+<p style="font-size: 11px; color: #5f6368;">Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043</p>
+</td></tr>
+</table>
+</body>
+</html>

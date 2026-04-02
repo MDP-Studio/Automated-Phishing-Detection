@@ -1,0 +1,38 @@
+MIME-Version: 1.0
+From: dse_na3@docusign.net
+To: customer@example.com
+Subject: Please sign: Apartment Lease Agreement - 123 Main St
+Date: Sat, 22 Mar 2026 14:00:00 -0500
+Message-ID: <ds-env-abc123@docusign.net>
+Content-Type: text/html; charset="UTF-8"
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=docusign.net;
+    dkim=pass header.d=docusign.net;
+    dmarc=pass header.from=docusign.net
+Return-Path: <dse_na3@docusign.net>
+
+<html>
+<body style="font-family: Helvetica, Arial, sans-serif; color: #333;">
+<table width="600" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+<tr><td style="padding: 20px; text-align: center;">
+<span style="color: #0C0B31; font-size: 24px; font-weight: bold;">DocuSign</span>
+</td></tr>
+<tr><td style="padding: 20px;">
+<p><strong>Sarah Johnson</strong> sent you a document to review and sign.</p>
+<h2>Apartment Lease Agreement - 123 Main St</h2>
+<p style="text-align: center; margin: 30px 0;">
+<a href="https://app.docusign.com/sign/abc123def456" style="background: #4C00FF; color: white; padding: 14px 40px; text-decoration: none; border-radius: 4px; font-size: 16px;">REVIEW DOCUMENT</a>
+</p>
+<table style="width: 100%; background: #f7f7f7; padding: 15px; margin: 15px 0;">
+<tr><td>
+<strong>Sender:</strong> Sarah Johnson (sarah.johnson@mainstreetrealty.com)<br>
+<strong>Message:</strong> Hi, please review and sign the lease at your convenience. Let me know if you have any questions.
+</td></tr>
+</table>
+<hr>
+<p style="font-size: 12px; color: #666;">Do not share this email. This email contains a secure link to DocuSign. Do not share this email or the link with others.</p>
+<p style="font-size: 11px; color: #999;">If you'd rather not receive documents from this sender, you can manage your preferences at <a href="https://app.docusign.com/preferences">DocuSign preferences</a>.</p>
+</td></tr>
+</table>
+</body>
+</html>

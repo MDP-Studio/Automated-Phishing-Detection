@@ -1,0 +1,30 @@
+MIME-Version: 1.0
+From: ealerts@ealerts.bankofamerica.com
+To: customer@example.com
+Subject: Your Bank of America credit card statement is ready
+Date: Wed, 26 Mar 2026 06:00:00 -0400
+Message-ID: <stmt-boa-9876@ealerts.bankofamerica.com>
+Content-Type: text/plain; charset="UTF-8"
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=ealerts.bankofamerica.com;
+    dkim=pass header.d=bankofamerica.com;
+    dmarc=pass header.from=ealerts.bankofamerica.com
+Return-Path: <ealerts@ealerts.bankofamerica.com>
+
+Your March 2026 statement is now available.
+
+Account ending in: 4821
+Statement period: March 1 - March 31, 2026
+Statement balance: $1,247.63
+Minimum payment due: $35.00
+Payment due date: April 21, 2026
+
+To view your full statement, sign in to your account at bankofamerica.com.
+
+If you've already made your payment, thank you.
+
+This is an automated notification. Please do not reply to this email.
+
+Bank of America, N.A. Member FDIC
+Equal Housing Lender
+P.O. Box 15019, Wilmington, DE 19850

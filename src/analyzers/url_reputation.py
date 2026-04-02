@@ -153,7 +153,7 @@ class URLReputationAnalyzer:
                 return AnalyzerResult(
                     analyzer_name=analyzer_name,
                     risk_score=0.0,
-                    confidence=1.0,
+                    confidence=0.0,
                     details={"message": "no_urls_to_analyze"},
                 )
 

@@ -1,0 +1,27 @@
+Received: from out2.smtp.hostinger.com (out2.smtp.hostinger.com [46.17.172.14])
+        by mx.example.com with ESMTPS id ghi789
+        for <target@example.com>; Thu, 02 Apr 2026 11:22:00 -0700
+From: Apple <appleid@id-apple-support.com>
+To: target@example.com
+Subject: Your Apple ID has been disabled for security reasons
+Date: Thu, 02 Apr 2026 18:22:00 +0000
+Message-ID: <apple-disabled-9281@id-apple-support.com>
+Reply-To: support@id-apple-support.com
+MIME-Version: 1.0
+Content-Type: text/html; charset="UTF-8"
+
+<html>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:20px;background:#f2f2f7">
+<div style="max-width:580px;margin:0 auto;background:#fff;border-radius:12px;padding:40px">
+<div style="text-align:center;margin-bottom:30px"><img src="https://appleid.cdn-apple.com/appleauth/static/bin/cb1584989978/assets/artwork/apple-id-icon.png" height="44" alt="Apple ID"></div>
+<h1 style="font-size:28px;font-weight:300;color:#1d1d1f;text-align:center;margin-bottom:8px">Your Apple ID has been disabled</h1>
+<p style="text-align:center;color:#86868b;font-size:17px;margin-bottom:30px">For your protection, your Apple ID is automatically disabled.</p>
+<p style="color:#1d1d1f;font-size:14px;line-height:1.5">Dear Customer,</p>
+<p style="color:#1d1d1f;font-size:14px;line-height:1.5">Someone has attempted to access your Apple ID from an unrecognized device. For your protection, we have temporarily disabled your account.</p>
+<p style="color:#1d1d1f;font-size:14px;line-height:1.5">To unlock your account, you need to verify your identity. If you don't verify within 24 hours, your account will be permanently locked.</p>
+<p style="text-align:center;margin:30px 0"><a href="http://id-apple-support.com/verify/appleid?session=1a2b3c4d5e&client_id=web" style="background:#0071e3;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-size:15px;display:inline-block">Verify Apple ID →</a></p>
+<p style="color:#86868b;font-size:12px;text-align:center">If the button above doesn't work, copy this link:<br>https://appleid.apple.com/account/manage</p>
+<hr style="border:none;border-top:1px solid #d2d2d7;margin:30px 0">
+<p style="color:#86868b;font-size:12px;text-align:center">This email was sent to you because an Apple ID was used on a device not associated with your account.<br>Apple Inc. One Apple Park Way, Cupertino, CA 95014</p>
+</div>
+</body></html>

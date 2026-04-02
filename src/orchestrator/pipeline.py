@@ -57,6 +57,32 @@ class PhishingPipeline:
         # Blocklist/allowlist checker
         self.list_checker = BlocklistAllowlistChecker(db_session_factory)
 
+    async def close(self) -> None:
+        """Close all analyzer API sessions to prevent unclosed-session warnings."""
+        for name, analyzer in self._analyzers.items():
+            if hasattr(analyzer, "close"):
+                try:
+                    await analyzer.close()
+                except Exception as e:
+                    self.logger.debug(f"Error closing {name}: {e}")
+            # Also close nested client objects
+            for attr in ("virustotal_client", "safe_browsing_client",
+                         "urlscan_client", "abuseipdb_client",
+                         "sandbox_client", "llm_client", "whois_client"):
+                client = getattr(analyzer, attr, None)
+                if client and hasattr(client, "close"):
+                    try:
+                        await client.close()
+                    except Exception:
+                        pass
+        self._analyzers.clear()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
     @classmethod
     def from_config(cls, config: PipelineConfig) -> "PhishingPipeline":
         """

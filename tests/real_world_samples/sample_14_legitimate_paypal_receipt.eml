@@ -1,0 +1,40 @@
+MIME-Version: 1.0
+From: service@paypal.com
+To: customer@example.com
+Subject: Receipt for your payment to Spotify USA Inc
+Date: Sun, 30 Mar 2026 09:15:00 -0500
+Message-ID: <receipt-98765@paypal.com>
+Content-Type: text/html; charset="UTF-8"
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=paypal.com;
+    dkim=pass header.d=paypal.com;
+    dmarc=pass header.from=paypal.com
+Return-Path: <service@paypal.com>
+
+<html>
+<body style="font-family: Helvetica, Arial, sans-serif; color: #2c2e2f; max-width: 600px;">
+<table width="100%">
+<tr><td style="padding: 20px; background-color: #003087;">
+<span style="color: white; font-size: 20px; font-weight: bold;">PayPal</span>
+</td></tr>
+<tr><td style="padding: 30px;">
+<h2 style="color: #003087;">You sent a payment of $10.99 USD</h2>
+<p>Hi Customer,</p>
+<p>You sent a payment of $10.99 USD to Spotify USA Inc (spotify@spotify.com).</p>
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Transaction ID</td>
+<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">5AB12345CD678901F</td></tr>
+<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Date</td>
+<td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">March 30, 2026</td></tr>
+<tr><td style="padding: 8px; font-weight: bold;">Total</td>
+<td style="padding: 8px; text-align: right; font-weight: bold;">$10.99 USD</td></tr>
+</table>
+<p><a href="https://www.paypal.com/activity/payment/5AB12345CD678901F">View transaction details</a></p>
+<hr>
+<p style="font-size: 12px; color: #687173;">Please don't reply to this email. To get in touch with us, visit our
+<a href="https://www.paypal.com/smarthelp/home">Help Center</a>.</p>
+<p style="font-size: 11px; color: #999;">PayPal, Inc. 2211 North First Street, San Jose, CA 95131</p>
+</td></tr>
+</table>
+</body>
+</html>

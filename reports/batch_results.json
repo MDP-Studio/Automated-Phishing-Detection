@@ -1,0 +1,3533 @@
+[
+  {
+    "filename": "sample_01_microsoft_credential_harvest.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.35,
+    "confidence": 0.5636,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 1.96,
+    "from": "security-noreply@microsoftonline-verify.com",
+    "subject": "[Action Required] Unusual sign-in activity on your Microsoft account",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.2,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": true,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 2,
+          "domains_analyzed": {
+            "microsoftonline-verify.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            },
+            "img-prod-cms-rt-microsoft-com.akamaized.net": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://microsoftonline-verify.com/auth/signin?session=aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t&redirect=account-security": {
+              "url": "http://microsoftonline-verify.com/auth/signin?session=aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t&redirect=account-security",
+              "final_url": "http://microsoftonline-verify.com/auth/signin?session=aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t&redirect=account-security",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://img-prod-cms-rt-microsoft-com.akamaized.net/cms/api/am/imageFileData/RE1Mu3b": {
+              "url": "https://img-prod-cms-rt-microsoft-com.akamaized.net/cms/api/am/imageFileData/RE1Mu3b",
+              "final_url": "https://img-prod-cms-rt-microsoft-com.akamaized.net/cms/api/am/imageFileData/RE1Mu3b",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.75,
+        "confidence": 0.9,
+        "details": {
+          "signals_found": 3,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "microsoft",
+              "display_name": "[Action Required] Unusual sign-in activity on your Microsoft account",
+              "from_domain": "microsoftonline-verify.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "microsoft",
+              "domain": "microsoftonline-verify.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "url_lookalike_domain",
+              "brand": "microsoft",
+              "url_domain": "img-prod-cms-rt-microsoft-com.akamaized.net",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "security-noreply@microsoftonline-verify.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://microsoftonline-verify.com/auth/signin?session=aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t&redirect=account-security",
+        "https://img-prod-cms-rt-microsoft-com.akamaized.net/cms/api/am/imageFileData/RE1Mu3b"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.350. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.200 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://microsoftonline-verify.com/auth/signin?session=aHR0cHM6Ly9sb2dpbi5taWNyb3NvZnRvbmxpbmUuY29t&r); brand_impersonation: 0.750 (conf: 0.900); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_02_paypal_account_suspension.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.3555,
+    "confidence": 0.5636,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 1.27,
+    "from": "service@paypal-accountreview.com",
+    "subject": "Your PayPal account has been limited - Immediate action required",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.2,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": true,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 2,
+          "domains_analyzed": {
+            "paypal-accountreview.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            },
+            "paypalobjects.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://paypal-accountreview.com/signin/verify?token=eyJhbGciOiJSUzI1NiJ9&dispatch=5885d80a13c0db1f": {
+              "url": "http://paypal-accountreview.com/signin/verify?token=eyJhbGciOiJSUzI1NiJ9&dispatch=5885d80a13c0db1f",
+              "final_url": "http://paypal-accountreview.com/signin/verify?token=eyJhbGciOiJSUzI1NiJ9&dispatch=5885d80a13c0db1f",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://www.paypalobjects.com/webstatic/icon/pp258.png": {
+              "url": "https://www.paypalobjects.com/webstatic/icon/pp258.png",
+              "final_url": "https://www.paypalobjects.com/webstatic/icon/pp258.png",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.75,
+        "confidence": 0.9,
+        "details": {
+          "signals_found": 3,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "paypal",
+              "display_name": "Your PayPal account has been limited - Immediate action required",
+              "from_domain": "paypal-accountreview.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "paypal",
+              "domain": "paypal-accountreview.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "url_lookalike_domain",
+              "brand": "paypal",
+              "url_domain": "paypalobjects.com",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.07,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.2,
+          "urgency_modifier": 0.020000000000000004,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "service@paypal-accountreview.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://paypal-accountreview.com/signin/verify?token=eyJhbGciOiJSUzI1NiJ9&dispatch=5885d80a13c0db1f",
+        "https://www.paypalobjects.com/webstatic/icon/pp258.png"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.355. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.200 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://paypal-accountreview.com/signin/verify?token=eyJhbGciOiJSUzI1NiJ9&dispatch=5885d80a13c0db1f: ); brand_impersonation: 0.750 (conf: 0.900); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.070 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_03_dhl_delivery_notification.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.3318,
+    "confidence": 0.5818,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 0.59,
+    "from": "noreply@dhl-tracking-delivery.com",
+    "subject": "DHL Shipment Notification: Your package is waiting for delivery [AWB: 7492830164]",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "dhl-tracking-delivery.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://dhl-tracking-delivery.com/reschedule?awb=7492830164&fee=2.99&token=a8f3e2": {
+              "url": "http://dhl-tracking-delivery.com/reschedule?awb=7492830164&fee=2.99&token=a8f3e2",
+              "final_url": "http://dhl-tracking-delivery.com/reschedule?awb=7492830164&fee=2.99&token=a8f3e2",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.85,
+        "confidence": 1.0,
+        "details": {
+          "signals_found": 5,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "dhl",
+              "display_name": "DHL Shipment Notification: Your package is waiting for delivery [AWB: 7492830164]",
+              "from_domain": "dhl-tracking-delivery.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "dhl",
+              "keyword_strength": 1.0,
+              "from_domain": "dhl-tracking-delivery.com",
+              "risk": 0.85
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "fedex",
+              "keyword_strength": 0.75,
+              "from_domain": "dhl-tracking-delivery.com",
+              "risk": 0.8
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "auspost",
+              "keyword_strength": 0.6,
+              "from_domain": "dhl-tracking-delivery.com",
+              "risk": 0.74
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "usps",
+              "keyword_strength": 0.5,
+              "from_domain": "dhl-tracking-delivery.com",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "noreply@dhl-tracking-delivery.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://dhl-tracking-delivery.com/reschedule?awb=7492830164&fee=2.99&token=a8f3e2"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.332. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.000 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://dhl-tracking-delivery.com/reschedule?awb=7492830164&fee=2.99&token=a8f3e2: BrowserType.launch); brand_impersonation: 0.850 (conf: 1.000); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_04_apple_id_disabled.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.3136,
+    "confidence": 0.5636,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 1.25,
+    "from": "appleid@id-apple-support.com",
+    "subject": "Your Apple ID has been disabled for security reasons",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 2,
+          "domains_analyzed": {
+            "id-apple-support.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            },
+            "appleid.cdn-apple.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://id-apple-support.com/verify/appleid?session=1a2b3c4d5e&client_id=web": {
+              "url": "http://id-apple-support.com/verify/appleid?session=1a2b3c4d5e&client_id=web",
+              "final_url": "http://id-apple-support.com/verify/appleid?session=1a2b3c4d5e&client_id=web",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://appleid.cdn-apple.com/appleauth/static/bin/cb1584989978/assets/artwork/apple-id-icon.png": {
+              "url": "https://appleid.cdn-apple.com/appleauth/static/bin/cb1584989978/assets/artwork/apple-id-icon.png",
+              "final_url": "https://appleid.cdn-apple.com/appleauth/static/bin/cb1584989978/assets/artwork/apple-id-icon.png",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.75,
+        "confidence": 0.9,
+        "details": {
+          "signals_found": 3,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "apple",
+              "display_name": "Your Apple ID has been disabled for security reasons",
+              "from_domain": "id-apple-support.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "apple",
+              "domain": "id-apple-support.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "url_lookalike_domain",
+              "brand": "apple",
+              "url_domain": "appleid.cdn-apple.com",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "appleid@id-apple-support.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://id-apple-support.com/verify/appleid?session=1a2b3c4d5e&client_id=web",
+        "https://appleid.cdn-apple.com/appleauth/static/bin/cb1584989978/assets/artwork/apple-id-icon.png"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.314. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.000 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://id-apple-support.com/verify/appleid?session=1a2b3c4d5e&client_id=web: BrowserType.launch: Exe); brand_impersonation: 0.750 (conf: 0.900); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_05_netflix_payment_failed.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.5591,
+    "confidence": 0.5727,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 1.23,
+    "from": "info@netflix-billing-update.com",
+    "subject": "Your Netflix membership is on hold - Update your payment info",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "netflix-billing-update.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://netflix-billing-update.com/account/billing?id=usr_38291&session=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9": {
+              "url": "http://netflix-billing-update.com/account/billing?id=usr_38291&session=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
+              "final_url": "http://netflix-billing-update.com/account/billing?id=usr_38291&session=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "http://netflix-billing-update.com/help": {
+              "url": "http://netflix-billing-update.com/help",
+              "final_url": "http://netflix-billing-update.com/help",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.75,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 2,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "netflix",
+              "display_name": "Your Netflix membership is on hold - Update your payment info",
+              "from_domain": "netflix-billing-update.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "netflix",
+              "domain": "netflix-billing-update.com",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.95,
+        "confidence": 0.5,
+        "details": {
+          "intent_category": "credential_harvesting",
+          "base_risk_score": 0.95,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "Credential harvesting keywords detected",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "info@netflix-billing-update.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://netflix-billing-update.com/account/billing?id=usr_38291&session=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9",
+        "http://netflix-billing-update.com/help"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.559. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.000 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://netflix-billing-update.com/account/billing?id=usr_38291&session=eyJ0eXAiOiJKV1QiLCJhbGciOiJIU); brand_impersonation: 0.750 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.950 (conf: 0.500); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_06_bank_of_america_wire_confirm.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.5985,
+    "confidence": 0.5545,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 1.24,
+    "from": "alerts@bofa-secure-alerts.com",
+    "subject": "Wire Transfer Confirmation: $15,420.00 - Reference #WIR2026033019847",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.2,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": true,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "bofa-secure-alerts.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://bofa-secure-alerts.com/online/wire/cancel?ref=WIR2026033019847&auth=f8a3b2c1": {
+              "url": "http://bofa-secure-alerts.com/online/wire/cancel?ref=WIR2026033019847&auth=f8a3b2c1",
+              "final_url": "http://bofa-secure-alerts.com/online/wire/cancel?ref=WIR2026033019847&auth=f8a3b2c1",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "http://bofa-secure-alerts.com/online/wire/confirm?ref=WIR2026033019847": {
+              "url": "http://bofa-secure-alerts.com/online/wire/confirm?ref=WIR2026033019847",
+              "final_url": "http://bofa-secure-alerts.com/online/wire/confirm?ref=WIR2026033019847",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.7666666666666666,
+        "confidence": 0.7,
+        "details": {
+          "signals_found": 1,
+          "signals": [
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "bank_of_america",
+              "keyword_strength": 0.67,
+              "from_domain": "bofa-secure-alerts.com",
+              "risk": 0.7666666666666666
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.95,
+        "confidence": 0.5,
+        "details": {
+          "intent_category": "credential_harvesting",
+          "base_risk_score": 0.95,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "Credential harvesting keywords detected",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "alerts@bofa-secure-alerts.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://bofa-secure-alerts.com/online/wire/cancel?ref=WIR2026033019847&auth=f8a3b2c1",
+        "http://bofa-secure-alerts.com/online/wire/confirm?ref=WIR2026033019847"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.598. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.200 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://bofa-secure-alerts.com/online/wire/cancel?ref=WIR2026033019847&auth=f8a3b2c1: BrowserType.lau); brand_impersonation: 0.767 (conf: 0.700); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.950 (conf: 0.500); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_07_amazon_order_confirm.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.35,
+    "confidence": 0.5818,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 0.61,
+    "from": "order-confirmation@email-amazn.com",
+    "subject": "Your Amazon.com order of \"iPhone 15 Pro Max...\" has shipped!",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.2,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": true,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "email-amazn.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://email-amazn.com/orders/review?orderID=113-9283746-2847362&verify=true": {
+              "url": "http://email-amazn.com/orders/review?orderID=113-9283746-2847362&verify=true",
+              "final_url": "http://email-amazn.com/orders/review?orderID=113-9283746-2847362&verify=true",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.75,
+        "confidence": 1.0,
+        "details": {
+          "signals_found": 7,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "amazon",
+              "display_name": "Your Amazon.com order of \"iPhone 15 Pro Max...\" has shipped!",
+              "from_domain": "email-amazn.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "amazon",
+              "keyword_strength": 0.6,
+              "from_domain": "email-amazn.com",
+              "risk": 0.74
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "apple",
+              "domain": "email-amazn.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "roblox",
+              "domain": "email-amazn.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "twitch",
+              "domain": "email-amazn.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "wells_fargo",
+              "domain": "email-amazn.com",
+              "risk": 0.7
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "citibank",
+              "domain": "email-amazn.com",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "order-confirmation@email-amazn.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://email-amazn.com/orders/review?orderID=113-9283746-2847362&verify=true"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.350. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.200 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://email-amazn.com/orders/review?orderID=113-9283746-2847362&verify=true: BrowserType.launch: Ex); brand_impersonation: 0.750 (conf: 1.000); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_08_google_workspace_shared_doc.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.3045,
+    "confidence": 0.5455,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 0.63,
+    "from": "drive-shares-dm-noreply@google-workspace-shares.com",
+    "subject": "Jessica Chen shared a document: \"Q1 2026 Salary Adjustments - CONFIDENTIAL\"",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "google-workspace-shares.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://google-workspace-shares.com/document/d/1BxOcYfR3kLmZwVtPqHnXYZa9J2/edit?usp=sharing&ouid=1138": {
+              "url": "http://google-workspace-shares.com/document/d/1BxOcYfR3kLmZwVtPqHnXYZa9J2/edit?usp=sharing&ouid=1138",
+              "final_url": "http://google-workspace-shares.com/document/d/1BxOcYfR3kLmZwVtPqHnXYZa9J2/edit?usp=sharing&ouid=1138",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.7,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 2,
+          "signals": [
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "google",
+              "keyword_strength": 0.4,
+              "from_domain": "google-workspace-shares.com",
+              "risk": 0.66
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "google",
+              "domain": "google-workspace-shares.com",
+              "risk": 0.7
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "drive-shares-dm-noreply@google-workspace-shares.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://google-workspace-shares.com/document/d/1BxOcYfR3kLmZwVtPqHnXYZa9J2/edit?usp=sharing&ouid=1138"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.305. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.000 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://google-workspace-shares.com/document/d/1BxOcYfR3kLmZwVtPqHnXYZa9J2/edit?usp=sharing&ouid=1138); brand_impersonation: 0.700 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_09_irs_tax_refund.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.3318,
+    "confidence": 0.5818,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 0.59,
+    "from": "refund@taxrefund-irs.com",
+    "subject": "Tax Refund Notification - You are eligible for a $3,847.00 refund",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "taxrefund-irs.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://taxrefund-irs.com/refund/claim?ssn_verify=true&amount=3847&year=2025": {
+              "url": "http://taxrefund-irs.com/refund/claim?ssn_verify=true&amount=3847&year=2025",
+              "final_url": "http://taxrefund-irs.com/refund/claim?ssn_verify=true&amount=3847&year=2025",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.85,
+        "confidence": 1.0,
+        "details": {
+          "signals_found": 4,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "irs",
+              "display_name": "Tax Refund Notification - You are eligible for a $3,847.00 refund",
+              "from_domain": "taxrefund-irs.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "irs",
+              "keyword_strength": 0.43,
+              "from_domain": "taxrefund-irs.com",
+              "risk": 0.6714285714285715
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "irs",
+              "domain": "taxrefund-irs.com",
+              "risk": 0.85
+            },
+            {
+              "signal": "lookalike_domain",
+              "brand": "hmrc",
+              "domain": "taxrefund-irs.com",
+              "risk": 0.85
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "refund@taxrefund-irs.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://taxrefund-irs.com/refund/claim?ssn_verify=true&amount=3847&year=2025"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.332. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.000 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://taxrefund-irs.com/refund/claim?ssn_verify=true&amount=3847&year=2025: BrowserType.launch: Exe); brand_impersonation: 0.850 (conf: 1.000); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_10_linkedin_connection_request.eml",
+    "expected": "PHISHING",
+    "verdict": "SUSPICIOUS",
+    "weighted_score": 0.35,
+    "confidence": 0.5455,
+    "detection_result": "TRUE_POSITIVE",
+    "elapsed_seconds": 1.2,
+    "from": "messages-noreply@linkedln-mail.com",
+    "subject": "Sarah Miller, VP of Engineering at Google, wants to connect",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.2,
+        "confidence": 0.5,
+        "details": {
+          "spf_pass": null,
+          "dkim_pass": null,
+          "dmarc_pass": null,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": true,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "linkedln-mail.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "http://linkedln-mail.com/comm/mynetwork/invite-accept?invitationId=7183926401&sharedKey=a4b2c8": {
+              "url": "http://linkedln-mail.com/comm/mynetwork/invite-accept?invitationId=7183926401&sharedKey=a4b2c8",
+              "final_url": "http://linkedln-mail.com/comm/mynetwork/invite-accept?invitationId=7183926401&sharedKey=a4b2c8",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "http://linkedln-mail.com/comm/mynetwork/invite-view?invitationId=7183926401": {
+              "url": "http://linkedln-mail.com/comm/mynetwork/invite-view?invitationId=7183926401",
+              "final_url": "http://linkedln-mail.com/comm/mynetwork/invite-view?invitationId=7183926401",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.75,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 2,
+          "signals": [
+            {
+              "signal": "display_name_brand_mismatch",
+              "brand": "google",
+              "display_name": "Sarah Miller, VP of Engineering at Google, wants to connect",
+              "from_domain": "linkedln-mail.com",
+              "risk": 0.75
+            },
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "twitch",
+              "keyword_strength": 0.33,
+              "from_domain": "linkedln-mail.com",
+              "risk": 0.6333333333333333
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "messages-noreply@linkedln-mail.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "http://linkedln-mail.com/comm/mynetwork/invite-accept?invitationId=7183926401&sharedKey=a4b2c8",
+        "http://linkedln-mail.com/comm/mynetwork/invite-view?invitationId=7183926401"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.350. Verdict: SUSPICIOUS. Analyzer breakdown: header_analysis: 0.200 (conf: 0.500); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: http://linkedln-mail.com/comm/mynetwork/invite-accept?invitationId=7183926401&sharedKey=a4b2c8: Brow); brand_impersonation: 0.750 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_11_legitimate_github_notification.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 3.06,
+    "from": "noreply@github.com",
+    "subject": "[rf-peixoto/phishing_pot] New issue: Update sample anonymization script (#342)",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "github.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 5,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://github.com": {
+              "url": "https://github.com",
+              "final_url": "https://github.com",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://github.com/user123": {
+              "url": "https://github.com/user123",
+              "final_url": "https://github.com/user123",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://github.com/rf-peixoto/phishing_pot": {
+              "url": "https://github.com/rf-peixoto/phishing_pot",
+              "final_url": "https://github.com/rf-peixoto/phishing_pot",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://github.com/rf-peixoto/phishing_pot/issues/342": {
+              "url": "https://github.com/rf-peixoto/phishing_pot/issues/342",
+              "final_url": "https://github.com/rf-peixoto/phishing_pot/issues/342",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://github.com/notifications/unsubscribe/ABC123": {
+              "url": "https://github.com/notifications/unsubscribe/ABC123",
+              "final_url": "https://github.com/notifications/unsubscribe/ABC123",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "noreply@github.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://github.com",
+        "https://github.com/user123",
+        "https://github.com/rf-peixoto/phishing_pot",
+        "https://github.com/rf-peixoto/phishing_pot/issues/342",
+        "https://github.com/notifications/unsubscribe/ABC123"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://github.com: BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.c); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_12_legitimate_work_email.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.0833,
+    "confidence": 0.563,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 0.01,
+    "from": "david.park@company.com",
+    "subject": "Re: Q2 sprint planning - action items from today's meeting",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_analyze"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_analyze"
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_detonate"
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "david.park@company.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.083. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no URLs found in email); domain_intelligence: skipped (no URLs found in email); url_detonation: skipped (no data returned from services); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_13_legitimate_amazon_order.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 0.62,
+    "from": "auto-confirm@amazon.com",
+    "subject": "Your Amazon.com order of \"USB-C Cable 6ft\" has shipped!",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "amazon.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://www.amazon.com/gp/your-account/order-details?orderID=112-3456789-0123456": {
+              "url": "https://www.amazon.com/gp/your-account/order-details?orderID=112-3456789-0123456",
+              "final_url": "https://www.amazon.com/gp/your-account/order-details?orderID=112-3456789-0123456",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "auto-confirm@amazon.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://www.amazon.com/gp/your-account/order-details?orderID=112-3456789-0123456"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://www.amazon.com/gp/your-account/order-details?orderID=112-3456789-0123456: BrowserType.launch); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_14_legitimate_paypal_receipt.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 1.2,
+    "from": "service@paypal.com",
+    "subject": "Receipt for your payment to Spotify USA Inc",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "paypal.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://www.paypal.com/activity/payment/5AB12345CD678901F": {
+              "url": "https://www.paypal.com/activity/payment/5AB12345CD678901F",
+              "final_url": "https://www.paypal.com/activity/payment/5AB12345CD678901F",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://www.paypal.com/smarthelp/home": {
+              "url": "https://www.paypal.com/smarthelp/home",
+              "final_url": "https://www.paypal.com/smarthelp/home",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "service@paypal.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://www.paypal.com/activity/payment/5AB12345CD678901F",
+        "https://www.paypal.com/smarthelp/home"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://www.paypal.com/activity/payment/5AB12345CD678901F: BrowserType.launch: Executable doesn't ex); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_15_legitimate_google_security_alert.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1827,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 0.78,
+    "from": "no-reply@accounts.google.com",
+    "subject": "Security alert - New sign-in from Chrome on Windows",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "myaccount.google.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://myaccount.google.com/notifications": {
+              "url": "https://myaccount.google.com/notifications",
+              "final_url": "https://myaccount.google.com/notifications",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.07,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.2,
+          "urgency_modifier": 0.020000000000000004,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "no-reply@accounts.google.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://myaccount.google.com/notifications"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.183. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://myaccount.google.com/notifications: BrowserType.launch: Executable doesn't exist at /session); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.070 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_16_legitimate_netflix_new_show.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 1.98,
+    "from": "info@mailer.netflix.com",
+    "subject": "New on Netflix: What to Watch This Weekend",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "netflix.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 3,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://www.netflix.com/title/80057281": {
+              "url": "https://www.netflix.com/title/80057281",
+              "final_url": "https://www.netflix.com/title/80057281",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://www.netflix.com/title/81458416": {
+              "url": "https://www.netflix.com/title/81458416",
+              "final_url": "https://www.netflix.com/title/81458416",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://www.netflix.com/ManageSubscriptions": {
+              "url": "https://www.netflix.com/ManageSubscriptions",
+              "final_url": "https://www.netflix.com/ManageSubscriptions",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "info@mailer.netflix.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://www.netflix.com/title/80057281",
+        "https://www.netflix.com/title/81458416",
+        "https://www.netflix.com/ManageSubscriptions"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://www.netflix.com/title/80057281: BrowserType.launch: Executable doesn't exist at /sessions/qu); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_17_legitimate_linkedin_digest.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 1.29,
+    "from": "messages-noreply@linkedin.com",
+    "subject": "12 people viewed your profile this week",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "linkedin.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://www.linkedin.com/me/profile-views/": {
+              "url": "https://www.linkedin.com/me/profile-views/",
+              "final_url": "https://www.linkedin.com/me/profile-views/",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://www.linkedin.com/e/v2/unsubscribe": {
+              "url": "https://www.linkedin.com/e/v2/unsubscribe",
+              "final_url": "https://www.linkedin.com/e/v2/unsubscribe",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "messages-noreply@linkedin.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://www.linkedin.com/me/profile-views/",
+        "https://www.linkedin.com/e/v2/unsubscribe"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://www.linkedin.com/me/profile-views/: BrowserType.launch: Executable doesn't exist at /session); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_18_legitimate_bank_statement.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.0833,
+    "confidence": 0.563,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 0.01,
+    "from": "ealerts@ealerts.bankofamerica.com",
+    "subject": "Your Bank of America credit card statement is ready",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_analyze"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_analyze"
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_detonate"
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "ealerts@ealerts.bankofamerica.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.083. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no URLs found in email); domain_intelligence: skipped (no URLs found in email); url_detonation: skipped (no data returned from services); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_19_legitimate_dhl_tracking.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 0.66,
+    "from": "noreply@dhl.com",
+    "subject": "Your DHL shipment 1234567890 is out for delivery",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "dhl.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 1,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890": {
+              "url": "https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890",
+              "final_url": "https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "noreply@dhl.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://www.dhl.com/us-en/home/tracking.html?tracking-id=1234567890: BrowserType.launch: Executable ); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_20_legitimate_stripe_invoice.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.0833,
+    "confidence": 0.563,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 0.01,
+    "from": "receipts@stripe.com",
+    "subject": "Payment receipt from Acme Corp - $49.99",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_analyze"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_analyze"
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_urls_to_detonate"
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "receipts@stripe.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.083. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no URLs found in email); domain_intelligence: skipped (no URLs found in email); url_detonation: skipped (no data returned from services); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_21_legitimate_newsletter.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.2924,
+    "confidence": 0.5879,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 1.34,
+    "from": "newsletter@substack.com",
+    "subject": "The Morning Brew: Tech earnings recap + AI regulation update",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "substack.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://www.substack.com/morning-brew/p/tech-earnings-march-2026": {
+              "url": "https://www.substack.com/morning-brew/p/tech-earnings-march-2026",
+              "final_url": "https://www.substack.com/morning-brew/p/tech-earnings-march-2026",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://substack.com/unsubscribe": {
+              "url": "https://substack.com/unsubscribe",
+              "final_url": "https://substack.com/unsubscribe",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.6333333333333333,
+        "confidence": 0.7,
+        "details": {
+          "signals_found": 1,
+          "signals": [
+            {
+              "signal": "body_brand_mismatch",
+              "brand": "twitch",
+              "keyword_strength": 0.33,
+              "from_domain": "substack.com",
+              "risk": 0.6333333333333333
+            }
+          ],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "newsletter@substack.com",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://www.substack.com/morning-brew/p/tech-earnings-march-2026",
+        "https://substack.com/unsubscribe"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.292. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://www.substack.com/morning-brew/p/tech-earnings-march-2026: BrowserType.launch: Executable doe); brand_impersonation: 0.633 (conf: 0.700); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  },
+  {
+    "filename": "sample_22_legitimate_docusign.eml",
+    "expected": "CLEAN",
+    "verdict": "CLEAN",
+    "weighted_score": 0.1773,
+    "confidence": 0.6061,
+    "detection_result": "TRUE_NEGATIVE",
+    "elapsed_seconds": 1.34,
+    "from": "dse_na3@docusign.net",
+    "subject": "Please sign: Apartment Lease Agreement - 123 Main St",
+    "analyzer_results": {
+      "header_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.8333333333333333,
+        "details": {
+          "spf_pass": true,
+          "dkim_pass": null,
+          "dmarc_pass": true,
+          "from_reply_to_mismatch": false,
+          "display_name_spoofing": false,
+          "envelope_from_mismatch": false,
+          "suspicious_received_chain": false
+        }
+      },
+      "url_reputation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_clients_configured"
+        }
+      },
+      "domain_intelligence": {
+        "risk_score": 0.6,
+        "confidence": 0.8,
+        "details": {
+          "domain_count": 1,
+          "domains_analyzed": {
+            "app.docusign.com": {
+              "risk_score": 0.6,
+              "confidence": 0.8,
+              "whois": {
+                "whois": {
+                  "found": true,
+                  "registrar": "unknown",
+                  "created_date": ""
+                }
+              },
+              "dns_records": {
+                "dns_records": {
+                  "spf_present": false,
+                  "dkim_present": false,
+                  "dmarc_present": false,
+                  "mx_present": false
+                }
+              },
+              "phishing_feeds": {
+                "phishing_feeds": {
+                  "found_in_feeds": false,
+                  "suspicious_patterns": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "url_detonation": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "urls_detonated": 2,
+          "urls_loaded": 0,
+          "detonation_results": {
+            "https://app.docusign.com/sign/abc123def456": {
+              "url": "https://app.docusign.com/sign/abc123def456",
+              "final_url": "https://app.docusign.com/sign/abc123def456",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            },
+            "https://app.docusign.com/preferences": {
+              "url": "https://app.docusign.com/preferences",
+              "final_url": "https://app.docusign.com/preferences",
+              "redirect_chain": [],
+              "page_title": "",
+              "screenshot_b64": null,
+              "has_login_form": false,
+              "has_password_field": false,
+              "form_action_external": false,
+              "page_loaded": false,
+              "error": "BrowserType.launch: Executable doesn't exist at /sessions/quirky-kind-wozniak/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.   ",
+              "risk_indicators": []
+            }
+          },
+          "risk_signals": [],
+          "screenshots": {}
+        }
+      },
+      "brand_impersonation": {
+        "risk_score": 0.0,
+        "confidence": 0.8,
+        "details": {
+          "signals_found": 0,
+          "signals": [],
+          "brands_checked": 29,
+          "screenshot_analysis": null
+        }
+      },
+      "attachment_analysis": {
+        "risk_score": 0.0,
+        "confidence": 0.0,
+        "details": {
+          "message": "no_attachments"
+        }
+      },
+      "nlp_intent": {
+        "risk_score": 0.05,
+        "confidence": 0.4,
+        "details": {
+          "intent_category": "legitimate",
+          "base_risk_score": 0.05,
+          "urgency_score": 0.0,
+          "urgency_modifier": 0.0,
+          "reasoning": "No suspicious keywords found",
+          "analysis_method": "keywords"
+        }
+      },
+      "sender_profiling": {
+        "risk_score": 0.3,
+        "confidence": 0.3,
+        "details": {
+          "sender_email": "dse_na3@docusign.net",
+          "email_count": 0,
+          "is_new_sender": true,
+          "anomaly_score": 0.3,
+          "anomalies_detected": {
+            "cold_start": true
+          },
+          "history": {}
+        }
+      }
+    },
+    "iocs": {
+      "urls": [
+        "https://app.docusign.com/sign/abc123def456",
+        "https://app.docusign.com/preferences"
+      ],
+      "domains": [],
+      "headers": {}
+    },
+    "reasoning": "Analyzed with 8 analyzers. Weighted score: 0.177. Verdict: CLEAN. Analyzer breakdown: header_analysis: 0.000 (conf: 0.833); url_reputation: skipped (no API key configured); domain_intelligence: 0.600 (conf: 0.800); url_detonation: skipped (API error: https://app.docusign.com/sign/abc123def456: BrowserType.launch: Executable doesn't exist at /session); brand_impersonation: 0.000 (conf: 0.800); attachment_analysis: skipped (no data returned from services); nlp_intent: 0.050 (conf: 0.400); sender_profiling: 0.300 (conf: 0.300)"
+  }
+]

@@ -1,0 +1,31 @@
+MIME-Version: 1.0
+From: newsletter@substack.com
+To: customer@example.com
+Subject: The Morning Brew: Tech earnings recap + AI regulation update
+Date: Sun, 23 Mar 2026 06:00:00 -0400
+Message-ID: <brew-daily-20260323@substack.com>
+Content-Type: text/html; charset="UTF-8"
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=substack.com;
+    dkim=pass header.d=substack.com;
+    dmarc=pass header.from=substack.com
+Return-Path: <bounce@substack.com>
+List-Unsubscribe: <https://substack.com/unsubscribe?token=abc123>
+
+<html>
+<body style="font-family: Georgia, serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+<h1 style="font-size: 28px;">The Morning Brew</h1>
+<p style="color: #666; font-size: 14px;">March 23, 2026</p>
+<hr>
+<h2>Tech Earnings Recap</h2>
+<p>It was a big week for tech earnings. Here's what you need to know:</p>
+<p>Apple reported Q2 revenue of $98.5B, beating estimates by $2.1B. iPhone revenue was flat but Services hit an all-time high at $26.3B. Tim Cook said AI features drove record upgrade rates in emerging markets.</p>
+<p>Microsoft posted $65.2B in revenue, up 14% YoY. Azure grew 29%, slightly below the 31% analysts expected. Satya Nadella emphasized that Copilot adoption crossed 100M weekly active users.</p>
+<h2>AI Regulation Update</h2>
+<p>The EU AI Act enforcement begins next month. Companies have until April 15 to register high-risk AI systems. The big question: how strictly will "general purpose AI" be interpreted?</p>
+<p><a href="https://www.substack.com/morning-brew/p/tech-earnings-march-2026">Read the full analysis</a></p>
+<hr>
+<p style="font-size: 12px; color: #999;">You're receiving this because you subscribed to The Morning Brew on Substack.</p>
+<p style="font-size: 11px; color: #999;"><a href="https://substack.com/unsubscribe" style="color: #999;">Unsubscribe</a></p>
+</body>
+</html>

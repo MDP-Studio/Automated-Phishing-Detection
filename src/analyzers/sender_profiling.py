@@ -237,11 +237,11 @@ class SenderProfileAnalyzer:
                         (sender_email, recipient, sender_email, recipient, current_time),
                     )
 
-                # Insert email record
+                # Insert email record (IGNORE on re-runs with same email_id)
                 user_agent = email.raw_headers.get("User-Agent", ["unknown"])[0]
                 cursor.execute(
                     """
-                    INSERT INTO sender_emails
+                    INSERT OR IGNORE INTO sender_emails
                     (email_id, sender_email, timestamp, recipient_count, content_length, user_agent)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,

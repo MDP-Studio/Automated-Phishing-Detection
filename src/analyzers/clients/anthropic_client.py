@@ -28,6 +28,7 @@ class AnthropicLLMClient:
         message = await self._client.messages.create(
             model=self.model,
             max_tokens=512,
+            temperature=0,  # deterministic: same input → same output
             messages=[{"role": "user", "content": prompt}],
         )
         return message.content[0].text
