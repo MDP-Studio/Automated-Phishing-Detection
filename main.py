@@ -25,6 +25,7 @@ from src.models import EmailObject
 from src.orchestrator.pipeline import PhishingPipeline
 from src.reporting.report_generator import ReportGenerator
 from src.reporting.ioc_exporter import IOCExporter
+from src.reporting.sigma_exporter import SigmaExporter
 from src.reporting.dashboard import PhishingDashboard
 
 
@@ -45,6 +46,7 @@ class PhishingDetectionApp:
         self.pipeline = PhishingPipeline.from_config(self.config)
         self.report_gen = ReportGenerator(template_dir="./templates")
         self.ioc_exporter = IOCExporter()
+        self.sigma_exporter = SigmaExporter()
         self.dashboard = PhishingDashboard(template_dir="./templates")
         self._monitor = None  # set when IMAP monitor starts
         self._upload_results: list[dict] = []  # results from manual uploads (shown on monitor)
@@ -55,7 +57,7 @@ class PhishingDetectionApp:
 
         Args:
             email_path: Path to .eml file.
-            output_format: Output format (json, html, stix, all).
+            output_format: Output format (json, html, stix, sigma, all).
 
         Returns:
             Analysis result in specified format.
@@ -93,6 +95,14 @@ class PhishingDetectionApp:
                 outputs["stix"] = self.ioc_exporter.export_stix(result)
                 logger.info("Generated STIX 2.1 bundle")
 
+            if output_format in ["sigma", "all"]:
+                sigma_rule = self.sigma_exporter.export_campaign_rule(result)
+                if sigma_rule:
+                    outputs["sigma"] = sigma_rule
+                    logger.info("Generated Sigma detection rule")
+                else:
+                    logger.info("No Sigma rule emitted (CLEAN verdict or no observables)")
+
             # Display results
             if output_format == "json":
                 import json
@@ -101,12 +111,15 @@ class PhishingDetectionApp:
                 print(outputs.get("html", "No HTML output available"))
             elif output_format == "stix":
                 print(outputs.get("stix", "No STIX output available"))
+            elif output_format == "sigma":
+                print(outputs.get("sigma", "No Sigma rule emitted (CLEAN verdict or no observables)"))
             elif output_format == "all":
                 # Save all outputs to files
                 email_id = email.email_id
                 json_path = f"{email_id}_report.json"
                 html_path = f"{email_id}_report.html"
                 stix_path = f"{email_id}_iocs.json"
+                sigma_path = f"{email_id}_rule.yml"
 
                 import json
                 if "json" in outputs:
@@ -124,6 +137,11 @@ class PhishingDetectionApp:
                         f.write(outputs["stix"])
                     logger.info(f"Wrote STIX bundle to {stix_path}")
 
+                if "sigma" in outputs:
+                    with open(sigma_path, "w") as f:
+                        f.write(outputs["sigma"])
+                    logger.info(f"Wrote Sigma rule to {sigma_path}")
+
                 print(f"Analysis complete. Reports saved to:")
                 if "json" in outputs:
                     print(f"  - {json_path}")
@@ -131,6 +149,8 @@ class PhishingDetectionApp:
                     print(f"  - {html_path}")
                 if "stix" in outputs:
                     print(f"  - {stix_path}")
+                if "sigma" in outputs:
+                    print(f"  - {sigma_path}")
 
         except Exception as e:
             logger.error(f"Error analyzing email: {e}", exc_info=True)
@@ -1195,9 +1215,9 @@ Quick Start:
     analyze_parser.add_argument("email_file", help="Path to .eml file")
     analyze_parser.add_argument(
         "--format",
-        choices=["json", "html", "stix", "all"],
+        choices=["json", "html", "stix", "sigma", "all"],
         default="json",
-        help="Output format (default: json)",
+        help="Output format (default: json). 'sigma' emits a Sigma detection rule scoped to this email's IOCs; 'all' writes JSON, HTML, STIX, and Sigma side by side.",
     )
 
     # ── serve ────────────────────────────────────────────────────
@@ -1212,7 +1232,7 @@ Quick Start:
     parser.add_argument("--analyze", metavar="EMAIL_FILE", help=argparse.SUPPRESS)
     parser.add_argument("--serve", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, help=argparse.SUPPRESS)
-    parser.add_argument("--format", choices=["json", "html", "stix", "all"],
+    parser.add_argument("--format", choices=["json", "html", "stix", "sigma", "all"],
                         default="json", help=argparse.SUPPRESS)
 
     args = parser.parse_args()

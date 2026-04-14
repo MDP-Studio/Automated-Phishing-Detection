@@ -1,0 +1,40 @@
+title: SPF/DKIM/DMARC Failure on Email Carrying Attachment
+id: 2a9c1f47-3e8b-4d05-a16f-8b3d7e9f2c41
+status: experimental
+description: |
+  Triggers when an email fails all three of SPF, DKIM, and DMARC AND carries
+  one or more attachments. Auth-fail alone is noisy; auth-fail with an
+  attachment is one of the highest-fidelity precursors to T1566.001
+  Spearphishing Attachment.
+references:
+  - https://attack.mitre.org/techniques/T1566/001/
+  - https://attack.mitre.org/techniques/T1656/
+author: Automated Phishing Detection Pipeline
+date: 2026/04/14
+logsource:
+  product: phishing_detection_pipeline
+  category: verdict
+detection:
+  selection_auth_fail:
+    analyzer_results.header_analysis.details.header_analysis_detail.spf_pass: false
+    analyzer_results.header_analysis.details.header_analysis_detail.dkim_pass: false
+    analyzer_results.header_analysis.details.header_analysis_detail.dmarc_pass: false
+  selection_attachment_present:
+    analyzer_results.attachment_analysis.details.attachment_count|gte: 1
+  filter_internal_relay:
+    iocs.headers.received|contains:
+      - 'internal-mta.local'
+  condition: selection_auth_fail and selection_attachment_present and not filter_internal_relay
+fields:
+  - email_id
+  - iocs.headers.from_address
+  - iocs.headers.subject
+  - analyzer_results.attachment_analysis.details.attachments
+falsepositives:
+  - Misconfigured legitimate senders (small businesses without proper DKIM)
+  - Mail forwarded through systems that break DKIM signatures
+level: high
+tags:
+  - attack.initial_access
+  - attack.t1566.001
+  - attack.t1656

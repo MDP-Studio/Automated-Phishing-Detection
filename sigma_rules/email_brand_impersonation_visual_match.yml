@@ -1,0 +1,43 @@
+title: Visual Brand Impersonation Match in Phishing Pipeline Output
+id: 8b1f3e10-2a4c-4f1d-9c0a-7d3a5e8f1b21
+status: experimental
+description: |
+  Triggers when the phishing detection pipeline's brand_impersonation analyzer
+  reports a perceptual-hash or SSIM match against a known brand logo on a
+  rendered phishing page that is NOT hosted on the brand's legitimate domain.
+  Strong indicator of T1656 Impersonation paired with T1036.005 Masquerading.
+references:
+  - https://attack.mitre.org/techniques/T1656/
+  - https://attack.mitre.org/techniques/T1036/005/
+author: Automated Phishing Detection Pipeline
+date: 2026/04/14
+logsource:
+  product: phishing_detection_pipeline
+  category: verdict
+  # Adapt to your mail telemetry source if consuming live mail logs:
+  # category: email; product: m365 / proofpoint / mimecast
+detection:
+  selection:
+    analyzer_results.brand_impersonation.risk_score|gte: 0.7
+    analyzer_results.brand_impersonation.confidence|gte: 0.6
+  filter_legitimate_brand_host:
+    analyzer_results.brand_impersonation.details.matched_brand|expand: '%matched_brand%'
+    iocs.headers.from_address|endswith:
+      - '@%matched_brand%.com'
+      - '@%matched_brand%.co.uk'
+  condition: selection and not filter_legitimate_brand_host
+fields:
+  - email_id
+  - iocs.headers.from_address
+  - analyzer_results.brand_impersonation.details.matched_brand
+  - analyzer_results.brand_impersonation.details.similarity_score
+falsepositives:
+  - Internal red-team phishing simulations using real brand assets
+  - Legitimate co-branded marketing email from authorized partners
+level: high
+tags:
+  - attack.initial_access
+  - attack.defense_evasion
+  - attack.t1656
+  - attack.t1036.005
+  - attack.t1566.002

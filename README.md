@@ -1,6 +1,8 @@
 # Automated Phishing Detection Pipeline
 
-A modular, async Python pipeline that ingests emails (IMAP polling or manual upload), extracts features, runs 7 concurrent analyzers against threat intelligence APIs, scores results with weighted confidence aggregation, and provides analyst feedback loops for continuous improvement.
+A modular, async Python pipeline that ingests emails (IMAP polling or manual upload), extracts features, runs 7 concurrent analyzers against threat intelligence APIs, scores results with weighted confidence aggregation, and emits detection content (STIX 2.1 IOCs and Sigma rules) for downstream defensive consumption.
+
+This is a **detection engineering** project, not just a classifier. Every analyzer is mapped to MITRE ATT&CK techniques in [`docs/MITRE_ATTACK_MAPPING.md`](docs/MITRE_ATTACK_MAPPING.md), the trust boundaries and residual risks are documented in [`THREAT_MODEL.md`](THREAT_MODEL.md), and security disclosure is in [`SECURITY.md`](SECURITY.md).
 
 ## Architecture
 
@@ -13,6 +15,19 @@ Email Ingestion → Feature Extraction → Concurrent Analysis → Decision Engi
                     QR decoding         NLP intent            Confidence
                     Attachments         Brand matching        Thresholds
 ```
+
+## Detection Coverage
+
+The pipeline covers ~12 sub-techniques across **TA0001 Initial Access**, **TA0042 Resource Development**, **TA0005 Defense Evasion**, and **TA0008 Lateral Movement**. Full mapping with per-analyzer rationale and known gaps lives in [`docs/MITRE_ATTACK_MAPPING.md`](docs/MITRE_ATTACK_MAPPING.md).
+
+| Tactic                   | Techniques covered                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| Initial Access           | T1566.001, T1566.002, T1566.003, T1534, T1078 (anomaly only)                         |
+| Resource Development     | T1583.001, T1584.001, T1585.002                                                      |
+| Defense Evasion          | T1656, T1036.005, T1027.006 (HTML smuggling)                                         |
+| User Execution           | T1204.001, T1204.002                                                                 |
+
+The mapping doc also includes an explicit **uncovered techniques** table — what an honest reader would ask about and what the pipeline does not pretend to detect (T1078 full, T1189, T1497, etc.).
 
 ### 5-Stage Pipeline
 
@@ -116,7 +131,34 @@ src/
     └── validators.py            # Input validation
 ```
 
+## Detection Content Exports
+
+The pipeline emits two complementary detection artifacts in addition to JSON/HTML reports:
+
+| Format    | Purpose                                                          | Generator                              |
+| --------- | ---------------------------------------------------------------- | -------------------------------------- |
+| STIX 2.1  | Per-incident IOC bundle for sharing with TI platforms (MISP, OpenCTI, TAXII) | `src/reporting/ioc_exporter.py`        |
+| Sigma     | Per-campaign detection rule for SIEM consumption, plus a static rule library covering broader behavioral patterns | `src/reporting/sigma_exporter.py` + `sigma_rules/` |
+
+```bash
+# Single email → JSON report
+python main.py analyze tests/sample_emails/suspicious.eml --format json
+
+# Single email → STIX 2.1 bundle of detected IOCs
+python main.py analyze tests/sample_emails/suspicious.eml --format stix
+
+# Single email → Sigma rule scoped to this campaign's observables
+python main.py analyze tests/sample_emails/suspicious.eml --format sigma
+
+# All four (json + html + stix + sigma) written side by side
+python main.py analyze tests/sample_emails/suspicious.eml --format all
+```
+
+The static Sigma rule library in [`sigma_rules/`](sigma_rules/) ships hand-written rules for visual brand impersonation, quishing, newly registered domains, BEC wire fraud intent, HTML smuggling, and auth-failure-with-attachment patterns. Each rule carries `tags:` referencing the same ATT&CK techniques in the coverage mapping above.
+
 ## Testing
+
+The test suite has **676 tests across 22 modules** (unit + integration), exercising every analyzer, the decision engine override rules, scoring confidence capping, IOC export, and the feedback API.
 
 ```bash
 # Run all tests
@@ -125,12 +167,23 @@ python -m pytest
 # Run with verbose output
 python -m pytest -v
 
-# Run specific test file
-python -m pytest tests/unit/test_attachment_handler.py
+# Run a single module
+python -m pytest tests/unit/test_decision_engine.py
 
-# Run with coverage
+# Coverage HTML report
 python -m pytest --cov=src --cov-report=html
 ```
+
+| Layer            | Test modules                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------- |
+| Extractors       | `test_eml_parser`, `test_header_analyzer`, `test_url_extractor`, `test_qr_decoder`, `test_attachment_handler` |
+| Analyzers        | `test_attachment_sandbox`, `test_brand_impersonation`, `test_url_detonation`                          |
+| Scoring          | `test_decision_engine`, `test_scoring`                                                                |
+| Ingestion        | `test_imap_fetcher`, `test_email_monitor`, `test_blocklist_allowlist`                                 |
+| Feedback         | `test_feedback_api`, `test_retrainer`                                                                 |
+| Reporting        | `test_report_generator`, `test_ioc_exporter`                                                          |
+| Security & utils | `test_security`, `test_credentials`, `test_models`, `test_utils`                                      |
+| Integration      | `test_full_pipeline`                                                                                  |
 
 ## Known Limitations
 
@@ -146,7 +199,7 @@ python -m pytest --cov=src --cov-report=html
 
 6. **Sandbox analysis latency**: File sandbox detonation (Hybrid Analysis, ANY.RUN, Joe Sandbox) can take 2-10 minutes per file. The pipeline timeout (default 120s) may need increasing for attachment-heavy emails.
 
-7. **STIX 2.1 export**: Requires the `stix2` library. IOC export is optional and won't affect core pipeline operation if the library is missing.
+7. **STIX 2.1 export**: Requires the `stix2` library (already pinned in `requirements.txt`). Sigma rule export has no extra dependencies — YAML is hand-emitted.
 
 8. **Rate limiting**: Free-tier API keys have strict rate limits. The circuit breaker and TTL cache help, but high-volume deployments need paid API tiers or self-hosted alternatives.
 
@@ -161,6 +214,17 @@ docker-compose up -d
 ```
 
 Services: orchestrator (pipeline + dashboard), browser-sandbox (headless Chromium), redis (caching).
+
+## Project documentation
+
+| File                                                       | Purpose                                                                          |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [`docs/MITRE_ATTACK_MAPPING.md`](docs/MITRE_ATTACK_MAPPING.md) | Per-analyzer ATT&CK technique coverage with explicit gaps                       |
+| [`THREAT_MODEL.md`](THREAT_MODEL.md)                       | STRIDE-per-trust-boundary, adversary archetypes, residual risks, non-goals       |
+| [`SECURITY.md`](SECURITY.md)                               | Vulnerability disclosure policy, supported versions, hardening guidance          |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md)                 | Evaluation methodology and corpus plan                                            |
+| [`ROADMAP.md`](ROADMAP.md)                                 | Planned, in-progress, and explicitly-deferred work                                |
+| [`sigma_rules/README.md`](sigma_rules/README.md)           | Static Sigma rule library index and logsource adaptation guide                   |
 
 ## License
 

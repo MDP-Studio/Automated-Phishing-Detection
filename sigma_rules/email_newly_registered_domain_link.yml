@@ -1,0 +1,40 @@
+title: Email Link to Newly Registered Domain
+id: c8a72f51-9d34-4eab-a019-3f6b81e2c5d7
+status: experimental
+description: |
+  Triggers when an email contains a clickable URL whose registrable domain
+  was registered within the last 30 days according to WHOIS lookup. Newly
+  registered domains are a long-standing precursor to phishing infrastructure
+  (T1583.001 Acquire Infrastructure: Domains).
+references:
+  - https://attack.mitre.org/techniques/T1583/001/
+  - https://attack.mitre.org/techniques/T1566/002/
+author: Automated Phishing Detection Pipeline
+date: 2026/04/14
+logsource:
+  product: phishing_detection_pipeline
+  category: verdict
+detection:
+  selection:
+    analyzer_results.domain_intelligence.details.min_domain_age_days|lt: 30
+    analyzer_results.domain_intelligence.confidence|gte: 0.5
+  filter_known_legitimate:
+    analyzer_results.domain_intelligence.details.domains|contains:
+      - github.io
+      - vercel.app
+      - netlify.app
+  condition: selection and not filter_known_legitimate
+fields:
+  - email_id
+  - analyzer_results.domain_intelligence.details.domains
+  - analyzer_results.domain_intelligence.details.min_domain_age_days
+  - iocs.headers.from_address
+falsepositives:
+  - Legitimate startups launching with new domains and announcement emails
+  - Marketing campaigns using disposable domains for tracking
+level: medium
+tags:
+  - attack.resource_development
+  - attack.initial_access
+  - attack.t1583.001
+  - attack.t1566.002

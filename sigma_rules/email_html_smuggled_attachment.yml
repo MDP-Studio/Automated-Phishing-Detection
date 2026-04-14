@@ -1,0 +1,47 @@
+title: HTML-Smuggled Attachment via Blob URL
+id: 7f5e3b29-1c8d-4a37-9bf0-6e2c4d8a1f59
+status: experimental
+description: |
+  Triggers when the URL detonator observes a fetched page that assembles a
+  downloadable payload at runtime via JavaScript Blob/createObjectURL APIs.
+  HTML smuggling (T1027.006) bypasses static URL reputation because the
+  payload is constructed in the browser, not served from the URL.
+references:
+  - https://attack.mitre.org/techniques/T1027/006/
+  - https://attack.mitre.org/techniques/T1566/001/
+author: Automated Phishing Detection Pipeline
+date: 2026/04/14
+logsource:
+  product: phishing_detection_pipeline
+  category: verdict
+detection:
+  selection_blob_assembly:
+    analyzer_results.url_detonation.details.javascript_apis|contains:
+      - 'URL.createObjectURL'
+      - 'new Blob'
+  selection_inline_download_trigger:
+    analyzer_results.url_detonation.details.javascript_apis|contains:
+      - 'a.click()'
+      - 'a.download'
+  selection_payload_mime:
+    analyzer_results.url_detonation.details.downloaded_mime_types|contains:
+      - application/x-msdownload
+      - application/octet-stream
+      - application/zip
+      - application/x-zip-compressed
+  condition: selection_blob_assembly and (selection_inline_download_trigger or selection_payload_mime)
+fields:
+  - email_id
+  - extracted_urls.url
+  - analyzer_results.url_detonation.details.javascript_apis
+  - analyzer_results.url_detonation.details.downloaded_mime_types
+falsepositives:
+  - Legitimate web apps that use Blob URLs for client-side file generation (CSV exports, PDF reports)
+  - Cloud document editors with in-browser export features
+level: critical
+tags:
+  - attack.defense_evasion
+  - attack.initial_access
+  - attack.t1027.006
+  - attack.t1566.001
+  - attack.t1204.001

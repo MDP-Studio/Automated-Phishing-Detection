@@ -1,0 +1,40 @@
+title: Business Email Compromise — Wire Fraud Intent
+id: 91e3a4b2-6c5d-4f78-b1e9-2a4f7d8c1b30
+status: experimental
+description: |
+  Triggers when the NLP intent classifier categorizes an email as
+  bec_wire_fraud with high confidence. The pipeline applies this as an
+  override rule that forces minimum LIKELY_PHISHING regardless of weighted
+  score, because BEC frequently passes SPF/DKIM/DMARC and carries no links
+  or attachments.
+references:
+  - https://attack.mitre.org/techniques/T1534/
+  - https://attack.mitre.org/techniques/T1656/
+author: Automated Phishing Detection Pipeline
+date: 2026/04/14
+logsource:
+  product: phishing_detection_pipeline
+  category: verdict
+detection:
+  selection:
+    analyzer_results.nlp_intent.details.intent_classification.category: bec_wire_fraud
+    analyzer_results.nlp_intent.details.intent_classification.confidence|gte: 0.8
+  filter_internal_finance_distribution_list:
+    iocs.headers.from_address|endswith:
+      - '@finance.internal.local'
+  condition: selection and not filter_internal_finance_distribution_list
+fields:
+  - email_id
+  - iocs.headers.from_address
+  - iocs.headers.subject
+  - analyzer_results.nlp_intent.details.intent_classification.confidence
+  - analyzer_results.nlp_intent.details.intent_classification.reasoning
+falsepositives:
+  - Legitimate finance team correspondence about urgent wires (verify out-of-band)
+  - Executive assistants forwarding wire instructions on behalf of leadership
+level: high
+tags:
+  - attack.initial_access
+  - attack.lateral_movement
+  - attack.t1534
+  - attack.t1656

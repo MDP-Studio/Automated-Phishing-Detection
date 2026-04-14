@@ -295,10 +295,13 @@ class AttachmentSandboxAnalyzer:
 
         try:
             if not attachments:
+                # No attachments to analyze means no attachment-based risk —
+                # vote clean with full confidence so the decision engine can
+                # incorporate the negative signal rather than skipping it.
                 return AnalyzerResult(
                     analyzer_name=analyzer_name,
                     risk_score=0.0,
-                    confidence=0.0,
+                    confidence=1.0,
                     details={"message": "no_attachments"},
                 )
 
