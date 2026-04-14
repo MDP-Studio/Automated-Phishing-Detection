@@ -214,7 +214,7 @@ python -m pytest --cov=src --cov-report=html
 docker-compose up -d
 ```
 
-Services: orchestrator (pipeline + dashboard), browser-sandbox (headless Chromium), redis (caching).
+The current `docker-compose.yml` defines a **single `orchestrator` service** containing the pipeline, dashboard, and Playwright headless browser in one image. The earlier multi-container layout (separate `browser-sandbox` and `redis` services) is a planned change tracked in `ROADMAP.md` — once it lands, browser execution will move to a dedicated network namespace per `THREAT_MODEL.md` §6 R3 hardening guidance.
 
 ## Project documentation
 

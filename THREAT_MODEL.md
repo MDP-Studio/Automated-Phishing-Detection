@@ -63,8 +63,8 @@ Four archetypes shape every other section.
                              │ IMAP/OAuth
                              ▼
    ┌─────────────────────────────────────────────────────┐
-   │ Pipeline host (Docker compose: orchestrator+redis+  │
-   │ browser-sandbox containers)                         │
+   │ Pipeline host (Docker compose: single `orchestrator`│
+   │ container today; multi-container split planned)     │
    │                                                     │
    │  TB2: Ingestion → Extraction → Analysis             │
    │                                                     │

@@ -45,6 +45,9 @@ Status is one of:
 
 Ordered by intended sequence, not priority.
 
+### Multi-container Docker Compose split
+Today the `docker-compose.yml` runs a single `orchestrator` container that holds the pipeline, dashboard, and Playwright headless browser. The threat model assumes (and `SECURITY.md` recommends) a separate `browser-sandbox` container on its own network namespace so a Chromium 0-day can't escape into the orchestrator. Splitting the compose file is a tracked hardening item — closes the gap between the threat model's stated isolation posture and what the compose actually deploys today.
+
 ### Browser session auth for the HTML dashboard
 HTML pages (`/`, `/monitor`, `/accounts`, `/dashboard`) load without auth even though their `/api/*` calls are bearer-token protected. A browser user therefore sees an empty dashboard until they manually inject a token. Add cookie/session auth so a `/login` POST sets a session cookie that's accepted by the same `TokenVerifier`. Tracked partial — bearer auth shipped, session layer not.
 

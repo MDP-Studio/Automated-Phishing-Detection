@@ -84,7 +84,13 @@ class PhishingDetectionApp:
 
             # Analyze
             logger.info(f"Analyzing email from {email_path}")
-            result = await self.pipeline.analyze(email)
+            try:
+                result = await self.pipeline.analyze(email)
+            finally:
+                # Single-shot CLI run: release the pipeline's aiohttp sessions
+                # so we don't leak them on process exit. The serve path keeps
+                # the pipeline alive across requests and closes it on shutdown.
+                await self.pipeline.close()
 
             # Generate outputs
             outputs = {}
