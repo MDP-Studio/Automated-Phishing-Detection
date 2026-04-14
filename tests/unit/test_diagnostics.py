@@ -1,0 +1,194 @@
+"""
+Tests for src/diagnostics/api_checks.py.
+
+Network calls are not exercised in unit tests — those would be flaky and
+slow. Tests here cover:
+
+  - SKIP path when no API key is configured
+  - CheckResult dataclass shape and to_dict() serialization
+  - Registry contents (all 5 services present)
+  - run_all_checks dispatches to every registered check
+  - summarize() counts and headline
+"""
+from __future__ import annotations
+
+from unittest.mock import patch
+
+import pytest
+
+from src.diagnostics import CheckResult, CheckStatus, run_all_checks
+from src.diagnostics.api_checks import (
+    _CHECK_REGISTRY,
+    check_abuseipdb,
+    check_anthropic,
+    check_google_safebrowsing,
+    check_urlscan,
+    check_virustotal,
+    summarize,
+)
+
+
+# ─── Skip-path tests (no API key, no network call) ──────────────────────────
+
+
+class TestSkipPathNoApiKey:
+    """Every check returns SKIP cleanly when its key is empty."""
+
+    @pytest.mark.asyncio
+    async def test_virustotal_skip(self):
+        result = await check_virustotal("")
+        assert result.status == CheckStatus.SKIP
+        assert result.service == "virustotal"
+        assert "no API key" in result.message
+
+    @pytest.mark.asyncio
+    async def test_google_safebrowsing_skip(self):
+        result = await check_google_safebrowsing("")
+        assert result.status == CheckStatus.SKIP
+        assert result.service == "google_safebrowsing"
+
+    @pytest.mark.asyncio
+    async def test_urlscan_skip(self):
+        result = await check_urlscan("")
+        assert result.status == CheckStatus.SKIP
+        assert result.service == "urlscan"
+
+    @pytest.mark.asyncio
+    async def test_abuseipdb_skip(self):
+        result = await check_abuseipdb("")
+        assert result.status == CheckStatus.SKIP
+        assert result.service == "abuseipdb"
+
+    @pytest.mark.asyncio
+    async def test_anthropic_skip(self):
+        result = await check_anthropic("")
+        assert result.status == CheckStatus.SKIP
+        assert result.service == "anthropic_llm"
+
+
+class TestCheckResultDataclass:
+    def test_to_dict_uses_string_status(self):
+        result = CheckResult("svc", CheckStatus.PASS, "ok", http_status=200)
+        d = result.to_dict()
+        assert d["status"] == "pass"  # string, not enum
+        assert d["service"] == "svc"
+        assert d["http_status"] == 200
+        assert d["message"] == "ok"
+        assert d["extra"] == {}
+
+    def test_extra_dict_is_carried(self):
+        result = CheckResult("svc", CheckStatus.PASS, "ok", extra={"score": 42})
+        d = result.to_dict()
+        assert d["extra"] == {"score": 42}
+
+    def test_default_message_empty(self):
+        result = CheckResult("svc", CheckStatus.SKIP)
+        assert result.message == ""
+        assert result.http_status is None
+
+
+# ─── Registry shape ─────────────────────────────────────────────────────────
+
+
+class TestRegistry:
+    def test_all_five_services_registered(self):
+        env_names = [env_name for env_name, _ in _CHECK_REGISTRY]
+        assert "VIRUSTOTAL_API_KEY" in env_names
+        assert "GOOGLE_SAFE_BROWSING_API_KEY" in env_names
+        assert "URLSCAN_API_KEY" in env_names
+        assert "ABUSEIPDB_API_KEY" in env_names
+        assert "ANTHROPIC_API_KEY" in env_names
+
+    def test_every_check_is_callable(self):
+        for env_name, check_fn in _CHECK_REGISTRY:
+            assert callable(check_fn), f"{env_name} check is not callable"
+
+    def test_no_duplicate_env_names(self):
+        env_names = [env_name for env_name, _ in _CHECK_REGISTRY]
+        assert len(env_names) == len(set(env_names))
+
+
+# ─── run_all_checks dispatch ────────────────────────────────────────────────
+
+
+class TestRunAllChecksDispatch:
+    @pytest.mark.asyncio
+    async def test_all_skip_when_no_keys_in_env(self, monkeypatch):
+        # Wipe every diagnostic env var
+        for env_name, _ in _CHECK_REGISTRY:
+            monkeypatch.delenv(env_name, raising=False)
+
+        results = await run_all_checks()
+        assert len(results) == len(_CHECK_REGISTRY)
+        assert all(r.status == CheckStatus.SKIP for r in results)
+
+    @pytest.mark.asyncio
+    async def test_results_in_registry_order(self, monkeypatch):
+        for env_name, _ in _CHECK_REGISTRY:
+            monkeypatch.delenv(env_name, raising=False)
+
+        results = await run_all_checks()
+        services = [r.service for r in results]
+        # virustotal is first in the registry, should be first in results
+        assert services[0] == "virustotal"
+
+    @pytest.mark.asyncio
+    async def test_config_api_path_used_when_supplied(self):
+        """When config_api is supplied, env vars are bypassed."""
+
+        class FakeApiConfig:
+            virustotal_key = ""
+            google_safebrowsing_key = ""
+            urlscan_key = ""
+            abuseipdb_key = ""
+            anthropic_key = ""
+
+        results = await run_all_checks(config_api=FakeApiConfig())
+        # All empty -> all SKIP
+        assert all(r.status == CheckStatus.SKIP for r in results)
+
+
+# ─── summarize() ────────────────────────────────────────────────────────────
+
+
+class TestSummarize:
+    def test_counts_pass_fail_skip_warn(self):
+        results = [
+            CheckResult("a", CheckStatus.PASS),
+            CheckResult("b", CheckStatus.PASS),
+            CheckResult("c", CheckStatus.FAIL),
+            CheckResult("d", CheckStatus.SKIP),
+            CheckResult("e", CheckStatus.WARN),
+        ]
+        summary = summarize(results)
+        assert summary["counts"]["pass"] == 2
+        assert summary["counts"]["fail"] == 1
+        assert summary["counts"]["skip"] == 1
+        assert summary["counts"]["warn"] == 1
+        assert summary["total"] == 5
+
+    def test_headline_excludes_skipped_from_denominator(self):
+        """A skipped service shouldn't count against 'configured' total."""
+        results = [
+            CheckResult("a", CheckStatus.PASS),
+            CheckResult("b", CheckStatus.SKIP),
+            CheckResult("c", CheckStatus.SKIP),
+        ]
+        summary = summarize(results)
+        # 1 pass out of 1 configured (the 2 skips are not counted)
+        assert "1/1" in summary["headline"]
+
+    def test_warn_counts_as_operational(self):
+        """A rate-limited service is operational, just degraded."""
+        results = [
+            CheckResult("a", CheckStatus.WARN),
+            CheckResult("b", CheckStatus.PASS),
+        ]
+        summary = summarize(results)
+        # 2 operational out of 2 configured
+        assert "2/2" in summary["headline"]
+
+    def test_empty_results(self):
+        summary = summarize([])
+        assert summary["total"] == 0
+        assert summary["counts"]["pass"] == 0

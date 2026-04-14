@@ -139,6 +139,24 @@ Three small focused items. The cycle 6 review correctly elevated NEW-1 to P0-adj
 
 ---
 
+## Cycle 10 — #10 refactor + eval harness with per-sample storage
+
+- **Commit:** (this commit)
+- **Tests:** 899 → 944 (+45: 18 diagnostics + 27 eval harness)
+- **Audit items closed:** P1 #10 (three duplicate diagnostic implementations), plus eval-harness deliverable
+
+Two phases under a strict 90-minute hard stop on phase 1 (the cycle 9 reviewer's pre-commit to prevent refactor scope creep).
+
+**Phase 1 (~32 min, well under budget):** Extracted the three duplicate diagnostic implementations (`diagnose_apis.py`, `test_apis.py`, `/api/diagnose`) into one `src/diagnostics/api_checks.py` with a `CheckResult` dataclass, five `check_<service>` functions, and a registry-driven `run_all_checks()` that all three callers use. `test_apis.py` deleted (lesser-featured duplicate). `/api/diagnose` shrank from ~120 lines of inline service definitions to a 10-line import-and-format. `diagnose_apis.py` is now a thin colored-output wrapper. 18 unit tests cover the SKIP path (no API key → no network call), the `CheckResult` schema, the registry shape, dispatch, and `summarize()` arithmetic.
+
+**Phase 2:** New `src/eval/harness.py` and `scripts/run_eval.py`. The high-leverage decision was the per-sample row shape — every eval run produces one JSONL row per sample with `(sample_id, true_label, predicted_verdict, predicted_label, overall_score, overall_confidence, per_analyzer_scores, calibration_fired, calibration_cap, model_id, commit_sha, timestamp, TP/FP/TN/FN flags, error)`. This is what lets future cycles diff eval runs and answer "which 12 samples flipped" instead of just "recall went up 2%". Per-run output goes to `eval_runs/YYYY-MM-DD_HHMM_<sha>.jsonl` plus a `.summary.json` alongside. Two binary projections (permissive: SUSPICIOUS+ counts as PHISHING; strict: LIKELY_PHISHING+) are computed and stored separately. 27 unit tests cover the row schema, projection logic, aggregate arithmetic (precision/recall/F1, divide-by-zero handling), and error-row exclusion from the confusion matrix.
+
+**Baseline run produced:** one run against `tests/real_world_samples/` (22 samples) committed under `eval_runs/`. The numbers are recorded but **not** quoted in the commit message, the README, or this section — per the cycle 9 reviewer's pre-commit, the harness is the deliverable and the numbers are data. Detection-quality analysis based on the per-sample data is a separate cycle. `eval_runs/` is linked as a directory, not by specific filename, because numbers go stale and links to specific runs decay.
+
+**Discovered-and-deferred:** none. The first eval run surfaced expected gaps (most analyzers degrade gracefully when API keys are absent in the test environment, which suppresses recall). Analysis of those gaps is cycle 12+ work.
+
+---
+
 ## Cycle 8 — Persistent email_id lookup (audit #9)
 
 - **Commit:** [`eed7e98`](https://github.com/meidielo/Automated-Phishing-Detection/commit/eed7e98) (2026-04-15)
@@ -162,7 +180,6 @@ Implementation: `src/feedback/email_lookup.py` with thread-safe `EmailLookupInde
 
 | ID | Severity | Item | Plan |
 |---|---|---|---|
-| #10 | P1 (originally tier; arguably P2) | Three duplicate API diagnostic implementations: `diagnose_apis.py`, `test_apis.py`, `/api/diagnose`. Maintenance debt, not a correctness issue. | Refactor into one shared implementation under `src/diagnostics/`. Cycle 10 first-hour task before the bigger eval-harness work. |
 | #20 | P2 | `templates/report.html` is a 600-line standalone Jinja report; check whether the dashboard modal in `monitor.html` has replaced it and delete if so. | Cycle 11+ |
 | #21 | P2 | Legacy CLI flags `--analyze` and `--serve` with `argparse.SUPPRESS`. Pick a deprecation date; remove. | Cycle 11+ |
 | #22 | P2 | Inline JS/CSS in `monitor.html` and `dashboard.html`. CSP would benefit from moving JS to `static/js/*.js` so `script-src 'self'` is enforceable. | Cycle 11+ |
@@ -183,17 +200,19 @@ These are draft writeups in `docs/writeups/` whose context is freshest now:
 
 | Metric | Pre-cycle 1 | Cycle 8 |
 |---|---|---|
-| Tests | 676 (1 failing) | **899 (0 failing)** |
-| Test modules | 22 | **32** |
+| Tests | 676 (1 failing) | **944 (0 failing)** |
+| Test modules | 22 | **34** |
 | ADRs | 0 | **2** |
 | Audit P0s open | 7 | **0** |
-| Audit P1s open | 11 | **2** |
+| Audit P1s open | 11 | **1** |
 | Audit P2s open | 4 | **4** |
 | CI configured | no | **yes, verified to bite** |
 | Threat model | implicit | **STRIDE per trust boundary, 9 residual risks documented** |
 | Detection content exports | none | **STIX 2.1 + Sigma rules + ATT&CK mapping** |
 | Dependency lock file | none | **hash-pinned, daily `pip-audit`** |
 | Privacy posture | implicit | **GDPR-aware retention purge with `--dry-run`** |
+| **Eval harness** | **none** | **`src/eval/harness.py` with per-sample JSONL storage in `eval_runs/`** |
+| **Measured baseline on `tests/real_world_samples/`** | **none** | **first run committed under `eval_runs/`; numbers are data, not goalposts** |
 
 ## How to use this file
 

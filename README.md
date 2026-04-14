@@ -34,6 +34,22 @@ Email Ingestion → Feature Extraction → Concurrent Analysis → Decision Engi
 
 The decision engine has two passes: pass 1 runs analyzers concurrently, pass 2 applies cross-analyzer calibration rules (ADR 0001) that can lower a verdict but never raise it and never modify the underlying weighted score. The persistent email_id lookup (ADR 0002) lets the feedback endpoint resolve sender-for-blocklist across server restarts.
 
+## Eval results
+
+Per-sample eval data lives in [`eval_runs/`](eval_runs/) — one JSONL per run plus a `.summary.json` aggregate. Each row records the predicted verdict, the per-analyzer scores, the calibration outcome, the LLM model ID actually used, and the commit SHA the eval was run against. **The directory is the link, not any specific run** — numbers go stale and individual filenames decay.
+
+To produce a new run:
+
+```bash
+python scripts/run_eval.py
+```
+
+Default corpus is `tests/real_world_samples/` (the project's own 22-sample labeled set). Pass `--corpus DIR --labels LABELS.json` to evaluate against a different set (Nazario, PhishTank, Enron-ham integration is a planned cycle — the harness shape is corpus-agnostic, only the loader changes).
+
+The harness produces per-sample TP/FP/TN/FN flags under two binary projections (permissive: SUSPICIOUS+ counts as PHISHING; strict: LIKELY_PHISHING+). Aggregate precision/recall/F1 and accuracy are computed from the flags.
+
+> **The harness is the deliverable, the numbers are data.** Detection-quality improvements should be tracked by diffing the per-sample JSONL between commits, not by chasing aggregate metrics in isolation. See [`HISTORY.md`](HISTORY.md) cycle 10 for the rationale.
+
 ## Detection Coverage
 
 The pipeline covers ~12 sub-techniques across **TA0001 Initial Access**, **TA0042 Resource Development**, **TA0005 Defense Evasion**, and **TA0008 Lateral Movement**. Full mapping with per-analyzer rationale and known gaps lives in [`docs/MITRE_ATTACK_MAPPING.md`](docs/MITRE_ATTACK_MAPPING.md).
@@ -176,7 +192,7 @@ The static Sigma rule library in [`sigma_rules/`](sigma_rules/) ships hand-writt
 
 ## Testing
 
-The test suite has **899 tests across 32 modules** (unit + integration), exercising every analyzer, the decision engine override rules (including the cycle 7 ordering fix that catches pure-text BEC), the cross-analyzer calibration pass (ADR 0001) with explicit cap-ceiling tests, the persistent email_id lookup index (ADR 0002) with cross-restart smoking-gun tests, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, the data retention purge, and the web security middleware (bearer auth, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file. CI-bites verified by deliberate-red sanity check on a throwaway branch.
+The test suite has **944 tests across 34 modules** (unit + integration), exercising every analyzer, the decision engine override rules (including the cycle 7 ordering fix that catches pure-text BEC), the cross-analyzer calibration pass (ADR 0001) with explicit cap-ceiling tests, the persistent email_id lookup index (ADR 0002) with cross-restart smoking-gun tests, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, the data retention purge, and the web security middleware (bearer auth, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file. CI-bites verified by deliberate-red sanity check on a throwaway branch.
 
 ```bash
 # Run all tests
