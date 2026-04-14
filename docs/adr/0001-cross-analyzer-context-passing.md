@@ -191,3 +191,60 @@ The PipelineResult records the calibration outcome under `details["calibration"]
 - **Should the allowlist be operator-configurable via YAML?** Probably yes long-term, hardcoded for now. Tracked as a follow-up in ROADMAP.
 - **Should pass 2 also support score adjustments (not just caps)?** The dataclass exposes `score_adjustments` for forward compat but no rule uses it yet. Adding score adjustments later doesn't require a new ADR; removing them would.
 - **Should calibration outcomes feed the eval harness directly?** Yes — covered by the eval-diff step in the implementing cycle.
+
+## Why the cap is SUSPICIOUS and not CLEAN
+
+This was raised in the cycle 6 review. The answer is durable enough to live in the ADR rather than as a commit message footnote.
+
+**The cap lowers a verdict at most to SUSPICIOUS. It never lowers to CLEAN, and it never raises.** In code:
+
+```python
+# src/scoring/calibration.py
+def _min_verdict(a: Verdict, b: Verdict) -> Verdict:
+    return a if _VERDICT_RANK[a] <= _VERDICT_RANK[b] else b
+
+# src/scoring/decision_engine.py
+if calibration.verdict_cap is not None:
+    capped = _min_verdict(final_verdict, calibration.verdict_cap)
+```
+
+Semantically:
+- Raw `LIKELY_PHISHING` + cap `SUSPICIOUS` → `SUSPICIOUS`
+- Raw `CONFIRMED_PHISHING` + cap `SUSPICIOUS` → `SUSPICIOUS`
+- Raw `SUSPICIOUS` + cap `SUSPICIOUS` → `SUSPICIOUS` (unchanged)
+- Raw `CLEAN` + cap `SUSPICIOUS` → `CLEAN` (cap cannot raise)
+
+**Why not CLEAN?** Consider the adversarial scenario the cycle 6 reviewer flagged: a real LinkedIn notification that embeds a genuinely malicious redirect. LinkedIn's own tracking URLs have been abused as open redirects multiple times in the real world. In this scenario:
+
+- Header: SPF+DKIM+DMARC pass (it really is LinkedIn)
+- Domain: `linkedin.com` (on allowlist)
+- NLP intent: high risk (engagement language)
+- URL reputation: flags the redirect, but *below* the corroboration threshold — e.g. risk=0.4 or confidence=0.45
+
+With the corroboration threshold at 0.5/0.5, this URL signal does not lift the cap. The rule fires. If we capped to CLEAN, the verdict would be CLEAN and no analyst ever sees the email — a real attack slips through silently. Capping to SUSPICIOUS means the analyst still reviews, sees the URL reputation signal in the analyzer details, and makes the final call.
+
+**The principle:** a calibration cap should be the least-restrictive cap that still addresses the false positive. SUSPICIOUS is that cap because (a) it suppresses auto-escalation to LIKELY_PHISHING/CONFIRMED on ambiguous content while (b) still routing the email into the analyst's queue. CLEAN would suppress both.
+
+**This is locked by tests.** `tests/unit/test_calibration.py::TestCalibrationCapCeiling` has three explicit tests:
+1. `test_cap_lowers_likely_phishing_to_suspicious` — proves LIKELY_PHISHING → SUSPICIOUS
+2. `test_cap_does_not_raise_clean_to_suspicious` — proves CLEAN stays CLEAN
+3. `test_underlying_score_preserved_when_cap_applies` — proves the raw score is NOT touched (FM2 mitigation)
+
+A refactor that changes the cap behaviour will break one of these and force a deliberate reconsideration.
+
+## Cycle 7 NEW-1 fix (decision_engine override ordering)
+
+During cycle 6 implementation, a test failure revealed that the existing `DecisionEngine._check_override_rules` evaluated `_is_clean_email` **before** `_is_bec_threat`. A pure-text BEC email with passing SPF+DKIM+DMARC (the highest-risk BEC variant, using a compromised legitimate account) has `url_count == 0` and `attachment_count == 0`, which exactly matches the `_is_clean_email` preconditions. Under the old ordering, `_is_clean_email` force-marked the email CLEAN before `_is_bec_threat` ever ran.
+
+Real BEC samples in `tests/real_world_samples/` slipped through this hole only because they happened to carry at least one URL. That made the "pass" on the BEC suite a load-bearing accident rather than a visible bug. The cycle 6 review correctly elevated this to P0-adjacent because it invalidates the project's BEC detection claim — any future pure-text BEC would be silently marked CLEAN.
+
+**The fix (cycle 7):** reorder the override rules so `_is_bec_threat` runs before `_is_clean_email`. Rationale: BEC has exactly one defender (the NLP intent signal), and that defender must run before the clean-detection path that would otherwise mask it. The new order is:
+
+1. Known malware hash → CONFIRMED_PHISHING
+2. URL on phishing feed → LIKELY_PHISHING
+3. **BEC intent with confidence > 0.8 → LIKELY_PHISHING**  *(moved up)*
+4. All auth passes + no URLs + no attachments + known sender → CLEAN
+
+**Regression test:** `tests/unit/test_decision_engine_override_ordering.py::TestPureTextBecNotMisclassifiedAsClean::test_pure_text_bec_becomes_likely_phishing`. The test constructs a BEC email shape with `url_count=0` and `attachment_count=0` — the exact conditions that the old ordering would mishandle — and asserts the verdict is `LIKELY_PHISHING`. If a future refactor reintroduces the old ordering, this test fails loudly.
+
+The fix also adds `test_bec_override_reasoning_not_clean_reasoning` which checks the reasoning string directly, catching the case where a refactor produces the same verdict by accident (e.g. via a confidence-cap or score-cap fallback path) without the BEC override actually firing. The property under test is "which rule fired", not just "which verdict came out".

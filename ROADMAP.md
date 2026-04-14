@@ -47,17 +47,17 @@ Status is one of:
 | **Bind-mount UID fix** via `docker-entrypoint.sh` — chowns `/app/data` and `/app/logs` to runtime UID then `gosu`s to non-root before exec | `docker-entrypoint.sh`, `Dockerfile`            |
 | **Data retention / `purge` CLI subcommand** with `--older-than`, `--strict`, `--dry-run`. Closes Privacy Act / GDPR indefinite-retention risk. | `src/automation/retention.py`, `main.py purge` (17 tests) |
 | **Cross-analyzer calibration pass** (ADR 0001) — two-pass decision engine with corroboration-style calibration rules. Closes the LinkedIn FP that survived four cycles. | `src/scoring/calibration.py`, `src/scoring/social_platform_domains.py`, `src/scoring/decision_engine.py` (29 tests + ADR + rule registry doc) |
+| **Override-rule ordering fix (cycle 7 NEW-1)** — `_is_bec_threat` now runs BEFORE `_is_clean_email` so pure-text BEC with passing auth is no longer force-marked CLEAN. Closes a load-bearing accident discovered during cycle 6 implementation. | `src/scoring/decision_engine.py::_check_override_rules` (4 regression tests in `tests/unit/test_decision_engine_override_ordering.py`) |
+| **Calibration cap ceiling locked** — explicit tests proving the LinkedIn calibration rule caps verdicts AT SUSPICIOUS, never at CLEAN, and never modifies the underlying weighted score. Defends against the "real LinkedIn with embedded malicious redirect below corroboration threshold" scenario. | `tests/unit/test_calibration.py::TestCalibrationCapCeiling` (3 tests) + ADR §"Why the cap is SUSPICIOUS and not CLEAN" |
+| **CI-bites sanity check** — deliberate red branch (run id `24403600695`) confirmed `pull_request` workflow fails the test job loudly when a test breaks. Branch deleted, PR closed without merge. The "two cycles green = converging or blind spot" concern from the cycle 6 review is now resolved. | `.github/workflows/ci.yml`                       |
 | Docker Compose deployment (single orchestrator container today; multi-container split planned) | `docker-compose.yml`                            |
-| 872 tests (30 modules) | unit + integration |
+| 879 tests (31 modules) | unit + integration |
 
 ---
 
 ## Planned
 
 Ordered by intended sequence, not priority.
-
-### Decision engine override-rule ordering bug
-**Discovered during cycle 6 implementation.** The `_check_override_rules` flow in `src/scoring/decision_engine.py` checks `_is_clean_email` BEFORE `_is_bec_threat`. `_is_clean_email` returns True (and forces verdict CLEAN) on any email where SPF+DKIM+DMARC pass AND `url_count == 0` AND `attachment_count == 0` AND sender risk is low. **A pure-text BEC email with passing auth meets all four conditions**, so the BEC override that should fire never gets a chance. Real BEC samples in `tests/real_world_samples/` happen to slip through because they have at least one URL, but this is a load-bearing accident. Fix: move `_is_bec_threat` check before `_is_clean_email`, or have `_is_clean_email` also exclude bec_wire_fraud intent. Tracked separately because it's outside cycle 6 scope and needs its own regression test against `sample_08_google_workspace_shared_doc.eml`. Documented in `tests/unit/test_calibration.py::TestDecisionEngineIntegration._benign` for visibility.
 
 ### Feedback DB retention policy
 The `purge` subcommand (shipped) handles `data/results.jsonl`. The SQLAlchemy feedback DB (`data/feedback.db`) still accumulates analyst labels indefinitely. Add equivalent purge logic for it — keep N most recent labels OR purge by date — and wire it into the same `purge` command via `--target=jsonl|feedback|all`. Tracked separately because the feedback DB is the audit trail of analyst decisions and dropping rows there has different semantics from dropping log rows.

@@ -278,8 +278,19 @@ class DecisionEngine:
         Override rules (first match wins):
         1. Known malware hash → CONFIRMED_PHISHING
         2. URL on phishing feed (VT detection > 30%) → min LIKELY_PHISHING
-        3. All SPF+DKIM+DMARC pass + known sender + no URLs + no attachments → max CLEAN
-        4. NLP intent = bec_wire_fraud with confidence > 0.8 → min LIKELY_PHISHING
+        3. NLP intent = bec_wire_fraud with confidence > 0.8 → min LIKELY_PHISHING
+        4. All SPF+DKIM+DMARC pass + known sender + no URLs + no attachments → max CLEAN
+
+        Order matters. BEC detection MUST run before the "clean email"
+        check because a pure-text BEC email (the highest-risk variant)
+        passes SPF/DKIM/DMARC from a compromised legitimate account, has
+        no URLs, and has no attachments — which exactly matches the
+        _is_clean_email preconditions. Running _is_clean_email first
+        would force-mark pure-text BEC as CLEAN before _is_bec_threat
+        ever gets a chance. This was cycle 6's NEW-1 discovery; see
+        docs/adr/0001-cross-analyzer-context-passing.md §"Cycle 7
+        NEW-1 fix" and the regression test
+        tests/unit/test_decision_engine_override_ordering.py.
 
         Args:
             results: Analyzer results dict
@@ -301,17 +312,22 @@ class DecisionEngine:
         if url_result and self._has_malicious_urls(url_result):
             return Verdict.LIKELY_PHISHING, "URL detected as malicious by multiple vendors"
 
-        # Rule 3: All auth passes + known sender + no URLs/attachments
-        if self._is_clean_email(results, email_data):
-            return Verdict.CLEAN, "All authentication checks passed, no suspicious indicators"
-
-        # Rule 4: NLP intent = BEC with high confidence
+        # Rule 3: NLP intent = BEC with high confidence.
+        # This MUST run before Rule 4 (_is_clean_email) — see the docstring
+        # above for the reason. Pure-text BEC with passing auth is
+        # structurally indistinguishable from legitimate email, except for
+        # the NLP intent signal, so BEC has exactly one defender and it
+        # has to run before the clean-detection path.
         nlp_result = results.get("nlp_intent")
         if nlp_result and self._is_bec_threat(nlp_result):
             return (
                 Verdict.LIKELY_PHISHING,
                 "High-confidence Business Email Compromise intent detected",
             )
+
+        # Rule 4: All auth passes + known sender + no URLs/attachments
+        if self._is_clean_email(results, email_data):
+            return Verdict.CLEAN, "All authentication checks passed, no suspicious indicators"
 
         # No override rule matched
         return None, ""

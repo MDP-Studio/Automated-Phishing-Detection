@@ -70,18 +70,19 @@ def _benign(name: str) -> AnalyzerResult:
     """
     Synthetic clean result for a non-firing analyzer.
 
-    For url_reputation / attachment_analysis we include `url_count` /
-    `attachment_count` > 0 because real emails (LinkedIn digests, BEC,
-    most phishing) almost always contain at least one URL or attachment.
-    Without these, the existing `_is_clean_email` override rule in
-    decision_engine.py incorrectly forces the verdict to CLEAN before
-    calibration even runs, masking the test. The override-rule ordering
-    is its own bug (BEC by definition has no URLs/attachments and would
-    also be misclassified) — tracked separately from this cycle. See
-    the `decision_engine_clean_email_override` ROADMAP item.
+    For `url_reputation` we still set `url_count > 0` even though cycle 7
+    fixed the BEC ordering bug (see
+    tests/unit/test_decision_engine_override_ordering.py). The reason is
+    no longer the ordering bug — it's that real LinkedIn digests DO
+    contain URLs (profile links, unsubscribe), so the calibration tests
+    are meant to mirror that shape. Passing `url_count=0` would exercise
+    the "truly clean email" path where `_is_clean_email` correctly fires
+    and the calibration never runs — not what these tests are measuring.
     """
     details = {}
     if name == "url_reputation":
+        # Mirror real LinkedIn email shape: several URLs present but none
+        # flagged as malicious by reputation services.
         details = {"url_count": 5, "urls_analyzed": {}}
     elif name == "attachment_analysis":
         details = {"attachment_count": 0}
@@ -520,6 +521,162 @@ class TestDecisionEngineIntegration:
         # Calibration should NOT have run (override took precedence) so
         # there's nothing recorded
         assert result.calibration is None
+
+
+class TestCalibrationCapCeiling:
+    """
+    Cycle 7: explicit tests for the calibration cap SEMANTIC.
+
+    The cap is SUSPICIOUS (not CLEAN). This means:
+        - A verdict of LIKELY_PHISHING or CONFIRMED_PHISHING is lowered
+          to SUSPICIOUS when the rule fires. The analyst still reviews.
+        - A verdict of CLEAN or SUSPICIOUS is UNCHANGED — the cap cannot
+          raise a verdict, only lower it.
+        - The underlying weighted score is NEVER modified. A reviewer
+          reading the JSON sees both the unmodified score (which may
+          still be high due to NLP) and the reasoning for why it was
+          capped.
+
+    The threat this defends against: a real LinkedIn notification that
+    embeds a genuinely malicious redirect (LinkedIn tracking URLs have
+    been abused as open redirects in the wild). The `url_reputation`
+    analyzer may score the redirect below the corroboration threshold
+    (risk < 0.5 or conf < 0.5), which means the calibration rule still
+    fires. In that case, the verdict is capped at SUSPICIOUS — NOT
+    dropped to CLEAN — so an analyst is still prompted to review.
+
+    See docs/adr/0001-cross-analyzer-context-passing.md section
+    "Why the cap is SUSPICIOUS and not CLEAN" for the full rationale.
+    """
+
+    def setup_method(self):
+        from src.config import ScoringConfig
+        from src.scoring.decision_engine import DecisionEngine
+
+        self.engine = DecisionEngine(ScoringConfig(
+            weights={
+                "header_analysis": 0.20,
+                "url_reputation": 0.15,
+                "domain_intelligence": 0.10,
+                "url_detonation": 0.10,
+                "brand_impersonation": 0.10,
+                "nlp_intent": 0.20,
+                "attachment_analysis": 0.10,
+                "sender_profiling": 0.05,
+            },
+            thresholds={
+                "CLEAN": (0.0, 0.30),
+                "SUSPICIOUS": (0.30, 0.60),
+                "LIKELY_PHISHING": (0.60, 0.85),
+                "CONFIRMED_PHISHING": (0.85, 1.00),
+            },
+        ))
+
+    def test_cap_lowers_likely_phishing_to_suspicious(self):
+        """
+        LinkedIn digest shape with weights pushed up enough that the
+        raw verdict would reach LIKELY_PHISHING. Cap must lower it.
+        """
+        results = {
+            "header_analysis": _header(
+                from_address="messages-noreply@linkedin.com",
+            ),
+            # High nlp_intent risk + high confidence → weighted score
+            # dominated by NLP's 0.20 * 1.0 * 1.0 contribution
+            "nlp_intent": _nlp(risk=1.0, conf=1.0),
+            # Sub-corroboration-threshold url_reputation: risk below 0.5
+            # OR confidence below 0.5. Combined with the high NLP,
+            # threshold mapping would put this in LIKELY_PHISHING range.
+            "url_reputation": AnalyzerResult(
+                analyzer_name="url_reputation",
+                risk_score=0.4, confidence=0.9,
+                details={"url_count": 5, "urls_analyzed": {}},
+            ),
+            "domain_intelligence": _benign("domain_intelligence"),
+            "brand_impersonation": _benign("brand_impersonation"),
+            "attachment_analysis": _benign("attachment_analysis"),
+            "sender_profiling": _benign("sender_profiling"),
+        }
+        email_data = {"from_address": "messages-noreply@linkedin.com"}
+
+        result = self.engine.score(
+            results, email_id="cap-ceiling-likely", email_data=email_data,
+        )
+
+        # Rule must fire (no independent corroboration above 0.5 risk)
+        assert result.calibration is not None
+        assert "linkedin_social_platform_corroboration" in result.calibration["rules_fired"]
+        # Verdict is capped at SUSPICIOUS — analyst still sees it
+        assert result.verdict == Verdict.SUSPICIOUS
+        # Critical: verdict is NOT dropped to CLEAN
+        assert result.verdict != Verdict.CLEAN, (
+            "calibration cap must NOT drop verdict to CLEAN — SUSPICIOUS "
+            "is the ceiling, not a floor. See ADR 0001 'Why the cap is "
+            "SUSPICIOUS and not CLEAN'."
+        )
+
+    def test_cap_does_not_raise_clean_to_suspicious(self):
+        """
+        Legitimate LinkedIn email with truly low nlp_intent risk.
+        Calibration rule does NOT fire (nlp_intent below 0.7 threshold).
+        Verdict must come through as whatever the raw scoring path
+        produces (CLEAN here), NOT be raised to SUSPICIOUS by calibration.
+        """
+        results = {
+            "header_analysis": _header(
+                from_address="messages-noreply@linkedin.com",
+            ),
+            # Low nlp_intent: rule does not fire at all
+            "nlp_intent": _nlp(risk=0.1, conf=0.9, category="legitimate"),
+            "url_reputation": _benign("url_reputation"),
+            "domain_intelligence": _benign("domain_intelligence"),
+            "brand_impersonation": _benign("brand_impersonation"),
+            "attachment_analysis": _benign("attachment_analysis"),
+            "sender_profiling": _benign("sender_profiling"),
+        }
+        email_data = {"from_address": "messages-noreply@linkedin.com"}
+
+        result = self.engine.score(
+            results, email_id="cap-ceiling-clean", email_data=email_data,
+        )
+
+        # Rule did NOT fire (NLP below trigger threshold)
+        assert result.calibration is None
+        # Verdict should be CLEAN per the low raw score — not SUSPICIOUS
+        assert result.verdict == Verdict.CLEAN
+
+    def test_underlying_score_preserved_when_cap_applies(self):
+        """
+        ADR §'PipelineResult model evolution': the cap must NOT modify
+        `overall_score`. A reviewer reading the JSON must still be able
+        to see the uncalibrated score so analyzer drift stays visible.
+        This is the FM2 mitigation.
+        """
+        results = {
+            "header_analysis": _header(
+                from_address="messages-noreply@linkedin.com",
+            ),
+            "nlp_intent": _nlp(risk=1.0, conf=1.0),
+            "url_reputation": _benign("url_reputation"),
+            "domain_intelligence": _benign("domain_intelligence"),
+            "brand_impersonation": _benign("brand_impersonation"),
+            "attachment_analysis": _benign("attachment_analysis"),
+            "sender_profiling": _benign("sender_profiling"),
+        }
+        email_data = {"from_address": "messages-noreply@linkedin.com"}
+
+        result = self.engine.score(
+            results, email_id="cap-score-preserve", email_data=email_data,
+        )
+
+        assert result.calibration is not None
+        # The score is UNCHANGED even though the verdict was capped.
+        # The NLP analyzer's high risk_score contribution is still in
+        # the weighted total — this is what lets analyzer drift show
+        # up on the dashboard even when calibration is active.
+        assert result.overall_score > 0.15, (
+            "calibration must not modify overall_score — FM2 mitigation"
+        )
 
 
 class TestRuleException:
