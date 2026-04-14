@@ -158,7 +158,7 @@ The static Sigma rule library in [`sigma_rules/`](sigma_rules/) ships hand-writt
 
 ## Testing
 
-The test suite has **826 tests across 28 modules** (unit + integration), exercising every analyzer, the decision engine override rules, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, and the web security middleware (bearer auth, SSRF guard, security headers).
+The test suite has **843 tests across 29 modules** (unit + integration), exercising every analyzer, the decision engine override rules, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, the data retention purge, and the web security middleware (bearer auth, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file.
 
 ```bash
 # Run all tests
@@ -217,6 +217,31 @@ docker-compose up -d
 ```
 
 The current `docker-compose.yml` defines a **single `orchestrator` service** containing the pipeline, dashboard, and Playwright headless browser in one image. The earlier multi-container layout (separate `browser-sandbox` and `redis` services) is a planned change tracked in `ROADMAP.md` — once it lands, browser execution will move to a dedicated network namespace per `THREAT_MODEL.md` §6 R3 hardening guidance.
+
+The image:
+- Installs from `requirements.lock` with `pip install --require-hashes` so any dependency tampering fails the build.
+- Uses a `urllib.request`-based healthcheck (no `curl` package).
+- Runs `docker-entrypoint.sh` as root briefly to chown the `/app/data` and `/app/logs` bind mounts to UID 1000, then `gosu`s to the non-root `phishing` user before exec'ing the pipeline. This closes the bind-mount UID-mismatch issue that previously broke `results.jsonl` writes on Linux hosts where the host bind-mount source is root-owned.
+
+## Data retention & privacy
+
+Stored email metadata in `data/results.jsonl` is regulated personal information under the Australian Privacy Act and the EU GDPR. The pipeline ships with a 30-day default retention window and a `purge` CLI subcommand:
+
+```bash
+# Show what would be deleted without modifying the file
+python main.py purge --dry-run
+
+# Apply the default 30-day retention from config
+python main.py purge
+
+# Custom retention window
+python main.py purge --older-than 7
+
+# Strict mode: also drop rows with unparseable timestamps
+python main.py purge --strict
+```
+
+Run it from cron daily. Configure the default retention via `data_retention_days` in `config.yaml` or the `DATA_RETENTION_DAYS` environment variable. See `THREAT_MODEL.md` §6a for the full privacy threat model.
 
 ## Project documentation
 

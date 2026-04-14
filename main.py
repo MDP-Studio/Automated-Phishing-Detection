@@ -1303,6 +1303,34 @@ Quick Start:
     )
     serve_parser.add_argument("--port", type=int)
 
+    # ── purge ────────────────────────────────────────────────────
+    purge_parser = subparsers.add_parser(
+        "purge",
+        help="Purge old rows from data/results.jsonl per the retention policy.",
+    )
+    purge_parser.add_argument(
+        "--older-than",
+        type=int,
+        default=None,
+        help="Retention in days. Rows older than this are deleted. "
+             "Defaults to PipelineConfig.data_retention_days (30 unless overridden).",
+    )
+    purge_parser.add_argument(
+        "--path",
+        default="data/results.jsonl",
+        help="Path to the JSONL file to purge (default: data/results.jsonl).",
+    )
+    purge_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Also drop rows with unparseable timestamps. Default keeps them.",
+    )
+    purge_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be dropped without modifying the file.",
+    )
+
     # ── Legacy flags ─────────────────────────────────────────────
     parser.add_argument("--analyze", metavar="EMAIL_FILE", help=argparse.SUPPRESS)
     parser.add_argument("--serve", action="store_true", help=argparse.SUPPRESS)
@@ -1362,6 +1390,50 @@ Quick Start:
     elif args.command == "serve":
         app = PhishingDetectionApp()
         app.run_server(host=args.host, port=args.port)
+
+    elif args.command == "purge":
+        from src.automation.retention import purge_results_jsonl
+        config = PipelineConfig.from_env()
+        max_age = args.older_than if args.older_than is not None else config.data_retention_days
+
+        if args.dry_run:
+            # Dry run: copy the file to a tempfile, purge that, report stats
+            import shutil, tempfile
+            src_path = Path(args.path)
+            if not src_path.exists():
+                print(f"No file at {src_path} — nothing to purge.")
+                return
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".jsonl", delete=False
+            ) as tmp:
+                tmp_path = Path(tmp.name)
+            shutil.copy2(src_path, tmp_path)
+            try:
+                stats = purge_results_jsonl(
+                    tmp_path,
+                    max_age_days=max_age,
+                    keep_unparseable=not args.strict,
+                )
+                print(f"[DRY RUN] {args.path} (no changes written)")
+                print(f"  cutoff:      {stats.cutoff.isoformat()}")
+                print(f"  would keep:  {stats.kept}")
+                print(f"  would drop:  {stats.dropped}")
+                print(f"  unparseable: {stats.unparseable} ({'kept' if not args.strict else 'dropped'})")
+                print(f"  bytes:       {stats.bytes_before} -> {stats.bytes_after}")
+            finally:
+                tmp_path.unlink(missing_ok=True)
+        else:
+            stats = purge_results_jsonl(
+                args.path,
+                max_age_days=max_age,
+                keep_unparseable=not args.strict,
+            )
+            print(f"Purged {stats.path}")
+            print(f"  cutoff:      {stats.cutoff.isoformat()}")
+            print(f"  kept:        {stats.kept}")
+            print(f"  dropped:     {stats.dropped}")
+            print(f"  unparseable: {stats.unparseable}")
+            print(f"  bytes:       {stats.bytes_before} -> {stats.bytes_after}")
 
     else:
         if len(sys.argv) == 1:

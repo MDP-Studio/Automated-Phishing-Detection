@@ -1,0 +1,204 @@
+"""
+Data retention / purge for stored analysis results.
+
+The pipeline writes one JSON line per analyzed email to
+`data/results.jsonl`. Each row contains sender, recipient, subject, and
+analysis verdict — regulated personal information under the Australian
+Privacy Act 1988 and the EU GDPR. Storing it indefinitely is a legal
+exposure separate from the security threats in `THREAT_MODEL.md`.
+
+This module provides the purge primitive used by:
+- The `purge` CLI subcommand in `main.py`
+- A scheduled job (future, tracked in ROADMAP.md) that runs daily
+
+Design notes:
+
+1. **Atomicity**: writes go to a sibling tempfile and `os.replace` the
+   original. If anything fails before the swap, the original is intact.
+2. **Conservative on unparseable rows**: by default, rows that don't
+   have a valid timestamp are KEPT (we'd rather over-retain than lose
+   data we can't classify). Operators who want strict purging can pass
+   `keep_unparseable=False`.
+3. **No DB, just a file**: the retention story for the SQLAlchemy
+   feedback DB is separate and handled by its own purge logic; this
+   module is only for the JSONL log.
+4. **Time-zone safe**: timestamps in the file are ISO-8601 with a TZ
+   offset, but legacy rows may be naive. Naive timestamps are treated
+   as UTC.
+
+The strongest property the test suite locks: after a successful purge,
+no row remains with a timestamp older than the cutoff.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Optional, Union
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RetentionStats:
+    """
+    Summary of one purge run.
+
+    Returned by `purge_results_jsonl` and printed by the CLI subcommand
+    so operators can verify what happened without re-reading the file.
+    """
+
+    path: str
+    cutoff: datetime
+    kept: int
+    dropped: int
+    unparseable: int
+    bytes_before: int
+    bytes_after: int
+
+    @property
+    def total_seen(self) -> int:
+        return self.kept + self.dropped + self.unparseable
+
+
+def _parse_timestamp(value) -> Optional[datetime]:
+    """
+    Parse the `timestamp` field from a results.jsonl row.
+
+    Accepts ISO-8601 with or without timezone, with or without
+    microseconds. Returns None for anything else (including the wrong
+    Python type) so callers can treat "unparseable" as a single case.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        # Treat naive timestamps as UTC. The pipeline emits TZ-aware
+        # timestamps now (datetime.now(timezone.utc)) but legacy rows
+        # in the existing data/results.jsonl may be naive.
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def purge_results_jsonl(
+    path: Union[str, Path],
+    max_age_days: int,
+    *,
+    now: Optional[datetime] = None,
+    keep_unparseable: bool = True,
+) -> RetentionStats:
+    """
+    Purge rows older than `max_age_days` from a results.jsonl file.
+
+    Args:
+        path: Path to the JSONL file. If the file doesn't exist, a
+            zero-stats result is returned without raising.
+        max_age_days: Maximum age in days. Rows with `timestamp` older
+            than `now - max_age_days` are dropped. Must be >= 0; pass 0
+            to drop everything.
+        now: Reference time for the cutoff. Defaults to `datetime.now(UTC)`.
+            Exposed for testability so tests can use a frozen clock.
+        keep_unparseable: If True (default), rows without a parseable
+            timestamp are preserved. If False, they're dropped along
+            with the old rows.
+
+    Returns:
+        RetentionStats describing what happened.
+
+    Raises:
+        ValueError: if `max_age_days` is negative.
+        OSError: if the atomic file swap fails. The original file is
+            guaranteed untouched in this case.
+    """
+    if max_age_days < 0:
+        raise ValueError(f"max_age_days must be >= 0, got {max_age_days}")
+
+    target = Path(path)
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=max_age_days)
+
+    # Missing file -> nothing to do, return empty stats
+    if not target.exists():
+        return RetentionStats(
+            path=str(target),
+            cutoff=cutoff,
+            kept=0, dropped=0, unparseable=0,
+            bytes_before=0, bytes_after=0,
+        )
+
+    bytes_before = target.stat().st_size
+
+    kept_lines: list[str] = []
+    kept = dropped = unparseable = 0
+
+    with target.open("r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.rstrip("\n").rstrip("\r")
+            if not line.strip():
+                # Blank lines are silently dropped — they're not data.
+                continue
+
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                unparseable += 1
+                if keep_unparseable:
+                    kept_lines.append(line)
+                continue
+
+            ts = _parse_timestamp(row.get("timestamp"))
+            if ts is None:
+                unparseable += 1
+                if keep_unparseable:
+                    kept_lines.append(line)
+                continue
+
+            if ts >= cutoff:
+                kept += 1
+                kept_lines.append(line)
+            else:
+                dropped += 1
+
+    # Atomic swap: write to a sibling tempfile, then os.replace.
+    # `os.replace` is atomic on POSIX and Windows for same-filesystem
+    # moves, which a sibling in the same directory always is.
+    tmp_path = target.with_suffix(target.suffix + ".purge.tmp")
+    try:
+        with tmp_path.open("w", encoding="utf-8", newline="\n") as out:
+            for line in kept_lines:
+                out.write(line)
+                out.write("\n")
+        os.replace(tmp_path, target)
+    except Exception:
+        # Make a best-effort cleanup of the tempfile, then re-raise so
+        # the caller knows nothing was changed.
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass
+        raise
+
+    bytes_after = target.stat().st_size
+
+    logger.info(
+        "Purged %s: kept=%d dropped=%d unparseable=%d "
+        "(%d bytes -> %d bytes, cutoff=%s)",
+        target, kept, dropped, unparseable,
+        bytes_before, bytes_after, cutoff.isoformat(),
+    )
+
+    return RetentionStats(
+        path=str(target),
+        cutoff=cutoff,
+        kept=kept,
+        dropped=dropped,
+        unparseable=unparseable,
+        bytes_before=bytes_before,
+        bytes_after=bytes_after,
+    )

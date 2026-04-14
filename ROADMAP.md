@@ -41,14 +41,25 @@ Status is one of:
 | **AES-256-GCM credential storage with auto-migration** — plaintext IMAP/OAuth secrets in `accounts.json` are detected and re-encrypted on every load | `src/security/credentials.py`, `src/automation/multi_account_monitor.py::_migrate_plaintext_passwords` (12 migration tests + 30+ existing crypto tests) |
 | **LLM determinism contract** — temperature=0, top_p=1, model version captured per `PipelineResult` for drift detection | `src/analyzers/clients/anthropic_client.py::AnthropicLLMClient` (10 contract tests) |
 | **CSRF trigger checklist** as durable contract in the auth module — any future cookie/session auth must ship CSRF protection in the same PR | `src/security/web_security.py` module docstring |
+| **Hash-pinned dependency lock file** (`requirements.lock`) generated via `uv pip compile --generate-hashes`, installed with `pip install --require-hashes` in Dockerfile | `requirements.lock`, `Dockerfile`               |
+| **GitHub Actions CI** — full pytest on fresh checkout, flake8 lint, daily `pip-audit` against the lock file (fails on any advisory) | `.github/workflows/ci.yml`                      |
+| **`curl`-free Dockerfile healthcheck** using stdlib `urllib.request` — smaller image, smaller attack surface | `Dockerfile`                                    |
+| **Bind-mount UID fix** via `docker-entrypoint.sh` — chowns `/app/data` and `/app/logs` to runtime UID then `gosu`s to non-root before exec | `docker-entrypoint.sh`, `Dockerfile`            |
+| **Data retention / `purge` CLI subcommand** with `--older-than`, `--strict`, `--dry-run`. Closes Privacy Act / GDPR indefinite-retention risk. | `src/automation/retention.py`, `main.py purge` (17 tests) |
 | Docker Compose deployment (single orchestrator container today; multi-container split planned) | `docker-compose.yml`                            |
-| 826 tests (28 modules) | unit + integration |
+| 843 tests (29 modules) | unit + integration |
 
 ---
 
 ## Planned
 
 Ordered by intended sequence, not priority.
+
+### Feedback DB retention policy
+The `purge` subcommand (shipped) handles `data/results.jsonl`. The SQLAlchemy feedback DB (`data/feedback.db`) still accumulates analyst labels indefinitely. Add equivalent purge logic for it — keep N most recent labels OR purge by date — and wire it into the same `purge` command via `--target=jsonl|feedback|all`. Tracked separately because the feedback DB is the audit trail of analyst decisions and dropping rows there has different semantics from dropping log rows.
+
+### Per-data-subject erasure (`purge --by-address`)
+GDPR Art. 17 right-to-erasure. Today, deleting a specific subject's data requires manual `grep` + edit. Add `python main.py purge --by-address <addr>` that walks both `results.jsonl` and the feedback DB and removes any row mentioning the address. Documented as P3 in `THREAT_MODEL.md` §6a.
 
 ### Multi-container Docker Compose split
 Today the `docker-compose.yml` runs a single `orchestrator` container that holds the pipeline, dashboard, and Playwright headless browser. The threat model assumes (and `SECURITY.md` recommends) a separate `browser-sandbox` container on its own network namespace so a Chromium 0-day can't escape into the orchestrator. Splitting the compose file is a tracked hardening item — closes the gap between the threat model's stated isolation posture and what the compose actually deploys today.

@@ -66,6 +66,11 @@ class PipelineConfig:
     dashboard_port: int = 8000
     analyst_api_token: str = ""
     max_concurrent_browser: int = 3
+    # Privacy / data retention. Stored email metadata in
+    # data/results.jsonl is regulated PII under Australian Privacy Act
+    # and EU GDPR. Default 30 days; set to 0 to disable purging entirely.
+    # See `python main.py purge` and src/automation/retention.py.
+    data_retention_days: int = 30
 
     @classmethod
     def from_env(cls) -> "PipelineConfig":
@@ -102,6 +107,7 @@ class PipelineConfig:
             dashboard_port=int(os.getenv("DASHBOARD_PORT", "8000")),
             analyst_api_token=os.getenv("ANALYST_API_TOKEN", ""),
             max_concurrent_browser=3,
+            data_retention_days=int(os.getenv("DATA_RETENTION_DAYS", "30")),
         )
 
     @classmethod
@@ -179,4 +185,5 @@ class PipelineConfig:
             dashboard_port=int(_get(pipeline_data, "dashboard_port", "DASHBOARD_PORT", 8000)),
             analyst_api_token=_get(pipeline_data, "analyst_api_token", "ANALYST_API_TOKEN"),
             max_concurrent_browser=int(pipeline_data.get("max_concurrent_browser", 3)),
+            data_retention_days=int(_get(pipeline_data, "data_retention_days", "DATA_RETENTION_DAYS", 30)),
         )
