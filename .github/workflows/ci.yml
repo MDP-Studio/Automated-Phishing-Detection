@@ -95,14 +95,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      # Official PyPA action — runs pip-audit against the lock file.
-      # `vulnerability-service` defaults to OSV which is the broadest source.
-      # `strict: true` makes any advisory fail the build; we tighten further
-      # below by piping to a severity filter via the action's own outputs.
+      # Official PyPA action. Failure semantics, verified via the action's
+      # own action.yml: `internal-be-careful-allow-failure` defaults to
+      # `false`, which means any non-zero exit from pip-audit fails the
+      # job. pip-audit itself exits 1 on any vulnerability finding, so
+      # this configuration IS strict-by-default. If you ever need to
+      # tolerate a specific CVE, use `internal-be-careful-extra-flags`
+      # with `--ignore-vuln <id>` AND document the expiry date in the
+      # PR description so it doesn't become a permanent allowance.
       - name: Run pip-audit on requirements.lock
         uses: pypa/gh-action-pip-audit@v1.1.0
         with:
           inputs: requirements.lock
-          # Pip-audit's own gating: any advisory at all fails the job.
-          # If you need to tolerate a specific CVE, use `ignore-vulns` here
-          # with a documented expiry date in the PR description.

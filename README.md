@@ -158,7 +158,7 @@ The static Sigma rule library in [`sigma_rules/`](sigma_rules/) ships hand-writt
 
 ## Testing
 
-The test suite has **843 tests across 29 modules** (unit + integration), exercising every analyzer, the decision engine override rules, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, the data retention purge, and the web security middleware (bearer auth, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file.
+The test suite has **872 tests across 30 modules** (unit + integration), exercising every analyzer, the decision engine override rules, the cross-analyzer calibration pass (ADR 0001), scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, the data retention purge, and the web security middleware (bearer auth, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file.
 
 ```bash
 # Run all tests
@@ -251,6 +251,8 @@ Run it from cron daily. Configure the default retention via `data_retention_days
 | [`THREAT_MODEL.md`](THREAT_MODEL.md)                       | STRIDE-per-trust-boundary, adversary archetypes, residual risks, non-goals       |
 | [`SECURITY.md`](SECURITY.md)                               | Vulnerability disclosure policy, supported versions, hardening guidance          |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md)                 | Evaluation methodology and corpus plan                                            |
+| [`docs/adr/0001-cross-analyzer-context-passing.md`](docs/adr/0001-cross-analyzer-context-passing.md) | ADR for the two-pass calibration design |
+| [`docs/calibration_rules.md`](docs/calibration_rules.md)   | Registry of cross-analyzer calibration rules with FP/FN motivation and tests     |
 | [`ROADMAP.md`](ROADMAP.md)                                 | Planned, in-progress, and explicitly-deferred work                                |
 | [`sigma_rules/README.md`](sigma_rules/README.md)           | Static Sigma rule library index and logsource adaptation guide                   |
 

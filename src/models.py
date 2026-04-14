@@ -104,6 +104,12 @@ class PipelineResult:
     iocs: dict
     reasoning: str
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    # Calibration pass-2 outcome (ADR 0001). When the calibration pass
+    # didn't run or didn't fire, this is None or an empty dict. When a
+    # rule fires, the dict carries `rules_fired`, `verdict_cap`, and
+    # `reasoning_lines`. The eval harness reads this to plot
+    # calibrated-vs-uncalibrated for analyzer drift detection (FM2).
+    calibration: Optional[dict] = None
 
 
 @dataclass

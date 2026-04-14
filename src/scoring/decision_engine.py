@@ -13,6 +13,11 @@ from typing import Optional
 
 from src.config import ScoringConfig
 from src.models import AnalyzerResult, Verdict, PipelineResult, IntentCategory
+from src.scoring.calibration import (
+    CalibrationOutcome,
+    _min_verdict,
+    apply_calibration_rules,
+)
 from src.scoring.confidence import ConfidenceCalculator
 from src.scoring.thresholds import ThresholdManager
 
@@ -113,6 +118,10 @@ class DecisionEngine:
             email_data=email_data,
         )
 
+        # Pre-create an empty calibration outcome so override paths and
+        # the no-results path can both serialize a consistent shape.
+        calibration = CalibrationOutcome()
+
         # If override rule applies, use it
         if override_verdict is not None:
             logger.info(
@@ -122,16 +131,36 @@ class DecisionEngine:
             final_verdict = override_verdict
             final_score = weighted_score
         else:
+            # Step 3.5: Cross-analyzer calibration pass.
+            # See ADR 0001 — calibration is rule-based, runs over pass-1
+            # results only, never re-invokes analyzers, and only modulates
+            # the verdict (it does NOT alter the underlying weighted score).
+            calibration = apply_calibration_rules(results, email_data=email_data)
+
             # Step 4: Apply threshold mapping with confidence capping
             final_verdict = self._apply_confidence_capping(weighted_score, overall_confidence)
 
-            # Step 5: Generate reasoning
+            # Enforce calibration verdict cap, if any. _min_verdict picks
+            # the lower-severity of the two so a calibration cap can only
+            # ever make a verdict less severe, never more.
+            if calibration.verdict_cap is not None:
+                capped = _min_verdict(final_verdict, calibration.verdict_cap)
+                if capped != final_verdict:
+                    logger.info(
+                        "Calibration cap applied for email %s: %s -> %s",
+                        email_id, final_verdict.value, capped.value,
+                    )
+                final_verdict = capped
+
+            # Step 5: Generate reasoning (calibration lines appended)
             reasoning = self._generate_reasoning(
                 results=results,
                 weighted_score=weighted_score,
                 overall_confidence=overall_confidence,
                 final_verdict=final_verdict,
             )
+            if calibration.reasoning_lines:
+                reasoning = reasoning + "\n\n" + "\n".join(calibration.reasoning_lines)
             final_score = weighted_score
 
         logger.info(
@@ -158,6 +187,7 @@ class DecisionEngine:
             iocs=iocs,
             reasoning=reasoning,
             timestamp=datetime.utcnow(),
+            calibration=calibration.to_dict() if calibration.fired else None,
         )
 
     def _calculate_weighted_scores(
