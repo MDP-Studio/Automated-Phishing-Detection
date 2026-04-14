@@ -34,6 +34,7 @@ from src.security.web_security import (
     default_ssrf_guard,
 )
 from src.security.html_sanitizer import sanitize_email_html
+from src.feedback.email_lookup import EmailLookupIndex
 
 
 # Configure logging
@@ -59,7 +60,14 @@ class PhishingDetectionApp:
             getattr(self.config, "analyst_api_token", None)
         )
         self._monitor = None  # set when IMAP monitor starts
-        self._upload_results: list[dict] = []  # results from manual uploads (shown on monitor)
+        # Display-only: in-memory list of recent uploads for the monitor
+        # page render. Capped at 200; NOT used for any lookup that needs
+        # to survive restart. See ADR 0002 §"Why this split".
+        self._upload_results: list[dict] = []
+        # Persistent lookup index over data/results.jsonl. Used by the
+        # feedback endpoint and /api/monitor/email/{id} to resolve
+        # email_id -> record across restarts. See ADR 0002.
+        self.email_index = EmailLookupIndex(jsonl_path="data/results.jsonl")
 
     async def analyze_email_file(self, email_path: str, output_format: str = "json"):
         """
@@ -320,13 +328,21 @@ class PhishingDetectionApp:
                 if len(self._upload_results) > 200:
                     self._upload_results.pop(0)
 
-                # Also write to results.jsonl for the Full Log tab
+                # Also write to results.jsonl for the Full Log tab AND
+                # update the persistent email_id lookup index so the
+                # feedback endpoint can resolve this email's sender
+                # across restarts. See ADR 0002.
                 try:
                     import json as _json
                     log_path = Path("data/results.jsonl")
                     log_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(_json.dumps(monitor_record, default=str) + "\n")
+                    with open(log_path, "ab") as f:
+                        line_offset = f.tell()
+                        f.write(
+                            _json.dumps(monitor_record, default=str).encode("utf-8")
+                            + b"\n"
+                        )
+                    self.email_index.add(result.email_id, line_offset)
                 except Exception as _log_err:
                     logger.warning(f"Failed to write result to log: {_log_err}")
 
@@ -592,16 +608,18 @@ class PhishingDetectionApp:
         @app.get("/api/monitor/email/{email_id}", dependencies=[Depends(require_token)])
         async def monitor_email_detail(email_id: str):
             """Return full details for a specific analyzed email."""
-            # Search IMAP monitor results
+            # IMAP monitor results live in memory only (no persistence
+            # for that path yet) — try them first.
             if self._monitor is not None:
                 for record in reversed(self._monitor._recent_results):
                     if record.get("email_id") == email_id:
                         return record
 
-            # Search upload results
-            for record in reversed(self._upload_results):
-                if record.get("email_id") == email_id:
-                    return record
+            # Persistent lookup: ADR 0002. Survives restart and the
+            # 200-cap roll on _upload_results.
+            indexed = self.email_index.lookup(email_id)
+            if indexed is not None:
+                return indexed
 
             raise HTTPException(status_code=404, detail="Email not found in recent results")
 
@@ -842,12 +860,13 @@ class PhishingDetectionApp:
                     corr_sev = severity.get(correct_label, 0)
 
                     if corr_sev > orig_sev and corr_sev >= 2:
-                        # False negative — find sender in upload results or monitor results
-                        sender = ""
-                        for rec in reversed(self._upload_results):
-                            if rec.get("email_id") == email_id:
-                                sender = rec.get("from", "")
-                                break
+                        # False negative — resolve sender via the
+                        # persistent lookup index (ADR 0002). Survives
+                        # restart and 200-cap roll. The previous
+                        # in-memory scan silently no-op'd after restart;
+                        # see audit #9.
+                        indexed_record = self.email_index.lookup(email_id)
+                        sender = indexed_record.get("from", "") if indexed_record else ""
                         if sender and not sender.endswith(("@gmail.com", "@outlook.com", "@yahoo.com")):
                             existing = await session.execute(
                                 select(LocalBlocklist).where(LocalBlocklist.indicator == sender)
@@ -863,12 +882,10 @@ class PhishingDetectionApp:
                                 actions_taken.append(f"blocklisted_sender:{sender}")
 
                     elif corr_sev < orig_sev and orig_sev >= 2:
-                        # False positive — find sender
-                        sender = ""
-                        for rec in reversed(self._upload_results):
-                            if rec.get("email_id") == email_id:
-                                sender = rec.get("from", "")
-                                break
+                        # False positive — resolve sender via the
+                        # persistent lookup index (ADR 0002).
+                        indexed_record = self.email_index.lookup(email_id)
+                        sender = indexed_record.get("from", "") if indexed_record else ""
                         if sender:
                             existing = await session.execute(
                                 select(LocalAllowlist).where(LocalAllowlist.indicator == sender)

@@ -92,6 +92,7 @@ def purge_results_jsonl(
     *,
     now: Optional[datetime] = None,
     keep_unparseable: bool = True,
+    index=None,
 ) -> RetentionStats:
     """
     Purge rows older than `max_age_days` from a results.jsonl file.
@@ -107,6 +108,12 @@ def purge_results_jsonl(
         keep_unparseable: If True (default), rows without a parseable
             timestamp are preserved. If False, they're dropped along
             with the old rows.
+        index: Optional `EmailLookupIndex` to invalidate after the swap.
+            See ADR 0002 §FM3 — the atomic swap rewrites the file, so
+            every offset in the index points at random byte positions
+            in the new file. Passing the index here calls `invalidate()`
+            after the swap so the next lookup rebuilds against the
+            trimmed file. Standalone usage (no index) is unchanged.
 
     Returns:
         RetentionStats describing what happened.
@@ -185,6 +192,15 @@ def purge_results_jsonl(
         raise
 
     bytes_after = target.stat().st_size
+
+    # ADR 0002 §FM3: invalidate the lookup index after the swap so
+    # subsequent lookups rebuild against the new file rather than
+    # seeking to stale byte offsets.
+    if index is not None:
+        try:
+            index.invalidate()
+        except Exception:
+            logger.exception("Failed to invalidate email lookup index after purge")
 
     logger.info(
         "Purged %s: kept=%d dropped=%d unparseable=%d "

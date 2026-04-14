@@ -50,8 +50,9 @@ Status is one of:
 | **Override-rule ordering fix (cycle 7 NEW-1)** — `_is_bec_threat` now runs BEFORE `_is_clean_email` so pure-text BEC with passing auth is no longer force-marked CLEAN. Closes a load-bearing accident discovered during cycle 6 implementation. | `src/scoring/decision_engine.py::_check_override_rules` (4 regression tests in `tests/unit/test_decision_engine_override_ordering.py`) |
 | **Calibration cap ceiling locked** — explicit tests proving the LinkedIn calibration rule caps verdicts AT SUSPICIOUS, never at CLEAN, and never modifies the underlying weighted score. Defends against the "real LinkedIn with embedded malicious redirect below corroboration threshold" scenario. | `tests/unit/test_calibration.py::TestCalibrationCapCeiling` (3 tests) + ADR §"Why the cap is SUSPICIOUS and not CLEAN" |
 | **CI-bites sanity check** — deliberate red branch (run id `24403600695`) confirmed `pull_request` workflow fails the test job loudly when a test breaks. Branch deleted, PR closed without merge. The "two cycles green = converging or blind spot" concern from the cycle 6 review is now resolved. | `.github/workflows/ci.yml`                       |
+| **Persistent email_id lookup for analyst feedback (ADR 0002)** — closes audit #9. Feedback endpoint and `/api/monitor/email/{id}` now resolve email_id via an in-memory `email_id → byte_offset` index over `data/results.jsonl` instead of scanning the 200-cap in-memory `_upload_results` list. Survives restart and the 200-cap roll. The display path keeps `_upload_results` unchanged — see ADR §"Why this split". | `src/feedback/email_lookup.py`, `main.py`, `src/automation/retention.py` (20 tests including cross-restart smoking gun) |
 | Docker Compose deployment (single orchestrator container today; multi-container split planned) | `docker-compose.yml`                            |
-| 879 tests (31 modules) | unit + integration |
+| 899 tests (32 modules) | unit + integration |
 
 ---
 

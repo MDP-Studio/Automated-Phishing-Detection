@@ -16,6 +16,11 @@ name: CI
 on:
   push:
     branches: [main]
+  # `pull_request` covers feature branches without burning CI minutes
+  # on every personal scratch push. Verified by the cycle 7 sanity
+  # check (run id 24403600695): a deliberately-red branch must be
+  # opened as a PR to trigger CI. A `push:` trigger on all branches
+  # was considered and rejected as needlessly expensive.
   pull_request:
     branches: [main]
   # Daily run so freshly disclosed CVEs against pinned versions surface
