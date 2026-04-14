@@ -158,7 +158,7 @@ The static Sigma rule library in [`sigma_rules/`](sigma_rules/) ships hand-writt
 
 ## Testing
 
-The test suite has **753 tests across 24 modules** (unit + integration), exercising every analyzer, the decision engine override rules, scoring confidence capping, IOC export, the Sigma exporter, and the web security middleware (bearer auth, SSRF guard, security headers).
+The test suite has **826 tests across 28 modules** (unit + integration), exercising every analyzer, the decision engine override rules, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the body_html sanitizer with hostile XSS payloads, and the web security middleware (bearer auth, SSRF guard, security headers).
 
 ```bash
 # Run all tests
@@ -182,8 +182,10 @@ python -m pytest --cov=src --cov-report=html
 | Ingestion        | `test_imap_fetcher`, `test_email_monitor`, `test_blocklist_allowlist`                                 |
 | Feedback         | `test_feedback_api`, `test_retrainer`                                                                 |
 | Reporting        | `test_report_generator`, `test_ioc_exporter`                                                          |
-| Security & utils | `test_security`, `test_web_security`, `test_credentials`, `test_models`, `test_utils`                |
+| Security & utils | `test_security`, `test_web_security`, `test_html_sanitizer`, `test_credentials`, `test_multi_account_monitor`, `test_models`, `test_utils` |
 | Detection content | `test_sigma_exporter` (34 tests covering canonical analyzer keys, ATT&CK tag derivation, deterministic UUIDs) |
+| URL reputation | `test_url_reputation` (11 tests including the dead-domain confidence downgrade regression) |
+| LLM client | `test_anthropic_client` (10 tests locking the determinism contract: temperature=0, top_p=1, model version capture) |
 | Integration      | `test_full_pipeline`                                                                                  |
 
 ## Known Limitations

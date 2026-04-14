@@ -652,7 +652,19 @@
       html += '</div>';
       html += '<div id="body-text-view" class="body-preview">' + esc(r.body_preview || '(no plain text)') + '</div>';
       if (r.body_html) {
-        html += '<iframe id="body-html-view" class="body-html-frame" style="display:none" sandbox="allow-same-origin"></iframe>';
+        // SECURITY: sandbox with NO allow flags. The iframe is its own
+        // opaque origin — scripts inside cannot read the parent DOM, make
+        // credentialed network requests, or navigate the top frame. The
+        // body_html is also bleach-sanitized server-side as defense in
+        // depth (src/security/html_sanitizer.py). Do NOT add allow-*
+        // flags; in particular, allow-same-origin defeats the entire
+        // point of this control. See THREAT_MODEL.md R3 / SECURITY.md.
+        var srcdocEscaped = (r.body_html || '')
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        html += '<iframe id="body-html-view" class="body-html-frame" style="display:none" sandbox srcdoc="' + srcdocEscaped + '"></iframe>';
       }
       html += '</div>';
     }
@@ -686,18 +698,10 @@
     body.innerHTML = html;
     document.getElementById('modal-overlay').classList.add('open');
 
-    // Load HTML into iframe if available
-    if (r.body_html) {
-      setTimeout(function() {
-        var iframe = document.getElementById('body-html-view');
-        if (iframe) {
-          var doc = iframe.contentDocument || iframe.contentWindow.document;
-          doc.open();
-          doc.write(r.body_html);
-          doc.close();
-        }
-      }, 100);
-    }
+    // body_html is now rendered via the iframe `srcdoc` attribute set
+    // above, not via doc.write(). The previous doc.write path required
+    // `sandbox="allow-same-origin"` which defeated the sandbox; the new
+    // path keeps the sandbox tight. No JS injection step needed here.
   }
 
   function closeModal() {

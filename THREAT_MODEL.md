@@ -148,11 +148,13 @@ Ordered by severity-given-likelihood. Each one is something the project delibera
 
 ### R3 — Sandbox is a real headless browser executing attacker URLs
 **Severity:** high. **Likelihood:** medium.
-**Description:** Even containerized, a Chromium 0-day in the renderer is a real exposure path. The container is the only isolation layer. **Additionally, the on-demand `/api/detonate-url` endpoint is a textbook SSRF primitive if unguarded** — an attacker could use the detonator to map internal networks or hit cloud metadata services (169.254.169.254).
+**Description:** Even containerized, a Chromium 0-day in the renderer is a real exposure path. The container is the only isolation layer. **Additionally, the on-demand `/api/detonate-url` endpoint is a textbook SSRF primitive if unguarded** — an attacker could use the detonator to map internal networks or hit cloud metadata services (169.254.169.254). **Separately, the dashboard renders attacker-controlled `body_html` from analyzed emails; an XSS via that path was a real risk before the sandboxing fix.**
 **Compensating controls:**
 - `/api/detonate-url` is now SSRF-guarded: every URL is DNS-resolved before fetching and refused if any resolved IP is in a private/loopback/link-local/CGNAT/multicast/IETF-reserved/cloud-metadata range. Implementation in `src/security/web_security.py::SSRFGuard`. Deny networks tested at `tests/unit/test_web_security.py`.
 - Endpoint also requires bearer token (R1).
 - The browser sandbox runs in a dedicated container per `docker-compose.yml`.
+- **`body_html` is rendered in `<iframe sandbox srcdoc>` with NO allow flags** (templates/monitor.html). The iframe is its own opaque origin — scripts inside cannot read the parent DOM, make credentialed network requests, or navigate the top frame.
+- **Defense in depth: server-side bleach sanitization** (`src/security/html_sanitizer.py`) strips `<script>`/`<style>`/`<iframe>`/`<object>`/`<form>`/`<svg>` tags and their contents, removes `on*` event handlers, blocks `javascript:`/`data:`/`vbscript:` URL schemes, and drops `style` and `srcdoc` attributes BEFORE the value reaches the browser. 40 hostile-payload tests in `tests/unit/test_html_sanitizer.py` cover script-tag, event-handler, SVG-namespace JS, javascript: URLs, data: URIs, meta refresh, style expression(), and HTML5 parser quirks (math/noscript/form-action).
 - Residual: a Chromium 0-day still owns the container. gVisor/Firecracker is on the deferred list.
 
 ### R4 — Third-party API keys are the project's attack surface for vendors

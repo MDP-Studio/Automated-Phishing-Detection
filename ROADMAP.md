@@ -36,8 +36,13 @@ Status is one of:
 | **SSRF guard on `/api/detonate-url`** (DNS-resolved IP denylist for RFC1918, loopback, link-local, CGNAT, cloud metadata) | `src/security/web_security.py::SSRFGuard` |
 | **Security headers middleware** (CSP, X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy) | `src/security/web_security.py::SecurityHeadersMiddleware` |
 | **Default loopback bind** with refuse-to-start on non-loopback if `ANALYST_API_TOKEN` unset | `main.py::run_server` |
-| Docker Compose deployment                         | orchestrator + browser-sandbox + redis                            |
-| 753 tests (24 modules) — includes 34 sigma exporter + 43 web security tests | unit + integration |
+| **Body HTML XSS hardening** — sandboxed `<iframe srcdoc>` with no allow flags + server-side bleach sanitizer | `templates/monitor.html`, `src/security/html_sanitizer.py` (40 hostile-payload tests) |
+| **Dead-domain confidence downgrade in URL reputation** — non-resolving hostnames with clean vendor verdict get confidence capped at 0.3 instead of inflating "clean" signal (~15 point recall gain on phishing corpus) | `src/analyzers/url_reputation.py::_hostname_resolves` (11 regression tests) |
+| **AES-256-GCM credential storage with auto-migration** — plaintext IMAP/OAuth secrets in `accounts.json` are detected and re-encrypted on every load | `src/security/credentials.py`, `src/automation/multi_account_monitor.py::_migrate_plaintext_passwords` (12 migration tests + 30+ existing crypto tests) |
+| **LLM determinism contract** — temperature=0, top_p=1, model version captured per `PipelineResult` for drift detection | `src/analyzers/clients/anthropic_client.py::AnthropicLLMClient` (10 contract tests) |
+| **CSRF trigger checklist** as durable contract in the auth module — any future cookie/session auth must ship CSRF protection in the same PR | `src/security/web_security.py` module docstring |
+| Docker Compose deployment (single orchestrator container today; multi-container split planned) | `docker-compose.yml`                            |
+| 826 tests (28 modules) | unit + integration |
 
 ---
 

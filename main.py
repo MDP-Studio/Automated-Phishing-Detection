@@ -33,6 +33,7 @@ from src.security.web_security import (
     add_security_headers_middleware,
     default_ssrf_guard,
 )
+from src.security.html_sanitizer import sanitize_email_html
 
 
 # Configure logging
@@ -305,7 +306,13 @@ class PhishingDetectionApp:
                     "extracted_urls": extracted_urls_list,
                     "reasoning": reasoning_text,
                     "body_preview": (email.body_plain or "")[:2000],
-                    "body_html": (email.body_html or "")[:5000],
+                    # body_html is attacker-controlled. Sanitize server-side
+                    # (script/style/iframe/event-handlers stripped) BEFORE it
+                    # ever reaches the dashboard. The dashboard ALSO wraps it
+                    # in a sandboxed `<iframe srcdoc>` with no allow flags as
+                    # the actual security boundary; this is defense in depth.
+                    # See src/security/html_sanitizer.py for the policy.
+                    "body_html": sanitize_email_html(email.body_html or "")[:5000],
                 }
 
                 # Store in upload results for monitor page

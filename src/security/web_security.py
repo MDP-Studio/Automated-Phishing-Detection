@@ -20,6 +20,31 @@ Three independent pieces, all importable separately:
 
 These are the P0 items from the security audit. The threat model
 (`THREAT_MODEL.md` §6 R1, R3) tracks which residual risks they close.
+
+═══════════════════════════════════════════════════════════════════════════
+CSRF TRIGGER CONDITION — read this before adding any browser session auth
+═══════════════════════════════════════════════════════════════════════════
+
+The current TokenVerifier accepts only `Authorization: Bearer <token>`.
+Browsers do NOT auto-attach Authorization headers to cross-origin requests,
+which is why the current perimeter is not exploitable via CSRF.
+
+If you EVER add cookie/session auth (the planned dashboard browser-session
+feature in ROADMAP.md), the CSRF threat reappears immediately because
+browsers DO auto-attach cookies to cross-origin requests. In that PR you
+must also ship CSRF protection in the same commit:
+
+    [ ] SameSite=Strict on the session cookie
+    [ ] Secure flag on the session cookie
+    [ ] HttpOnly flag on the session cookie
+    [ ] CSRF token on every state-changing request (double-submit cookie
+        pattern or per-request synchronizer token), validated server-side
+    [ ] Origin / Referer header check on POST routes as defense in depth
+    [ ] Tests that prove a forged cross-origin POST is rejected
+
+This checklist is the contract. Reviewers: block the session-auth PR until
+every box is ticked. Future-self: do not split this work across PRs — the
+session cookie and the CSRF middleware ship together or not at all.
 """
 from __future__ import annotations
 

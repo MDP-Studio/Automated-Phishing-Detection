@@ -4,11 +4,24 @@ Supports VirusTotal, Google Safe Browsing, urlscan.io, and AbuseIPDB.
 """
 import asyncio
 import logging
+import socket
 from typing import Optional
+from urllib.parse import urlparse
 
 from src.models import AnalyzerResult, ExtractedURL
 
 logger = logging.getLogger(__name__)
+
+
+# When a URL's hostname does not resolve in DNS AND no reputation service
+# flagged it as malicious, we downgrade the per-URL confidence to this value.
+# Rationale: a clean verdict from a vendor on a non-resolving domain is
+# "we checked and found nothing", not "we checked and it's safe". Without
+# the downgrade, fresh-domain phishing (the common case) gets high-confidence
+# "clean" votes from url_reputation that suppress the overall score by
+# ~15 points across the test corpus. See lessons-learned.md "Dead Domain
+# Confidence Inflation".
+_DEAD_DOMAIN_CLEAN_CONFIDENCE = 0.3
 
 
 class URLReputationAnalyzer:
@@ -40,6 +53,31 @@ class URLReputationAnalyzer:
         self.safe_browsing_client = safe_browsing_client
         self.urlscan_client = urlscan_client
         self.abuseipdb_client = abuseipdb_client
+
+    @staticmethod
+    def _hostname_resolves(url: str) -> bool:
+        """
+        Return True if the URL's hostname has at least one A/AAAA record.
+
+        Used to detect "dead domain + clean verdict" cases where vendors
+        report no threats simply because they have no data on a fresh
+        attacker-registered domain. See _DEAD_DOMAIN_CLEAN_CONFIDENCE
+        rationale at the top of this file.
+
+        Failures (DNS error, timeout, malformed URL) are treated as "does
+        not resolve" — the safer default for the confidence downgrade.
+        """
+        try:
+            hostname = urlparse(url).hostname
+        except Exception:
+            return False
+        if not hostname:
+            return False
+        try:
+            socket.getaddrinfo(hostname, None)
+            return True
+        except (socket.gaierror, socket.herror, OSError):
+            return False
 
     async def _check_virustotal(self, url: str) -> tuple[float, float, dict]:
         """
@@ -200,6 +238,25 @@ class URLReputationAnalyzer:
                     )
                     per_url_risk = max(vt_score, sb_score, us_score, ab_score)
                     per_url_confidence = max(vt_conf, sb_conf, us_conf, ab_conf)
+
+                    # Dead-domain confidence downgrade.
+                    # If the URL hostname doesn't resolve AND no service
+                    # returned a high-risk verdict, downgrade the confidence.
+                    # See _DEAD_DOMAIN_CLEAN_CONFIDENCE rationale at top of file.
+                    dead_domain = False
+                    if per_url_risk < 0.3 and per_url_confidence > _DEAD_DOMAIN_CLEAN_CONFIDENCE:
+                        if not self._hostname_resolves(extracted_url.url):
+                            logger.info(
+                                "Downgrading confidence for non-resolving URL %s "
+                                "(was %.2f, now %.2f) — clean verdict from a vendor "
+                                "on a dead domain is not evidence of safety",
+                                extracted_url.url,
+                                per_url_confidence,
+                                _DEAD_DOMAIN_CLEAN_CONFIDENCE,
+                            )
+                            per_url_confidence = _DEAD_DOMAIN_CLEAN_CONFIDENCE
+                            dead_domain = True
+
                     return extracted_url.url, {
                         "risk_score": per_url_risk,
                         "confidence": per_url_confidence,
@@ -209,6 +266,7 @@ class URLReputationAnalyzer:
                         "abuseipdb": ab_details,
                         "source": extracted_url.source.value,
                         "source_detail": extracted_url.source_detail,
+                        "dead_domain": dead_domain,
                     }
                 except Exception as e:
                     logger.error(f"Error analyzing URL {extracted_url.url}: {e}")

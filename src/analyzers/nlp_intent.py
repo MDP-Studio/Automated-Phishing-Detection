@@ -97,7 +97,7 @@ class NLPIntentAnalyzer:
         urgency_score = min(matched_keywords / 5.0, 1.0)
         return urgency_score
 
-    async def _analyze_with_llm(self, email: EmailObject) -> tuple[IntentCategory, float, str, float]:
+    async def _analyze_with_llm(self, email: EmailObject) -> tuple[IntentCategory, float, str, float, str]:
         """
         Classify email intent using LLM.
 
@@ -105,10 +105,14 @@ class NLPIntentAnalyzer:
             email: Email object to analyze
 
         Returns:
-            Tuple of (intent_category, confidence, reasoning, urgency_score)
+            Tuple of (intent_category, confidence, reasoning, urgency_score, model_id).
+            `model_id` is the LLM model the API actually used, captured per-call
+            so that downstream consumers (PipelineResult, evaluation harness)
+            can detect drift after Anthropic ships a model point release.
+            Empty string when no LLM ran.
         """
         if not self.llm_client:
-            return IntentCategory.UNKNOWN, 0.0, "No LLM client available", 0.0
+            return IntentCategory.UNKNOWN, 0.0, "No LLM client available", 0.0, ""
 
         try:
             # Prepare email text for analysis
@@ -142,7 +146,20 @@ Respond in JSON format:
 }}
 """
 
-            response = await self.llm_client.analyze(prompt)
+            llm_result = await self.llm_client.analyze(prompt)
+
+            # llm_result is a (text, model_id) NamedTuple from
+            # AnthropicLLMClient.analyze. Be defensive — older clients or
+            # mocks may still return a bare string, in which case there's
+            # no model_id to capture.
+            if hasattr(llm_result, "text") and hasattr(llm_result, "model_id"):
+                response = llm_result.text
+                model_id = llm_result.model_id
+            elif isinstance(llm_result, tuple) and len(llm_result) == 2:
+                response, model_id = llm_result
+            else:
+                response = llm_result
+                model_id = getattr(self.llm_client, "model", "") or ""
 
             # Parse JSON response
             try:
@@ -155,7 +172,7 @@ Respond in JSON format:
                     response = json.loads(str(response))
             except json.JSONDecodeError:
                 logger.warning("Failed to parse LLM response as JSON")
-                return IntentCategory.UNKNOWN, 0.0, "JSON parse error", 0.0
+                return IntentCategory.UNKNOWN, 0.0, "JSON parse error", 0.0, model_id
 
             intent_str = response.get("intent", "unknown").lower()
             confidence = response.get("confidence", 0.5)
@@ -175,11 +192,11 @@ Respond in JSON format:
 
             urgency_score = min(urgency_indicators / 5.0, 1.0)
 
-            return intent_category, confidence, reasoning, urgency_score
+            return intent_category, confidence, reasoning, urgency_score, model_id
 
         except Exception as e:
             logger.error(f"LLM analysis failed: {e}")
-            return IntentCategory.UNKNOWN, 0.0, f"LLM error: {str(e)}", 0.0
+            return IntentCategory.UNKNOWN, 0.0, f"LLM error: {str(e)}", 0.0, ""
 
     async def _analyze_with_sklearn(self, email: EmailObject) -> tuple[IntentCategory, float, str, float]:
         """
@@ -286,9 +303,12 @@ Respond in JSON format:
                     details={"message": "no_email_content"},
                 )
 
-            # Try LLM first, fall back to sklearn, then keyword analysis
+            # Try LLM first, fall back to sklearn, then keyword analysis.
+            # `model_id` is captured only on the LLM path; sklearn / keyword
+            # paths set it to "" so PipelineResult always carries a string.
+            model_id = ""
             if self.use_llm:
-                intent_category, confidence, reasoning, urgency_score = (
+                intent_category, confidence, reasoning, urgency_score, model_id = (
                     await self._analyze_with_llm(email)
                 )
                 method = "llm"
@@ -299,6 +319,7 @@ Respond in JSON format:
                         await self._analyze_with_sklearn(email)
                     )
                     method = "sklearn_fallback"
+                    model_id = ""
             else:
                 intent_category, confidence, reasoning, urgency_score = (
                     await self._analyze_with_sklearn(email)
@@ -311,6 +332,7 @@ Respond in JSON format:
                     self._analyze_with_keywords(email)
                 )
                 method = "keywords"
+                model_id = ""
 
             # Map intent to risk score
             base_risk_score = self.INTENT_RISK_MAPPING.get(
@@ -341,6 +363,11 @@ Respond in JSON format:
                     "urgency_modifier": urgency_modifier,
                     "reasoning": reasoning,
                     "analysis_method": method,
+                    # LLM model the API actually used for this analysis.
+                    # Captured per-result for drift detection — see
+                    # docs/EVALUATION.md §3.2 and the determinism contract
+                    # in src/analyzers/clients/anthropic_client.py.
+                    "llm_model_version": model_id,
                 },
             )
 
