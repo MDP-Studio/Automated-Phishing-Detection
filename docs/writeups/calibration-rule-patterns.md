@@ -1,21 +1,16 @@
 # Dampen vs corroborate: a pattern choice for cross-analyzer calibration
 
-*Draft. Cycle 9. Status: not yet polished for external publication.*
-
----
-
 ## The problem
 
-You have a multi-analyzer detection pipeline. Each analyzer is correct in isolation. They produce a weighted ensemble verdict. One specific combination of inputs produces a verdict that is consistently wrong because each individual analyzer is correct *about its own slice of the input* and the average of those correct slices is not the right answer.
+You have a multi-analyzer detection pipeline. Each analyzer is correct in isolation. They produce a weighted ensemble verdict. On one specific class of inputs, three things are simultaneously true:
 
-Concrete instance from the project this writeup is rooted in: legitimate LinkedIn engagement notifications. The NLP intent analyzer flags the language as social engineering ("12 people viewed your profile this week", "expand your network") because that language is, in fact, indistinguishable from the language phishing kits use. The header analyzer sees SPF + DKIM + DMARC all pass from `linkedin.com`. The URL reputation analyzer sees nothing flagged. The brand impersonation analyzer sees nothing matching its allowlist. The weighted ensemble says SUSPICIOUS, because the NLP analyzer is producing a strong signal at high confidence and nothing else is producing a counter-signal strong enough to balance it.
+1. The analyzer flagging the most risk is correct in isolation — the signal it sees really is high-risk for that pattern.
+2. The verdict is wrong — the email is legitimate, and a human reading it would agree.
+3. The information needed to reach the right verdict exists inside pass 1 already. It just isn't reaching the analyzer that needs it.
 
-Three things are simultaneously true:
-1. The NLP analyzer is correct: that language is high-risk in isolation
-2. The verdict is wrong: the email is legitimate
-3. The information needed to reach the right verdict exists in pass 1 — the auth-passes signal from header_analysis is right there, it just isn't reaching the analyzer that needs it
+Concrete instance: legitimate LinkedIn engagement notifications. The NLP intent analyzer flags the language as social engineering ("12 people viewed your profile this week", "expand your network") because that language is, in fact, indistinguishable from the language phishing kits use. The header analyzer sees SPF + DKIM + DMARC all pass from `linkedin.com`. The URL reputation analyzer sees nothing flagged. The brand impersonation analyzer sees nothing matching its allowlist. The weighted ensemble says SUSPICIOUS because the NLP analyzer is producing a strong signal at high confidence and nothing else is producing a counter-signal strong enough to balance it.
 
-This is not a problem you can solve by retraining the NLP analyzer. The content really is ambiguous. It's not a problem you can solve by raising the SUSPICIOUS threshold without trading off detection of other classes. The content really does look like phishing. **The fix has to live somewhere other than inside the analyzers themselves.**
+You can't solve this by retraining the NLP analyzer — the content really is ambiguous. You can't solve it by raising the SUSPICIOUS threshold either, without trading off detection of other classes that legitimately live in that band. **The fix has to live somewhere other than inside the analyzers themselves.**
 
 ---
 
@@ -36,7 +31,7 @@ Pros: trivial to implement, trivially testable, produces a continuous signal tha
 
 Cons: the multiplier is a magic number with no calibration data behind it. **Why 0.5 and not 0.3 or 0.7?** The honest answer is "we picked it because it made the FP go away in our test set", and a reviewer who asks the question gets that answer. The answer doesn't generalize, doesn't tell you what to do when the FP set changes, and doesn't survive scaling to a different deployment.
 
-There's a second, subtler problem: multiplicative dampening *hides real risk*. If a future LinkedIn email contains a malicious redirect that the URL reputation analyzer flags, that signal has to be strong enough to overcome the dampening on the NLP signal. You're not just suppressing one path; you're suppressing *the entire risk landscape* for any email matching the dampening condition. You'll catch the ones that produce strong independent signals and miss the ones whose independent signals are real but moderate.
+The more serious problem is that multiplicative dampening *hides real risk*. If a future LinkedIn email contains a malicious redirect that the URL reputation analyzer flags, that signal has to be strong enough to overcome the dampening on the NLP signal. You're not just suppressing one path; you're suppressing *the entire risk landscape* for any email matching the dampening condition. You'll catch the ones that produce strong independent signals and miss the ones whose independent signals are real but moderate.
 
 ### Pattern B: Corroboration requirement
 
@@ -74,7 +69,7 @@ The corroboration pattern is **biased toward analyst review** in ambiguous cases
 I don't want to make this sound like dampening is always wrong. There are cases where it's the right call:
 
 - **You have calibration data.** If you have a labeled corpus large enough that you can derive the multiplier from logistic regression rather than picking it by hand, the magic-number objection goes away. Now `* 0.5` isn't magic; it's a coefficient. The interview answer is "we trained the multiplier on a 50k labeled corpus and the coefficient minimizes log loss".
-- **The dampening is on a single analyzer's contribution, not the overall score.** If you're adjusting *how much weight one specific analyzer gets in this context*, and the rest of the ensemble is allowed to override it on its own merits, that's a more defensible posture than scaling the whole verdict.
+- **The dampening is on a single analyzer's contribution, not the overall score.** If you're adjusting *how much weight one specific analyzer gets in this context* and the rest of the ensemble is allowed to override it on its own merits, the hides-real-risk objection doesn't apply — you're scoping the suppression to one analyzer, not to the whole risk landscape for that input class. That's a meaningfully different posture from scaling the verdict.
 - **The system is hot-path latency-constrained and you can't afford the cost of an analyst-review tier.** A cap at SUSPICIOUS only works if you have an analyst tier to receive the SUSPICIOUS verdicts. If you don't (because you're building an inline mail filter that has to make a yes/no call in milliseconds), then cap-with-review isn't a real option and you're choosing between "definitely block" and "definitely deliver" — at which point dampening is your only option.
 
 The project this writeup comes from has none of those conditions:
@@ -111,15 +106,3 @@ If you're adding cross-analyzer adjustments to any ensemble detection pipeline, 
 
 The asymmetric attacker leverage on (5) is the strongest single argument for corroboration. The whole point of detection is to make the attacker's job harder. A pattern that gives the attacker a known class of inputs they can match to silently bypass the detector is a pattern you should not ship if you have any alternative.
 
----
-
-## What I'd write if this were a longer post
-
-- The "10-rule cap" discipline that pairs with the corroboration pattern in the project — without a hard cap on calibration rules, the pattern degenerates into a dumping ground regardless of which formulation you pick.
-- The interaction between calibration rules and analyst review queues — calibration that fires often is itself a signal you should plot, because it tells you which input classes your analyzers are systematically wrong about.
-- Why "preserving the underlying score" is a stronger property than it looks: it lets you build an eval harness that compares calibrated-vs-uncalibrated verdicts on the same corpus, which is the cleanest possible regression detector for analyzer drift.
-- The history of dampening as a pattern in non-detection contexts (recommender systems, ad-ranking pipelines) and why those settings are different enough that the conclusions don't transfer.
-
----
-
-*Draft notes for myself: this is more senior-engineer-flavored than the NLP non-determinism post. The audience is people thinking about the same design space, not people who haven't encountered it. Length: ~1500 words. The asymmetric-attacker-leverage argument in the numbered list is the part to lead with if I cut this for a conference talk. The "when dampening is actually correct" section is what makes the argument feel honest rather than dogmatic — without it, the post reads as one-sided.*

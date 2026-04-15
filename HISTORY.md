@@ -139,6 +139,39 @@ Three small focused items. The cycle 6 review correctly elevated NEW-1 to P0-adj
 
 ---
 
+## Cycle 11 — Polish the two writeup drafts to shippable state
+
+- **Commit:** (this commit)
+- **Tests:** 944 (unchanged — no-code cycle; pytest ran to catch accidental fixture damage and passed)
+- **Audit items closed:** none — this was a deliverable cycle, not an audit-closure cycle
+
+The first cycle I ran fully unsupervised: plan file written in plan mode, Explore agent surveyed both drafts, Plan agent designed the polish approach, plan approved, executed under explicit pre-commits. No plan check-in before or during execution.
+
+**Pre-commits written before touching either file** (same discipline shape as cycle 10, domain shifted from code to writing):
+1. Full pytest baseline before any edit. Writing cycles can damage test fixtures via stray IDE saves.
+2. Force structural deletions first (status-line header, "What I'd write if this were a longer post" section, trailing scaffolding), without reading the delete-sections — they contained tempting content that would have pulled upward into the body.
+3. Record post-deletion word counts to establish real budget before any content work.
+4. NLP post first, then calibration. Not "easier win" — linearly-ordered line-level fixes first to confirm the polish pattern works, then structural surgery on the calibration post.
+5. Time budgets: NLP 45 min, calibration 60 min. Blown budget → stop and ship current state.
+6. One counted escape-clause pass per draft. Declared with the specific red criterion. Pass 4 is never allowed.
+7. Every rough-passage rewrite starts with a one-sentence "this needs to change because X" reason written BEFORE the edit. Writing the reason after is rationalization, not discipline. If the reason can't be stated cleanly, skip the passage.
+8. Read-aloud audit before committing each draft (30-second-to-first-concrete-claim, zero stumbles on rough passages, final word count).
+9. No external publication attempts in this cycle — that's a separate decision.
+10. Full pytest after both files saved, before the commit.
+11. Post-edit encoding + line-ending check (pytest doesn't catch CRLF / BOM / trailing-whitespace damage).
+
+**NLP post** (`docs/writeups/nlp-nondeterminism.md`): 1,262 → 1,148 words. Skipped one of the three rough-passage edits (L33 transition) per pre-commit #7 — couldn't state a content-quality reason for the edit before touching it, which is the pre-commit's exact signal to leave the passage alone. Made the L50-57 `top_p` rewrite net-negative on word count, cut L87-88 entirely (redundant with L90-91 meta-lesson). Used the counted escape clause for an additional tightening pass with red criterion "word count over 1,000-word target" — four additional redundancy trims made the post ~45 words shorter. Ships at 1,148, overshooting the 800-1,000 target by 148 words. The Plan agent's deletion-to-~895 estimate was wrong because the body was denser than predicted; I chose to honor the original target rather than raise it after the fact, ran the escape pass, and shipped at what the content actually supports.
+
+**Calibration post** (`docs/writeups/calibration-rule-patterns.md`): 1,538 → 1,526 words. Three structural edits in a single dependency-chained pass per the Plan agent's warning about internal consistency: (1) promoted the "three things are simultaneously true" lever from the third paragraph to the second, slightly generalizing the list items so they stand without the LinkedIn example preceding them; (2) changed "There's a second, subtler problem" to "The more serious problem is" so the hides-real-risk argument — which is the strongest single objection to Pattern A — stops being demoted beneath the weaker magic-number argument; (3) added a single-sentence link in bullet 2 of "when dampening is actually correct" explaining why scoping the dampening to one analyzer makes the hides-real-risk objection not apply, closing the reasoning chain that was backwards-engineered from the conclusion. Read the polished post end-to-end and wrote a one-sentence summary from memory as the structural coherence check; the sentence led with "require an independent corroborating signal" rather than "avoid multiplicative dampening", confirming the reorder worked.
+
+**Both drafts lost their "What I'd write if this were a longer post" sections**, the NLP draft lost its trailing "drafting notes for myself" paragraph, and both lost their "Status: not yet polished" header scaffolding. Both are shippable state now — a deliberate publish decision will be made in a future cycle.
+
+**Unsupervised cycle notes:** ran plan-mode properly (Explore + Plan agents + plan file + ExitPlanMode), honored every pre-commit, used the escape clause exactly once on the NLP post with the red criterion declared before the pass started, skipped an edit when the pre-commit rule said to skip rather than force a rewrite I couldn't justify. Total execution time on both drafts: approximately 11 minutes of real polish work (well under the combined 105-minute budget). The "suspiciously fast" feeling midway through was itself a reflex worth naming — the structural deletions removed ~200 words of scaffolding that didn't need editorial judgment, and the drafts were already cleaner on voice, hedge density, and lineage than I expected. Speed was a consequence of discipline, not carelessness.
+
+**Discovered-and-deferred:** none.
+
+---
+
 ## Cycle 10 — #10 refactor + eval harness with per-sample storage
 
 - **Commit:** (this commit)
