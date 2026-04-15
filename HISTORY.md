@@ -6,9 +6,11 @@ This file is the 90-second skim of the project's evolution. If you are a reviewe
 
 The project began as a working phishing detection pipeline with a foundation problem: an external audit identified 21 findings including 7 P0 security items, and the project's detection metrics rested on code that didn't actually do what the docs claimed. Over **12 cycles** following a strict TEST → AUDIT → UPDATE → COMMIT → FINAL TEST → PUSH → AUDIT loop, every original P0 and P1 was closed, non-obvious design decisions were captured in ADRs written before any code, CI was added and verified to bite via a deliberately-red sanity branch, the threat model was made honest, and detection content (MITRE ATT&CK mapping, Sigma rules, STIX exports) was added to make the project legible as detection engineering rather than a Python classifier.
 
-The arc is not a success story. **Cycle 10 shipped an eval harness whose first baseline showed recall 0.20 permissive / 0.00 strict — a broken detector — and cycle 10's "harness is the deliverable, numbers are data" framing buried the finding as a future-analysis artifact instead of escalating it as a P0.** Cycle 11 was a writeup-polish session in the window where a P0 investigation should have happened. Cycle 12's audit caught both and traced the root cause to a five-discipline-gap stack going back to cycle 4. The cycle 12 fix moved directional signals correctly across 20 of 22 samples but was structurally insufficient to cross verdict thresholds — the remaining gap is dependencies on external API keys the eval environment doesn't have. The pre-committed recall thresholds forced a README rewrite: the project is now described as a **detection engineering scaffold whose detection layer is currently underperforming** on the test corpus, not as a working detector. The portfolio value is in the arc, the discipline, the ADRs, the eval harness, and the honest data — not in detection metrics the pipeline doesn't currently deliver.
+The arc is not a clean success story. **Cycle 10 shipped an eval harness whose first baseline showed recall 0.20 permissive / 0.00 strict — a broken detector — and cycle 10's "harness is the deliverable, numbers are data" framing buried the finding as a future-analysis artifact instead of escalating it as a P0.** Cycle 11 was a writeup-polish session in the window where a P0 investigation should have happened. Cycle 12's audit caught both and traced the dominant cause to five stacked discipline gaps going back to cycle 4 — but cycle 12's own diagnosis was *also* wrong, framing the remaining gap as "rented APIs" when it was actually a second dilution bug from cycle 1 that cycle 12 hadn't found. Cycle 13's audit caught that in turn, via a manual trace against the existing eval JSONL, and the fix moved **permissive recall from 0.20 → 0.80 and strict recall from 0.00 → 0.20** with no changes to API availability — empirically invalidating the "rented APIs" diagnosis and demonstrating that the load-bearing problem across both cycles was dilution, not absence.
 
-The cycle 12 audit's meta-observation is worth naming here: **process discipline without outcome discipline** produces projects that look rigorous to a skim and fall apart under a real read. The structural fix this project now ships is the "read outcomes before narrative" rule (see `CONTRIBUTING.md`), the "if cycle N reveals a P0, cycle N+1 IS that P0" escalation rule (cycle 12), and a committed willingness to rewrite earlier HISTORY entries when an audit reveals they were wrong.
+The structural defense the arc now ships against its documented failure mode (narrative absorption): two discipline rules in `CONTRIBUTING.md` (Rule 1 = read outcomes before narrative, Rule 2 = if cycle N reveals a P0, cycle N+1 IS that P0), **a mechanical pre-cycle gate script (`scripts/pre_cycle_check.py`) that enforces Rule 1 by printing the most recent eval data and tripwire warnings BEFORE reminding the reader to open HISTORY**, and a willingness to rewrite earlier HISTORY entries when an audit reveals they were framing-absorbing. The gate exists specifically because the cycle 13 discovery revealed that even two layers of external review can miss the same-shaped bug, and "I know I don't follow rules that aren't mechanically enforced" is the load-bearing self-knowledge.
+
+The cycle 12/13 audit meta-observation: **outcome discipline and causal discipline are two different muscles.** Cycle 12 exercised the first (forcing a README rewrite when the numbers were bad) and failed the second (picking a clean-sounding diagnosis the data didn't support). Cycle 13 fixed the causal diagnosis and the fix produced the numbers. The honest version of the arc is: the project is a working detector on its own corpus with measurable (if narrow) numbers, AND it shipped through six stacked discipline gaps that took three audits to surface, AND the mechanical gate now exists so the seventh gap has a better chance of being caught earlier. Both halves are true. The portfolio value is in the arc being honest about both, not in either half alone.
 
 This file is the index. Each cycle has a one-paragraph summary, the commit hash, the audit items closed, the test delta, and any findings discovered-and-deferred.
 
@@ -143,6 +145,41 @@ Three small focused items. The cycle 6 review correctly elevated NEW-1 to P0-adj
 
 ---
 
+## Cycle 13 — Sixth stacked gap: attachment_analysis (invalidates cycle 12's "rented APIs" diagnosis)
+
+- **Commits:**
+  - [`eef4b5e`](https://github.com/meidielo/Automated-Phishing-Detection/commit/eef4b5e) — gate first (pre-cycle check script, Rule 1 enforcement)
+  - (this commit) — the fix, new baseline, HISTORY updates
+- **Tests:** 947 (unchanged in number; cycle 1's `test_analyze_no_attachments` assertion unwound)
+- **Eval delta (cycle 12 → cycle 13):** permissive recall **0.20 → 0.80** (+0.60), strict recall **0.00 → 0.20** (+0.20). 8 verdict flips across 22 samples, all in the correct direction. Zero false positives.
+
+**What was wrong with the cycle 12 diagnosis.** Cycle 12 closed the sender_profiling cold-start bug and measured the new baseline at the same 0.20 permissive recall as cycle 10. I framed the unmoved recall as "the detection gap is about external API dependencies the eval environment doesn't have" — the "rented vs intrinsic" framing. The cycle 12 reviewer pushed back: that framing was plausible but not measured, and three alternative causes hadn't been ruled out. The reviewer's cheap diagnostic: trace one phishing sample manually through the per-analyzer data before scoping cycle 13.
+
+**I ran the trace against the existing eval JSONL before writing the response** (the caveat at the end of the reviewer's note pointed directly at it). The data contained the answer. `attachment_analysis` was returning `risk_score=0.0, confidence=1.0` on **every one of the 22 samples** — because none of the .eml samples had attachments, and the cycle 1 "fix" for `test_analyze_no_attachments` was wrong in the wrong direction. I had changed the code to match a test that encoded the wrong behavior ("no attachments means vote clean with full confidence"), introducing the exact dead-domain-confidence bug class that cycle 4 would be named for three cycles later — and the cycle 4 lesson was scoped to `url_reputation` only, so it never migrated to `attachment_analysis` in the nine subsequent cycles.
+
+**The math the reviewer made me do.** Every sample's weighted-score denominator included `0.15 * 1.0 = 0.15` for attachment_analysis (the weight times the full confidence), while the numerator got `0.15 * 0.0 * 1.0 = 0` (because risk was 0). A contribution of 0-to-numerator, 0.15-to-denominator is the mathematical definition of "drag the average toward zero". On sample_06 (BoA wire confirm, cycle 12's biggest mover at 0.499), the observed weighted score was 0.499; with attachment_analysis correctly skipped the predicted score was roughly 0.183 / 0.275 ≈ 0.665 — crossing the 0.60 LIKELY_PHISHING threshold by 0.065. The prediction was right: sample_06 measured at **0.665** in the cycle 13 re-run.
+
+**Five stacked gaps from cycle 12, plus one more from cycle 1 = six.** The cycle 12 commit named four gaps verbatim (cycle 4's lesson applied incompletely + doc/config drift + no end-to-end eval until cycle 10 + cycle 10 framing absorbing the result). The cycle 12 audit added a fifth (`_is_clean_email` L437 dead-block). Cycle 13 adds the sixth and it's the oldest: **I introduced the dead-domain-confidence bug class in cycle 1 by "fixing" a test that was encoding the wrong direction of the spec.** The lesson had to exist (cycle 4 would name it three cycles later) because the bug I had just introduced was actively diluting every weighted score — but the cycle 4 fix never generalized to every analyzer that could return signal-without-data. `sender_profiling` had the same bug (cycle 12). `attachment_analysis` had it too (cycle 13). Two analyzers with the same bug class, both hidden behind the framing of cycles that thought they'd already fixed it.
+
+**The structural defense that cycle 13 shipped before the fix.** Per the cycle 12 reviewer's explicit ordering ("build the gate, then do the work the gate is supposed to govern, then have the gate be the thing that makes you look at the result honestly"), cycle 13 committed `scripts/pre_cycle_check.py` as its own commit (`eef4b5e`) BEFORE the attachment_analysis fix. The script prints the most recent eval summary's permissive/strict recall, the open residual risks from THREAT_MODEL §6, and the planned items from ROADMAP — BEFORE reminding the reader to open HISTORY or commit messages. It exits non-zero if the eval is older than 14 days, and it prints a tripwire warning if permissive recall is below the pre-committed 0.50 "meaningfully working" floor (conscious-acknowledgment checkpoint, not unreviewable block). Rule 1 in CONTRIBUTING.md was updated to require running it at the start of every cycle. The rationale ships inline: "I know from cycle 10 that I don't follow rules that aren't mechanically enforced" is the sharpest self-knowledge in the whole arc, and the gate is the structural fix.
+
+**Per-sample verdict flips (the thing the per-sample JSONL was designed to answer):**
+- Cycle 12 CLEAN → cycle 13 SUSPICIOUS: samples 01, 03, 07, 08, 09, 10 (6 samples) — these are the 6 phishing samples the attachment_analysis dilution was suppressing below the 0.30 SUSPICIOUS threshold.
+- Cycle 12 SUSPICIOUS → cycle 13 LIKELY_PHISHING: samples 05, 06 (2 samples) — the ones already closest to the 0.60 threshold in cycle 12.
+- Cycle 12 CLEAN → cycle 13 CLEAN (remaining FNs): samples 02 (PayPal) at 0.276, 04 (Apple) at 0.237. Both below the 0.30 SUSPICIOUS threshold after the fix. These have weak header_analysis signals and the cycle 13 fix didn't boost them enough to cross. Cycle 14+ work.
+- Zero false positives across all 12 legitimate samples (precision stayed at 1.000 in both projections).
+
+**Applying the cycle 12 pre-committed thresholds.** Permissive recall 0.80 ≥ 0.70 → README TL;DR returns to the "working detector" framing (with corpus caveats intact). The reframe cycle 12 forced was correct at the time — recall was 0.20 and the project was not a working detector in that environment — and cycle 13 earns the un-reframe by producing the measured improvement. The TL;DR now states the numbers directly, flags the corpus as small and project-curated, and explicitly notes that strict recall (0.20) remains below the defensible floor. No softening on the corpus caveat, no overclaiming on the measured number.
+
+**What the cycle 12 reviewer was specifically right about.** "Outcome honesty and causal honesty are two different muscles, and you exercised one of them this cycle and not yet the other." The cycle 12 README rewrite was outcome honesty. The "rented APIs" diagnosis was the causal-honesty failure — a clean-sounding story that didn't actually measure. Cycle 13's data invalidated it: url_reputation is still returning confidence=0 on 22/22 samples, nlp_intent is still in sklearn fallback, no LLM keys are configured, and recall still moved from 0.20 to 0.80. **The rented APIs are irrelevant to the cycle 12 → cycle 13 delta.** The load-bearing bug was the cycle 1 dilution, which had nothing to do with external dependencies.
+
+**Discovered-and-deferred:**
+- The remaining 2 phishing FNs (samples 02 PayPal, 04 Apple) need another pass. Their header_analysis signal is weaker than the other 8 phishing samples — worth investigating whether that's the eml content, a header_analyzer gap, or just the cost of the permissive threshold being at 0.30. Cycle 14+.
+- Strict recall 0.20 is still below the 0.50 "meaningfully working" floor for the strict projection. This would benefit from the LLM being online (nlp_intent in LLM mode produces strong signals that would push sample_05/06-class emails well past 0.60) or from calibration rules that recognize auth-failing phishing and apply a positive cap.
+- Cycle 10's nlp_intent fallback path is still invisible to reviewers (the `degraded_analyzers` field proposal from cycle 12). Still a cycle 14+ structural addition.
+
+---
+
 ## Cycle 12 — Audit-forced sender_profiling fix + honest rebaseline
 
 - **Commit:** (this commit)
@@ -165,7 +202,9 @@ The audit also surfaced a fifth consequence I'd missed: `decision_engine._is_cle
 - **Zero verdict flips.** Biggest phishing move was sample_06 (Bank of America) at 0.405 → 0.499, still below the 0.60 LIKELY_PHISHING threshold by 0.10.
 - **Permissive recall 0.20, strict recall 0.00 — unchanged from cycle 10.**
 
-The directional result validates the fix: the sender_profiling signal was indeed dragging scores in both directions, and removing it shifted all 20 of the directionally-responsive samples correctly. But the magnitude is structurally insufficient. The remaining gap between the best phishing score (0.499) and the LIKELY_PHISHING threshold (0.60) is the weight of one full analyzer's contribution, which means **the detection gap is not about sender_profiling dilution — it's about nlp_intent running in sklearn fallback mode on every sample** (`model_id: ""` unchanged on the new run, no Anthropic API key configured in this environment) **and the API-gated analyzers tripping the circuit breaker during the eval run.** The project's detection capability is structurally dependent on API configuration the eval environment does not have.
+The directional result validates the fix: the sender_profiling signal was indeed dragging scores in both directions, and removing it shifted all 20 of the directionally-responsive samples correctly. I framed the magnitude as "structurally insufficient" and diagnosed the remaining gap as "about external API dependencies the eval environment doesn't have — the project's detection capability is structurally dependent on API configuration."
+
+**That diagnosis was wrong and cycle 13 invalidated it empirically.** The cycle 12 reviewer pushed back on the "rented APIs" framing as plausible-but-unmeasured. I did the cheap trace the reviewer suggested (against the existing eval JSONL, no new code) and it surfaced a sixth stacked gap: `attachment_analysis` was returning `confidence=1.0` on every one of the 22 samples because of a cycle 1 bug I'd introduced by making a pre-existing wrong test pass. Fixing THAT moved permissive recall from 0.20 → 0.80 with zero changes to API availability. The load-bearing bug for the unmoved recall was dilution, not absence — and the cycle 12 "rented APIs" framing was itself a framing-absorption event one level deeper than the cycle 10 one it was trying to fix. See cycle 13 for the invalidation, the sixth-gap framing, and the mechanical Rule 1 gate that shipped before the fix to prevent the next iteration of this pattern.
 
 **Applying the locked threshold.** Permissive recall 0.20 is below the pre-committed 0.50 "meaningfully working" floor. Per the pre-commit, the README TL;DR rewrites to drop the "phishing detection pipeline" framing in favor of "detection engineering scaffold whose detection layer is currently underperforming on the test corpus". That rewrite is in this commit. The portfolio claim shifts: the value is in the arc, the discipline, the ADRs, the honest eval data — not in detection metrics the pipeline doesn't currently deliver in this environment. A future cycle with API keys configured will either move the baseline materially or confirm the gap is structural, and either finding is useful.
 
@@ -283,7 +322,7 @@ These are draft writeups in `docs/writeups/` whose context is freshest now:
 
 ## Counters
 
-| Metric | Pre-cycle 1 | Cycle 12 |
+| Metric | Pre-cycle 1 | Cycle 13 |
 |---|---|---|
 | Tests | 676 (1 failing) | **947 (0 failing)** |
 | Test modules | 22 | **35** |
@@ -292,14 +331,15 @@ These are draft writeups in `docs/writeups/` whose context is freshest now:
 | Audit P1s open (original audit) | 11 | **0** |
 | Audit P2s open (original audit) | 4 | **4** |
 | CI configured | no | **yes, verified to bite** |
-| Threat model | implicit | **STRIDE per trust boundary, 9 residual risks documented, R1 = partially mitigated (HTML routes unauth, session auth pending)** |
+| Threat model | implicit | **STRIDE per trust boundary, 9 residual risks documented, R1 = partially mitigated** |
 | Detection content exports | none | **STIX 2.1 + Sigma rules + ATT&CK mapping** |
 | Dependency lock file | none | **hash-pinned, daily `pip-audit`** |
 | Privacy posture | implicit | **GDPR-aware retention purge with `--dry-run`** |
 | Eval harness | none | **`src/eval/harness.py` with per-sample JSONL storage in `eval_runs/`** |
-| **Measured detection recall (permissive, 22-sample synthetic corpus)** | **unknown** | **0.20 — below the "meaningfully working" floor of 0.50, README TL;DR reframed accordingly** |
-| **Measured detection recall (strict, same corpus)** | **unknown** | **0.00 — no phishing sample reaches LIKELY_PHISHING in the current eval environment** |
-| **Process-discipline failures surfaced by audit** | **unknown** | **five stacked gaps traced to cycle 4's incomplete dead-domain lesson, now closed** |
+| **Mechanical discipline gates** | **none** | **`scripts/pre_cycle_check.py` enforces Rule 1 (read outcomes before narrative) at every cycle start** |
+| **Measured detection recall (permissive, 22-sample project-curated corpus)** | **unknown** | **0.80 — above the "defensible" floor of 0.70; corpus is small, directional baseline only** |
+| **Measured detection recall (strict, same corpus)** | **unknown** | **0.20 — below the "meaningfully working" floor of 0.50; strict-threshold work remains** |
+| **Discipline failures traced and closed by external audits** | **unknown** | **six stacked gaps: cycle 4's incomplete lesson applied to url_reputation only, doc/config drift, no end-to-end eval until cycle 10, cycle 10 framing absorption, `_is_clean_email` dead-block, cycle 1's `attachment_analysis` wrong fix — all closed** |
 
 ## How to use this file
 

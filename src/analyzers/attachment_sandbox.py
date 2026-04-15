@@ -295,13 +295,33 @@ class AttachmentSandboxAnalyzer:
 
         try:
             if not attachments:
-                # No attachments to analyze means no attachment-based risk —
-                # vote clean with full confidence so the decision engine can
-                # incorporate the negative signal rather than skipping it.
+                # No attachments to analyze means this analyzer has NO DATA
+                # about whether the email is phishing. Returning confidence=0.0
+                # skips the analyzer from weighted scoring entirely (see
+                # decision_engine.py:227 "Skip analyzers with zero confidence"),
+                # which is the correct behavior — "I have no attachments to
+                # analyze" is a statement about the analyzer's domain, not a
+                # statement about phishing likelihood. Voting "clean with full
+                # confidence" is a category error that dilutes every other
+                # analyzer's contribution via the normalized weighted-score
+                # formula.
+                #
+                # This is the cycle 4 dead-domain-confidence pattern, applied
+                # here as the cycle 13 fix. Cycle 1 introduced the wrong
+                # behavior by making a pre-existing (incorrect) test pass:
+                # the test asserted confidence=1.0 and the code returned
+                # confidence=0.0, and I fixed the code instead of the test.
+                # The cycle 12 audit traced the dilution in cycle 10's eval
+                # baseline to sender_profiling, fixed that, and the cycle 12
+                # re-run's unmoved recall numbers prompted a manual trace
+                # that found this second (sixth-stacked) gap: attachment_analysis
+                # was diluting every phishing sample's weighted score with a
+                # 0.15-weight vote-clean signal on emails with no attachments.
+                # Fixed here. See HISTORY.md cycle 13 for the full trace.
                 return AnalyzerResult(
                     analyzer_name=analyzer_name,
                     risk_score=0.0,
-                    confidence=1.0,
+                    confidence=0.0,
                     details={"message": "no_attachments"},
                 )
 

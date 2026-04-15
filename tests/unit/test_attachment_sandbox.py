@@ -64,7 +64,27 @@ class TestAttachmentSandboxAnalyze:
 
     @pytest.mark.asyncio
     async def test_analyze_no_attachments(self):
-        """Test analyze with empty attachments list."""
+        """
+        Empty attachments list means the analyzer has no data about the
+        email's phishing likelihood. The correct return is
+        (risk_score=0.0, confidence=0.0) so the decision engine skips
+        the analyzer from the weighted score (decision_engine.py:227
+        "Skip analyzers with zero confidence").
+
+        This test previously asserted confidence=1.0 (the cycle 1 fix).
+        That was wrong: a "no data" analyzer voting clean with full
+        confidence dilutes every other analyzer's contribution via the
+        normalized weighted-score formula. The cycle 13 audit caught
+        the dilution by manually tracing why cycle 12's sender_profiling
+        fix didn't move recall — attachment_analysis was applying the
+        same dead-domain-confidence dilution pattern on every sample
+        with no attachments, which was 22 out of 22 samples in the
+        test corpus.
+
+        The assertion here now matches the cycle 4 dead-domain pattern:
+        analyzers with no data return confidence=0.0 to be skipped, not
+        confidence=1.0 to vote clean. See HISTORY.md cycle 13.
+        """
         analyzer = AttachmentSandboxAnalyzer()
 
         result = await analyzer.analyze([])
@@ -72,7 +92,11 @@ class TestAttachmentSandboxAnalyze:
         assert isinstance(result, AnalyzerResult)
         assert result.analyzer_name == "attachment_sandbox"
         assert result.risk_score == 0.0
-        assert result.confidence == 1.0
+        assert result.confidence == 0.0, (
+            "no-attachments path must return confidence=0.0 to be skipped "
+            "from weighted scoring. See cycle 13 HISTORY entry for the "
+            "root-cause trace back to cycle 1."
+        )
         assert "no_attachments" in result.details.get("message", "")
 
     @pytest.mark.asyncio
