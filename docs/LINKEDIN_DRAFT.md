@@ -6,9 +6,9 @@ Built an automated phishing detection pipeline with 7 concurrent analyzers, MITR
 
 Four audit cycles to find why. The root cause: three instances of the same dilution bug across three different analyzers. Each was reporting "clean with high confidence" on data it hadn't actually analyzed (no attachments, cold start, partial URL coverage). That false confidence dragged down the weighted average on every decision. The same bug class, identified in cycle 4, replicated undetected through cycle 14 because each instance looked different on the surface while the math was identical.
 
-The fixes were surgical. Confidence drops to zero when no real analysis occurred. Recall moved from 0.20 to 0.80 in degraded state (NLP classifier in fallback mode, external APIs not configured). No architecture changes. No new features. Just correcting what was already there.
+The fixes were surgical. Confidence drops to zero when no real analysis occurred. No architecture changes. No new features. Just correcting what was already there. With live APIs configured, the final numbers: 0.90 recall, 0.90 precision, 0.90 F1 on a 22-sample corpus. One false positive, one false negative.
 
-The project still has gaps. That 0.80 is the floor, measured without live APIs; the real number is pending. The test corpus is 22 samples. Strict recall is 0.20. But I learned that shipping something that passes unit tests is not the same as shipping something that works end-to-end, and that a plausible diagnosis you didn't verify is worse than no diagnosis at all.
+The project still has gaps. Strict recall is 0.00: every detection lands in "suspicious" but nothing crosses into "likely phishing." The system finds phishing but can't grade severity. The corpus is small. I diagnosed the wrong root cause in cycle 12 before the data proved me wrong. But I learned that shipping something that passes unit tests is not the same as shipping something that works, and that a plausible diagnosis you didn't verify is worse than no diagnosis at all.
 
 Code is here: https://github.com/meidielo/Automated-Phishing-Detection
 
@@ -22,9 +22,9 @@ Built an automated phishing detection pipeline using 7 concurrent analyzers, Fas
 
 When I added an evaluation harness, the recall number told a different story. Four audit cycles to diagnose: three instances of the same confidence dilution bug in three different analyzers. Each was voting "clean with high confidence" on data it hadn't processed (missing attachments, cold-start state, partial URL coverage). Same math each time: zero numerator, non-zero denominator, average dragged toward zero. The bug was identified in cycle 4 and still replicated through cycle 14 because each instance wore a different surface.
 
-The fix: confidence drops to zero when no real analysis occurred. Recall moved from 0.20 to 0.80 in degraded state (sklearn fallback, no live APIs). No architectural changes. No new features. The pipeline was already there; I corrected how it reported what it knew.
+The fix: confidence drops to zero when no real analysis occurred. No architectural changes. No new features. The pipeline was already there; I corrected how it reported what it knew. With live APIs: 0.90 recall, 0.90 precision, 0.90 F1.
 
-What still doesn't work: that 0.80 is the floor, not the measurement; live-API numbers are pending. Strict recall is 0.20. The corpus is 22 samples. And I diagnosed the wrong root cause in cycle 12 ("it's the external APIs") before the data proved me wrong in cycle 13.
+What still doesn't work: strict recall is 0.00. Every phishing detection clusters in "suspicious" but nothing reaches "likely phishing." The scoring compresses into a narrow band instead of spreading across the range. That is a calibration problem, not a detection problem. The corpus is 22 samples. And I diagnosed the wrong root cause in cycle 12 ("it's the external APIs") before the data proved me wrong in cycle 13.
 
 What I learned: evaluation is not optional. A plausible diagnosis you didn't test is worse than admitting you don't know. Confidence scores are weapons against yourself if you're not careful.
 
@@ -40,11 +40,11 @@ Built an automated detection pipeline with 7 concurrent analyzers, Python FastAP
 
 Added an eval harness. Recall was 0.20. Not acceptable. Spent four audit cycles finding out why: three instances of the same confidence dilution bug in three different analyzers (attachment_analysis, sender_profiling, url_detonation). Each reported high confidence on analysis it hadn't performed. That false confidence cascaded through the weighted voting system and collapsed detection accuracy. The bug class was identified in cycle 4. It replicated through cycle 14 because each instance looked different on the surface while the math was the same.
 
-The fix: confidence drops to zero when no real analysis occurred. Recall to 0.80 in degraded state (no live APIs, NLP in fallback mode).
+The fix: confidence drops to zero when no real analysis occurred. With live APIs configured: 0.90 recall, 0.90 precision, 0.90 F1.
 
 Same code. Same architecture. Same features. Just corrected the confidence calculation. And along the way, I diagnosed the wrong root cause ("it's the external APIs"), got called out by an auditor, traced the actual data, and found the real bug.
 
-Honest assessment: the 0.80 is the floor, measured without live APIs. The corpus is 22 samples. Strict recall is 0.20. I needed four external audits to catch bugs that were structurally identical to one I'd already fixed. Those are the numbers.
+Honest assessment: the corpus is 22 samples. Strict recall is 0.00 because score calibration compresses everything into a narrow band; the system finds phishing but can't grade severity. One false positive, one false negative. I needed four external audits to catch bugs that were structurally identical to one I'd already fixed. Those are the numbers.
 
 The project taught me that evaluation is foundational, not optional. That a plausible explanation you didn't verify is more dangerous than admitting ignorance. And that discipline means building mechanical checks because you know you'll skip the manual ones.
 
@@ -57,9 +57,9 @@ Code: https://github.com/meidielo/Automated-Phishing-Detection
 - All three avoid em dashes and use commas, semicolons, and periods instead
 - Character counts are in the 1000-1500 range, appropriate for LinkedIn
 - Lead with the honest narrative (the bug, the discovery process) rather than "look what I built"
-- Include all specific numbers: 0.20/0.80 recall, 947 tests, 22-sample corpus, 7 analyzers, 12 ATT&CK sub-techniques, 3 bug instances across 3 analyzers
-- Each frames 0.80 as degraded-state floor, not final measurement; live-API numbers pending
-- Each acknowledges what doesn't work (strict recall 0.20, small corpus, wrong diagnosis in cycle 12)
+- Include all specific numbers: 0.20 initial recall, 0.90 final F1, 947 tests, 22-sample corpus, 7 analyzers, 12 ATT&CK sub-techniques, 3 bug instances across 3 analyzers
+- Live-API numbers included: 0.90 recall, 0.90 precision, 0.90 F1, TP=9, FP=1, TN=11, FN=1
+- Each acknowledges what doesn't work (strict recall 0.00, calibration problem, small corpus, wrong diagnosis in cycle 12)
 - Cycle 14 url_detonation finding included in all three drafts
 - All end with what the project taught, not a CTA
 - Tone is direct, confident, and non-arrogant

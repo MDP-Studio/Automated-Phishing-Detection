@@ -54,6 +54,9 @@ brand_references/generated_hashes/
 *.db
 *.sqlite3
 
+# ===== Corpora (downloaded by scripts/download_corpora.sh) =====
+data/corpora/
+
 # ===== Runtime Data =====
 data/results.jsonl
 data/alerts.jsonl

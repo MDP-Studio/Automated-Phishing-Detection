@@ -17,6 +17,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./eval_runs:/app/eval_runs
     restart: unless-stopped
     logging:
       driver: "json-file"

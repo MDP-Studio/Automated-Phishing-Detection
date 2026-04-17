@@ -150,7 +150,7 @@ These rules are not original insights. They are codified failure modes this proj
 
 ## What the Project Ships Now
 
-The detector runs end-to-end on its own corpus with a degraded-state baseline: permissive recall 0.80, strict recall 0.20, measured with the NLP intent classifier in sklearn fallback mode and external API circuit breakers tripped. These numbers are the floor, not the final measurement; live-API eval is pending. The corpus is small (22 samples), project-curated, and not representative of production traffic. Those caveats are in the README.
+The detector runs end-to-end on its 22-sample corpus with live APIs: **permissive recall 0.90, precision 0.90, F1 0.90.** TP=9, FP=1, TN=11, FN=1. Strict recall is 0.00: every phishing detection lands in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold at 0.60. The system detects phishing but cannot distinguish "probably phishing" from "definitely phishing." That is a score calibration problem, not a detection problem. The corpus is small, project-curated, and not representative of production traffic.
 
 The more durable artifacts are the discipline additions:
 
@@ -160,7 +160,7 @@ The more durable artifacts are the discipline additions:
 
 ## What's Still Broken
 
-The numbers above are measured in degraded state: NLP intent classifier in sklearn fallback mode (no LLM key configured), external API circuit breakers tripped, Playwright unable to load most URLs. These are the floor, not the final measurement. Live-API eval is pending and will produce the numbers that matter.
+Strict recall at 0.00 is the headline gap. The degraded-state baseline (sklearn fallback, no APIs) had strict recall of 0.20 because two samples happened to cross 0.60. With live APIs, scores redistributed and nothing crosses that threshold anymore. This is not a regression in detection capability (permissive recall improved from 0.80 to 0.90), it is a calibration failure: the scoring function compresses phishing scores into a narrow band rather than spreading them across the full range. The 1 false positive (FP=1) is new with live APIs and needs investigation.
 
 The corpus is small (22 samples, project-curated, not representative of production traffic). Integrating with public corpora (PhishTank, Enron-ham) is the next cycle. The per-sample JSONL structure is designed for that; adding rows is additive.
 

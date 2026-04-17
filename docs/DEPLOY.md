@@ -73,18 +73,17 @@ Visit your domain. You should see the dashboard.
 SSH into the machine (or use Tailscale) and run:
 ```bash
 docker exec -it phishing-orchestrator python -c "
-from src.config import get_config
-cfg = get_config()
+import os
 keys = {
-    'VirusTotal': bool(cfg.virustotal_api_key),
-    'Google Safe Browsing': bool(cfg.google_safe_browsing_api_key),
-    'URLScan': bool(cfg.urlscan_api_key),
-    'AbuseIPDB': bool(cfg.abuseipdb_api_key),
-    'Anthropic': bool(cfg.anthropic_api_key),
-    'Hybrid Analysis': bool(cfg.hybrid_analysis_api_key),
+    'VirusTotal': 'VIRUSTOTAL_API_KEY',
+    'Google Safe Browsing': 'GOOGLE_SAFE_BROWSING_API_KEY',
+    'URLScan': 'URLSCAN_API_KEY',
+    'AbuseIPDB': 'ABUSEIPDB_API_KEY',
+    'Anthropic': 'ANTHROPIC_API_KEY',
+    'Hybrid Analysis': 'HYBRID_ANALYSIS_API_KEY',
 }
-for name, present in keys.items():
-    status = 'OK' if present else 'MISSING (analyzer will abstain)'
+for name, env_var in keys.items():
+    status = 'OK' if os.environ.get(env_var) else 'MISSING (analyzer will abstain)'
     print(f'  {name}: {status}')
 "
 ```
