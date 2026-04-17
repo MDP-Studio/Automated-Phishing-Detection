@@ -23,10 +23,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.lock .
 RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
+# Playwright: install Chromium + all system deps in one command.
+# This auto-detects the Debian version and installs the right packages,
+# so we don't have to hand-maintain a libxcb/libgtk apt list that breaks
+# every time the base image moves to a new Debian release.
+RUN playwright install --with-deps chromium
+
 # Copy application code
 COPY src/ src/
 COPY templates/ templates/
 COPY main.py .
+COPY scripts/ scripts/
+COPY tests/ tests/
+COPY config.yaml .
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
