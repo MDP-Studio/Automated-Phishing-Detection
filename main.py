@@ -201,11 +201,23 @@ class PhishingDetectionApp:
         # without re-reading self.token_verifier on every request.
         require_token = self.token_verifier
 
+        # ── Shared HTML fragment (auth, theme, scrollbar) ─────────
+        # Loaded once at startup, token placeholder replaced per-request.
+        _shared_html_raw = Path("./templates/_shared.html").read_text(encoding="utf-8")
+
+        def _inject_shared(html: str) -> str:
+            """Inject shared CSS/JS (auth, theme) before </head> in any page."""
+            token = self.token_verifier.expected_token or ""
+            fragment = _shared_html_raw.replace("{{API_TOKEN}}", token)
+            return html.replace("</head>", fragment + "\n</head>", 1)
+
         @app.get("/", response_class=HTMLResponse)
         async def index():
             """Serve the main upload/analyze page."""
             index_path = Path("./templates/index.html")
-            return HTMLResponse(content=index_path.read_text(encoding="utf-8"))
+            return HTMLResponse(content=_inject_shared(
+                index_path.read_text(encoding="utf-8")
+            ))
 
         @app.post("/api/analyze/upload")
         async def analyze_upload(file: UploadFile = File(...)):
@@ -428,7 +440,9 @@ class PhishingDetectionApp:
         async def status_page():
             """Serve the API/system status page."""
             status_path = Path("./templates/status.html")
-            return HTMLResponse(content=status_path.read_text(encoding="utf-8"))
+            return HTMLResponse(content=_inject_shared(
+                status_path.read_text(encoding="utf-8")
+            ))
 
         @app.get("/api/config")
         async def get_config():
@@ -443,7 +457,9 @@ class PhishingDetectionApp:
         async def monitor_page():
             """Serve the automation monitor/review page."""
             monitor_path = Path("./templates/monitor.html")
-            return HTMLResponse(content=monitor_path.read_text(encoding="utf-8"))
+            return HTMLResponse(content=_inject_shared(
+                monitor_path.read_text(encoding="utf-8")
+            ))
 
         @app.get("/api/monitor/stats")
         async def monitor_stats():
@@ -572,7 +588,9 @@ class PhishingDetectionApp:
         async def accounts_page():
             """Serve the account management page."""
             accounts_path = Path("./templates/accounts.html")
-            return HTMLResponse(content=accounts_path.read_text(encoding="utf-8"))
+            return HTMLResponse(content=_inject_shared(
+                accounts_path.read_text(encoding="utf-8")
+            ))
 
         @app.get("/api/accounts", dependencies=[Depends(require_token)])
         async def api_list_accounts():
@@ -878,6 +896,38 @@ class PhishingDetectionApp:
 
         # Include dashboard routes
         app.include_router(self.dashboard.router)
+
+        # ── Middleware: inject shared fragment into all HTML responses ──
+        # This catches dashboard (Jinja-rendered) and any other HTML pages
+        # that aren't served via the _inject_shared() helper above.
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.responses import Response as StarletteResponse
+        import io
+
+        class SharedHTMLMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                response = await call_next(request)
+                content_type = response.headers.get("content-type", "")
+                # Only process HTML responses that haven't been injected yet
+                if "text/html" in content_type:
+                    body_parts = []
+                    async for chunk in response.body_iterator:
+                        if isinstance(chunk, bytes):
+                            body_parts.append(chunk)
+                        else:
+                            body_parts.append(chunk.encode("utf-8"))
+                    body = b"".join(body_parts).decode("utf-8")
+                    # Only inject if not already present (avoid double-injection)
+                    if "phishdetect-theme" not in body and "</head>" in body:
+                        body = _inject_shared(body)
+                    return HTMLResponse(
+                        content=body,
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                    )
+                return response
+
+        app.add_middleware(SharedHTMLMiddleware)
 
         return app
 

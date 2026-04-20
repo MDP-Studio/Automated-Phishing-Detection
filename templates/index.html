@@ -9,15 +9,15 @@
 
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       min-height: 100vh;
     }
 
     /* ── Nav ── */
     nav {
-      background: #1a1d27;
-      border-bottom: 1px solid #2d3148;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
       padding: 0 32px;
       height: 56px;
       display: flex;
@@ -27,7 +27,7 @@
     nav .logo {
       font-size: 17px;
       font-weight: 700;
-      color: #a78bfa;
+      color: var(--accent);
       text-decoration: none;
       margin-right: auto;
       display: flex;
@@ -35,43 +35,43 @@
       gap: 8px;
     }
     nav a {
-      color: #94a3b8;
+      color: var(--nav-link);
       text-decoration: none;
       font-size: 14px;
       padding: 6px 12px;
       border-radius: 6px;
       transition: background .2s, color .2s;
     }
-    nav a:hover, nav a.active { background: #2d3148; color: #e2e8f0; }
+    nav a:hover, nav a.active { background: var(--nav-hover-bg); color: var(--text-primary); }
 
     /* ── Layout ── */
     .page { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
 
     .hero { text-align: center; margin-bottom: 48px; }
-    .hero h1 { font-size: 36px; font-weight: 800; color: #f1f5f9; margin-bottom: 12px; }
-    .hero p { color: #64748b; font-size: 16px; }
+    .hero h1 { font-size: 36px; font-weight: 800; color: var(--text-primary); margin-bottom: 12px; }
+    .hero p { color: var(--text-muted); font-size: 16px; }
 
     /* ── Drop Zone ── */
     #drop-zone {
-      border: 2px dashed #2d3148;
+      border: 2px dashed var(--border);
       border-radius: 16px;
       padding: 56px 32px;
       text-align: center;
       cursor: pointer;
       transition: border-color .2s, background .2s;
-      background: #1a1d27;
+      background: var(--bg-secondary);
       margin-bottom: 24px;
     }
     #drop-zone:hover, #drop-zone.drag-over {
-      border-color: #7c3aed;
-      background: #1e1b33;
+      border-color: var(--accent);
+      background: var(--accent-bg);
     }
-    #drop-zone svg { width: 52px; height: 52px; color: #4c4f6b; margin-bottom: 16px; }
-    #drop-zone h2 { font-size: 18px; color: #94a3b8; margin-bottom: 8px; }
-    #drop-zone p { font-size: 13px; color: #4c4f6b; }
-    #drop-zone.has-file { border-color: #7c3aed; background: #1e1b33; }
-    #drop-zone.has-file svg { color: #7c3aed; }
-    #drop-zone.has-file h2 { color: #a78bfa; }
+    #drop-zone svg { width: 52px; height: 52px; color: var(--text-muted); margin-bottom: 16px; }
+    #drop-zone h2 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
+    #drop-zone p { font-size: 13px; color: var(--text-muted); }
+    #drop-zone.has-file { border-color: var(--accent); background: var(--accent-bg); }
+    #drop-zone.has-file svg { color: var(--accent); }
+    #drop-zone.has-file h2 { color: var(--accent); }
     #file-input { display: none; }
 
     .btn {
@@ -89,10 +89,10 @@
     }
     .btn:active { -webkit-transform: scale(.98); transform: scale(.98); }
     .btn:disabled { opacity: .4; cursor: not-allowed; }
-    .btn-primary { background: #7c3aed; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #6d28d9; }
-    .btn-ghost { background: #2d3148; color: #94a3b8; }
-    .btn-ghost:hover { background: #363b55; color: #e2e8f0; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-ghost { background: var(--border); color: var(--text-secondary); }
+    .btn-ghost:hover { background: var(--btn-ghost-hover); color: var(--text-primary); }
 
     .controls {
       display: flex;
@@ -129,60 +129,60 @@
     .verdict-banner .label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: .7; }
     .verdict-banner .verdict-text { font-size: 28px; font-weight: 800; }
     .verdict-banner .score-text { font-size: 14px; opacity: .8; margin-top: 4px; }
-    .verdict-banner.CLEAN             { background: linear-gradient(135deg,#052e16,#14532d); border: 1px solid #166534; }
-    .verdict-banner.SUSPICIOUS        { background: linear-gradient(135deg,#1c1400,#451a03); border: 1px solid #78350f; }
-    .verdict-banner.LIKELY_PHISHING   { background: linear-gradient(135deg,#200800,#431407); border: 1px solid #9a3412; }
-    .verdict-banner.CONFIRMED_PHISHING{ background: linear-gradient(135deg,#1f0000,#450a0a); border: 1px solid #991b1b; }
+    .verdict-banner.CLEAN             { background: linear-gradient(135deg, var(--v-clean-bg), var(--v-clean-bg2)); border: 1px solid var(--v-clean-border); }
+    .verdict-banner.SUSPICIOUS        { background: linear-gradient(135deg, var(--v-suspicious-bg), var(--v-suspicious-bg2)); border: 1px solid var(--v-suspicious-border); }
+    .verdict-banner.LIKELY_PHISHING   { background: linear-gradient(135deg, var(--v-likely-bg), var(--v-likely-bg2)); border: 1px solid var(--v-likely-border); }
+    .verdict-banner.CONFIRMED_PHISHING{ background: linear-gradient(135deg, var(--v-phishing-bg), var(--v-phishing-bg2)); border: 1px solid var(--v-phishing-border); }
 
-    .verdict-color-CLEAN              { color: #4ade80; }
-    .verdict-color-SUSPICIOUS         { color: #fbbf24; }
-    .verdict-color-LIKELY_PHISHING    { color: #fb923c; }
-    .verdict-color-CONFIRMED_PHISHING { color: #f87171; }
+    .verdict-color-CLEAN              { color: var(--v-clean); }
+    .verdict-color-SUSPICIOUS         { color: var(--v-suspicious); }
+    .verdict-color-LIKELY_PHISHING    { color: var(--v-likely); }
+    .verdict-color-CONFIRMED_PHISHING { color: var(--v-phishing); }
 
     /* ── Score Bar ── */
     .score-section { margin-bottom: 28px; }
-    .score-section h3 { font-size: 15px; font-weight: 600; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    .score-section h3 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
     .score-row {
       display: flex;
       align-items: center;
       gap: 12px;
       margin-bottom: 10px;
     }
-    .score-row .name { width: 180px; font-size: 13px; color: #94a3b8; flex-shrink: 0; }
-    .score-row .bar-wrap { flex: 1; background: #1e2130; border-radius: 4px; height: 18px; overflow: hidden; }
+    .score-row .name { width: 180px; font-size: 13px; color: var(--text-secondary); flex-shrink: 0; }
+    .score-row .bar-wrap { flex: 1; background: var(--border); border-radius: 4px; height: 18px; overflow: hidden; }
     .score-row .bar-fill {
       height: 100%;
-      background: linear-gradient(90deg, #7c3aed, #a78bfa);
+      background: linear-gradient(90deg, var(--accent), var(--accent-light));
       border-radius: 4px;
       transition: width .6s ease;
     }
-    .score-row .val { width: 40px; text-align: right; font-size: 13px; color: #64748b; }
+    .score-row .val { width: 40px; text-align: right; font-size: 13px; color: var(--text-muted); }
 
     /* ── Card grid ── */
     .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
     @media(max-width:640px) { .cards { grid-template-columns: 1fr; } }
 
     .card {
-      background: #1a1d27;
-      border: 1px solid #2d3148;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 20px;
     }
-    .card h3 { font-size: 13px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
+    .card h3 { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
     .kv { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; font-size: 13px; gap: 8px; }
-    .kv .k { color: #64748b; flex-shrink: 0; }
-    .kv .v { color: #cbd5e1; text-align: right; word-break: break-all; }
-    .kv .v.green  { color: #4ade80; }
-    .kv .v.red    { color: #f87171; }
-    .kv .v.yellow { color: #fbbf24; }
+    .kv .k { color: var(--text-muted); flex-shrink: 0; }
+    .kv .v { color: var(--text-primary); text-align: right; word-break: break-all; }
+    .kv .v.green  { color: var(--v-clean); }
+    .kv .v.red    { color: var(--v-phishing); }
+    .kv .v.yellow { color: var(--v-suspicious); }
 
     /* ── URLs list ── */
     .url-list { list-style: none; }
     .url-list li {
       font-size: 12px;
-      color: #7c3aed;
-      background: #1e1b33;
-      border: 1px solid #2d2852;
+      color: var(--accent);
+      background: var(--accent-bg);
+      border: 1px solid var(--accent-border);
       border-radius: 6px;
       padding: 6px 10px;
       margin-bottom: 6px;
@@ -193,22 +193,22 @@
     .reasoning-list { list-style: none; }
     .reasoning-list li {
       font-size: 13px;
-      color: #94a3b8;
+      color: var(--text-secondary);
       padding: 6px 0;
-      border-bottom: 1px solid #1e2130;
+      border-bottom: 1px solid var(--border);
       display: flex;
       gap: 8px;
     }
-    .reasoning-list li::before { content: '→'; color: #4c4f6b; flex-shrink: 0; }
+    .reasoning-list li::before { content: '→'; color: var(--text-muted); flex-shrink: 0; }
 
     /* ── Error ── */
     #error-box {
       display: none;
-      background: #1f0000;
-      border: 1px solid #991b1b;
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
       border-radius: 10px;
       padding: 20px 24px;
-      color: #fca5a5;
+      color: var(--error-text);
       font-size: 14px;
       margin-bottom: 24px;
     }
@@ -217,12 +217,12 @@
 
     /* Feedback buttons */
     .fbtn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s; }
-    .fbtn.agree { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-    .fbtn.agree:hover { background: #14532d; }
-    .fbtn.disagree { background: #1f0000; color: #f87171; border: 1px solid #991b1b; }
-    .fbtn.disagree:hover { background: #450a0a; }
-    .fbtn.submit { background: #7c3aed; color: #fff; }
-    .fbtn.submit:hover { background: #6d28d9; }
+    .fbtn.agree { background: var(--v-clean-bg); color: var(--v-clean); border: 1px solid var(--v-clean-border); }
+    .fbtn.agree:hover { background: var(--v-clean-bg2); }
+    .fbtn.disagree { background: var(--v-phishing-bg); color: var(--v-phishing); border: 1px solid var(--v-phishing-border); }
+    .fbtn.disagree:hover { background: var(--v-phishing-bg2); }
+    .fbtn.submit { background: var(--accent); color: #fff; }
+    .fbtn.submit:hover { background: var(--accent-hover); }
     .fbtn:disabled { opacity: .5; cursor: not-allowed; }
   </style>
 </head>
@@ -310,22 +310,22 @@
         <div id="feedback-form" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
           <button class="fbtn agree" onclick="submitFeedback('agree')">&#10003; Correct</button>
           <button class="fbtn disagree" onclick="showCorrectionForm()">&#10007; Incorrect</button>
-          <span id="feedback-status" style="font-size:13px;color:#64748b"></span>
+          <span id="feedback-status" style="font-size:13px;color:var(--text-info)"></span>
         </div>
         <div id="correction-form" style="display:none;margin-top:14px">
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <label style="font-size:13px;color:#94a3b8">Correct verdict:</label>
-            <select id="correct-verdict" style="padding:7px 12px;background:#0f1117;border:1px solid #2d3148;border-radius:6px;color:#e2e8f0;font-size:13px">
+            <label style="font-size:13px;color:var(--text-secondary)">Correct verdict:</label>
+            <select id="correct-verdict" style="padding:7px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:13px">
               <option value="CLEAN">Clean</option>
               <option value="SUSPICIOUS">Suspicious</option>
               <option value="LIKELY_PHISHING">Likely Phishing</option>
               <option value="CONFIRMED_PHISHING">Confirmed Phishing</option>
             </select>
-            <input type="text" id="feedback-notes" placeholder="Optional notes..." style="flex:1;min-width:180px;padding:7px 12px;background:#0f1117;border:1px solid #2d3148;border-radius:6px;color:#e2e8f0;font-size:13px" />
+            <input type="text" id="feedback-notes" placeholder="Optional notes..." style="flex:1;min-width:180px;padding:7px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:13px" />
             <button class="fbtn submit" onclick="submitFeedback('correct')">Submit</button>
           </div>
         </div>
-        <div id="feedback-done" style="display:none;margin-top:8px;font-size:13px;color:#4ade80"></div>
+        <div id="feedback-done" style="display:none;margin-top:8px;font-size:13px;color:var(--v-clean)"></div>
       </div>
     </div>
 
@@ -453,7 +453,7 @@
     const results = data.analyzer_results || {};
     const entries = Object.entries(results);
     if (entries.length === 0) {
-      barsEl.innerHTML = '<p style="color:#4c4f6b;font-size:13px">No analyzer data returned.</p>';
+      barsEl.innerHTML = '<p style="color:var(--text-dim);font-size:13px">No analyzer data returned.</p>';
     }
     entries.forEach(([name, r]) => {
       const pct = Math.round((r.risk_score ?? 0) * 100);
@@ -494,7 +494,7 @@
     const reasons = Array.isArray(data.reasoning) ? data.reasoning : (data.reasoning ? [data.reasoning] : []);
     rl.innerHTML = reasons.length
       ? reasons.map(r => `<li>${escHtml(r)}</li>`).join('')
-      : '<li style="color:#4c4f6b">No reasoning provided.</li>';
+      : '<li style="color:var(--text-dim)">No reasoning provided.</li>';
 
     // URLs
     const urls = data.extracted_urls || [];
@@ -592,19 +592,19 @@
         const actions = (data.actions_taken || []).join(', ');
         if (type === 'agree') {
           doneEl.textContent = 'Thanks! Confirmed as ' + correctLabel + '. ' + (actions ? '(' + actions + ')' : '');
-          doneEl.style.color = '#4ade80';
+          doneEl.style.color = 'var(--v-clean)';
         } else {
           doneEl.textContent = 'Correction recorded: ' + originalVerdict + ' → ' + correctLabel + '. ' + (actions ? '(' + actions + ')' : '');
-          doneEl.style.color = '#fbbf24';
+          doneEl.style.color = 'var(--warning-text)';
         }
         doneEl.style.display = 'block';
       } else {
         document.getElementById('feedback-status').textContent = 'Error: ' + (data.detail || 'Unknown');
-        document.getElementById('feedback-status').style.color = '#f87171';
+        document.getElementById('feedback-status').style.color = 'var(--v-phishing)';
       }
     } catch(e) {
       document.getElementById('feedback-status').textContent = 'Failed: ' + e.message;
-      document.getElementById('feedback-status').style.color = '#f87171';
+      document.getElementById('feedback-status').style.color = 'var(--v-phishing)';
     }
 
     document.querySelectorAll('.fbtn').forEach(b => b.disabled = false);

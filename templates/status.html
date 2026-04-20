@@ -9,49 +9,49 @@
 
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       min-height: 100vh;
     }
 
     /* ── Nav ── */
     nav {
-      background: #1a1d27;
-      border-bottom: 1px solid #2d3148;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--nav-border);
       padding: 0 32px; height: 56px;
       display: flex; align-items: center; gap: 24px;
     }
     nav .logo {
-      font-size: 17px; font-weight: 700; color: #a78bfa;
+      font-size: 17px; font-weight: 700; color: var(--accent);
       text-decoration: none; margin-right: auto;
       display: flex; align-items: center; gap: 8px;
     }
     nav a {
-      color: #94a3b8; text-decoration: none; font-size: 14px;
+      color: var(--nav-link); text-decoration: none; font-size: 14px;
       padding: 6px 12px; border-radius: 6px; transition: background .2s, color .2s;
     }
-    nav a:hover, nav a.active { background: #2d3148; color: #e2e8f0; }
+    nav a:hover, nav a.active { background: var(--nav-hover-bg); color: var(--text-primary); }
 
     /* ── Layout ── */
     .page { max-width: 1000px; margin: 0 auto; padding: 36px 24px; }
 
     .page-header { margin-bottom: 28px; }
     .page-header h1 { font-size: 26px; font-weight: 700; }
-    .page-header p  { font-size: 14px; color: #64748b; margin-top: 4px; }
+    .page-header p  { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
 
     .top-row { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-    .ts      { font-size: 12px; color: #4c4f6b; }
+    .ts      { font-size: 12px; color: var(--text-muted); }
 
     /* ── Cards ── */
     .card {
-      background: #1a1d27;
-      border: 1px solid #2d3148;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 22px;
       margin-bottom: 20px;
     }
     .card-title {
-      font-size: 14px; font-weight: 600; color: #94a3b8;
+      font-size: 14px; font-weight: 600; color: var(--text-secondary);
       text-transform: uppercase; letter-spacing: .5px;
       margin-bottom: 18px;
       display: flex; align-items: center; gap: 8px;
@@ -59,18 +59,18 @@
     .card-title::before {
       content: ''; display: inline-block;
       width: 3px; height: 14px;
-      background: #7c3aed; border-radius: 2px;
+      background: var(--accent); border-radius: 2px;
     }
 
     /* ── Summary pills ── */
     .summary-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 4px; }
     .sum-item { text-align: center; }
     .sum-item .big { font-size: 28px; font-weight: 700; }
-    .sum-item .lbl { font-size: 11px; color: #4c4f6b; text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
-    .col-green  { color: #4ade80; }
-    .col-yellow { color: #fbbf24; }
-    .col-red    { color: #f87171; }
-    .col-purple { color: #a78bfa; }
+    .sum-item .lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; margin-top: 2px; }
+    .col-green  { color: var(--v-clean); }
+    .col-yellow { color: var(--v-suspicious); }
+    .col-red    { color: var(--v-phishing); }
+    .col-purple { color: var(--accent); }
 
     /* ── Key grid ── */
     .key-grid {
@@ -80,54 +80,54 @@
     }
     .key-item {
       display: flex; align-items: center; gap: 12px;
-      background: #12151f; border: 1px solid #2d3148;
+      background: var(--bg-tertiary); border: 1px solid var(--border);
       border-radius: 8px; padding: 12px 14px;
       border-left: 3px solid transparent;
     }
-    .key-item.ok   { border-left-color: #166534; }
-    .key-item.miss { border-left-color: #2d3148; }
+    .key-item.ok   { border-left-color: var(--v-clean-border); }
+    .key-item.miss { border-left-color: var(--border); }
     .key-name  { font-size: 13px; font-weight: 500; flex: 1; }
     .key-badge {
       font-size: 11px; font-weight: 600;
       padding: 2px 9px; border-radius: 10px;
     }
-    .key-badge.ok   { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-    .key-badge.miss { background: #1e2130; color: #4c4f6b; border: 1px solid #2d3148; }
+    .key-badge.ok   { background: var(--v-clean-bg); color: var(--v-clean); border: 1px solid var(--v-clean-border); }
+    .key-badge.miss { background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border); }
 
     .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .dot.green  { background: #4ade80; }
-    .dot.grey   { background: #4c4f6b; }
-    .dot.red    { background: #f87171; }
+    .dot.green  { background: var(--v-clean); }
+    .dot.grey   { background: var(--text-muted); }
+    .dot.red    { background: var(--v-phishing); }
 
     /* ── Config table ── */
     .cfg-table { width: 100%; border-collapse: collapse; }
-    .cfg-table tr { border-bottom: 1px solid #1e2130; }
+    .cfg-table tr { border-bottom: 1px solid var(--border); }
     .cfg-table tr:last-child { border-bottom: none; }
     .cfg-table td { padding: 10px 8px; font-size: 13px; }
-    .cfg-table td:first-child { color: #64748b; width: 55%; }
-    .cfg-table td:last-child  { font-weight: 500; color: #cbd5e1; }
+    .cfg-table td:first-child { color: var(--text-muted); width: 55%; }
+    .cfg-table td:last-child  { font-weight: 500; color: var(--text-primary); }
 
     .pill {
       display: inline-block; padding: 3px 10px;
       border-radius: 10px; font-size: 12px; font-weight: 600;
     }
-    .pill.green  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-    .pill.yellow { background: #1c1400; color: #fbbf24; border: 1px solid #78350f; }
-    .pill.red    { background: #1f0000; color: #f87171; border: 1px solid #991b1b; }
-    .pill.grey   { background: #1e2130; color: #4c4f6b; border: 1px solid #2d3148; }
+    .pill.green  { background: var(--v-clean-bg); color: var(--v-clean); border: 1px solid var(--v-clean-border); }
+    .pill.yellow { background: var(--v-suspicious-bg); color: var(--v-suspicious); border: 1px solid var(--v-suspicious-border); }
+    .pill.red    { background: var(--v-phishing-bg); color: var(--v-phishing); border: 1px solid var(--v-phishing-border); }
+    .pill.grey   { background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border); }
 
     /* ── Button ── */
     .btn {
-      padding: 7px 16px; background: #7c3aed; color: #fff;
+      padding: 7px 16px; background: var(--accent); color: #fff;
       border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
       cursor: pointer; transition: background .2s;
     }
-    .btn:hover    { background: #6d28d9; }
+    .btn:hover    { background: var(--accent-hover); }
     .btn:disabled { opacity: .5; cursor: default; }
 
     .err-box {
-      display: none; background: #1f0000; border: 1px solid #991b1b;
-      border-radius: 8px; padding: 14px 18px; color: #fca5a5;
+      display: none; background: var(--error-bg); border: 1px solid var(--error-border);
+      border-radius: 8px; padding: 14px 18px; color: var(--error-text);
       font-size: 13px; margin-bottom: 20px;
     }
 
@@ -194,14 +194,14 @@
   <!-- API Keys -->
   <div class="card">
     <div class="card-title">API Keys</div>
-    <div class="key-grid" id="keyGrid"><p style="color:#4c4f6b">Loading…</p></div>
+    <div class="key-grid" id="keyGrid"><p style="color:var(--text-dim)">Loading…</p></div>
   </div>
 
   <!-- Pipeline -->
   <div class="card">
     <div class="card-title">Pipeline Configuration</div>
     <table class="cfg-table" id="pipelineTable">
-      <tr><td colspan="2" style="color:#4c4f6b">Loading…</td></tr>
+      <tr><td colspan="2" style="color:var(--text-dim)">Loading…</td></tr>
     </table>
   </div>
 
@@ -209,7 +209,7 @@
   <div class="card">
     <div class="card-title">IMAP Monitor</div>
     <table class="cfg-table" id="imapTable">
-      <tr><td colspan="2" style="color:#4c4f6b">Loading…</td></tr>
+      <tr><td colspan="2" style="color:var(--text-dim)">Loading…</td></tr>
     </table>
   </div>
 

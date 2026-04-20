@@ -2,7 +2,7 @@
 
 Analyzes phishing emails through a 7-stage async pipeline with concurrent threat intelligence lookups, MITRE ATT&CK mapping across 12 sub-techniques, Sigma rule export, and STIX 2.1 IOC generation. Designed as analyst tooling, not autonomous detection.
 
-**Current eval (live APIs):** 0.90 recall, 0.90 precision, 0.90 F1 (permissive scoring) on a 22-sample corpus. TP=9, FP=1, TN=11, FN=1. Strict recall is 0.00: all phishing detections cluster in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold. This is a score calibration problem, not a detection gap. 947 unit tests. Per-sample data in [`eval_runs/`](eval_runs/). The corpus is project-curated and small; these numbers are a directional baseline, not production metrics. Public corpus integration (Nazario/Enron-ham) is next.
+**Current eval (live APIs):** 0.90 recall, 1.00 precision, 0.95 F1 (permissive scoring) on a 22-sample corpus. TP=9, FP=0, TN=12, FN=1. Strict recall is 0.00: all phishing detections cluster in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold. This is a score calibration problem, not a detection gap. 947 unit tests. Per-sample data in [`eval_runs/`](eval_runs/). The corpus is project-curated and small; these numbers are a directional baseline, not production metrics. Public corpus integration (Nazario/Enron-ham) is next.
 
 **What makes this project different** is not the detection numbers. It is the engineering arc documented in [`HISTORY.md`](HISTORY.md): fourteen disciplined audit cycles, seven stacked discipline gaps that took four audits to surface, a mechanical pre-cycle gate that enforces reading outcomes before narrative, and honest eval data that includes the cycles where the numbers were bad. The full story -- including how a 0.20 recall baseline was misdiagnosed for two cycles before the real cause was found -- is in the [writeup](docs/WRITEUP.md).
 
@@ -306,6 +306,24 @@ The image:
 - Installs from `requirements.lock` with `pip install --require-hashes` so any dependency tampering fails the build.
 - Uses a `urllib.request`-based healthcheck (no `curl` package).
 - Runs `docker-entrypoint.sh` as root briefly to chown the `/app/data` and `/app/logs` bind mounts to UID 1000, then `gosu`s to the non-root `phishing` user before exec'ing the pipeline. This closes the bind-mount UID-mismatch issue that previously broke `results.jsonl` writes on Linux hosts where the host bind-mount source is root-owned.
+
+## DNS Automation
+
+The project runs behind Cloudflare DNS (migrated from Netlify DNS). A helper script automates adding CNAME records for new Netlify-hosted sites:
+
+```bash
+# One-time setup: create a Cloudflare API token with Zone > DNS > Edit permission
+cp .env.example .env
+# Fill in CF_API_TOKEN (CF_ZONE_ID and CF_DOMAIN are pre-filled)
+
+# Add a new subdomain pointing to a Netlify app
+./scripts/cf-dns-add.sh myapp cool-blog-abc123
+# Creates: myapp.mdpstudio.com.au → cool-blog-abc123.netlify.app (DNS only)
+```
+
+The script checks for existing records before creating, prompts before overwriting, and reminds you to add the custom domain in Netlify's site settings afterward. Requires `curl` and `jq`.
+
+For tunnel-backed services (like phishanalyze), routes are configured in the Cloudflare Zero Trust dashboard under Networks → Connectors → tunnel → Published application routes, not via this script.
 
 ## Data retention & privacy
 
