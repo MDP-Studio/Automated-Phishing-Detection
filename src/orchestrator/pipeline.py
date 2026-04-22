@@ -489,6 +489,90 @@ class PhishingPipeline:
             else:
                 return await run_analyzer()
 
+    # Domains whose authentication (SPF/DKIM/DMARC) passing is strong
+    # evidence the email is legitimate, even when content looks "phishy".
+    # These are high-reputation senders that routinely send urgent security
+    # alerts, notifications, and transactional emails.
+    TRUSTED_AUTHENTICATED_DOMAINS = {
+        # Tech
+        "google.com", "accounts.google.com", "gmail.com",
+        "github.com", "noreply.github.com",
+        "microsoft.com", "outlook.com", "office.com", "microsoftonline.com",
+        "apple.com", "email.apple.com", "icloud.com",
+        "linkedin.com", "e.linkedin.com",
+        "facebook.com", "facebookmail.com", "meta.com",
+        "amazon.com", "amazonses.com",
+        "paypal.com", "e.paypal.com",
+        "netflix.com", "mailer.netflix.com",
+        "dropbox.com", "dropboxmail.com",
+        "discord.com", "discordapp.com",
+        "steampowered.com",
+        "uber.com",
+        "twitter.com", "x.com",
+        "slack.com",
+        "zoom.us",
+        # Shipping
+        "fedex.com", "dhl.com", "usps.com",
+        "auspost.com.au", "notifications.auspost.com.au",
+        # Banking
+        "chase.com", "wellsfargo.com", "bankofamerica.com",
+        "citibank.com", "citi.com",
+        # Services
+        "docusign.com", "docusign.net",
+        "indeed.com", "indeedemail.com",
+        "booking.com",
+        "twitch.tv",
+        "roblox.com",
+    }
+
+    def _is_trusted_authenticated_sender(
+        self, analyzer_results: dict[str, AnalyzerResult]
+    ) -> tuple[bool, str]:
+        """
+        Check if header_analysis indicates authentication passes for a
+        known trusted domain.
+
+        Returns (is_trusted, reason_string).
+        """
+        header_result = analyzer_results.get("header_analysis")
+        if not header_result or header_result.confidence == 0.0:
+            return False, ""
+
+        details = header_result.details or {}
+
+        # Must have at least SPF or DKIM passing, PLUS low risk score
+        spf_pass = details.get("spf_pass")
+        dkim_pass = details.get("dkim_pass")
+        dmarc_pass = details.get("dmarc_pass")
+
+        auth_passes = sum(1 for v in [spf_pass, dkim_pass, dmarc_pass] if v is True)
+        auth_fails = sum(1 for v in [spf_pass, dkim_pass, dmarc_pass] if v is False)
+
+        # Need at least 2 auth passes and no failures for trust
+        if auth_passes < 2 or auth_fails > 0:
+            return False, ""
+
+        # Risk score must be low (authentication-clean)
+        if header_result.risk_score > 0.25:
+            return False, ""
+
+        # Check sender domain against trusted list.
+        # The sender domain is not directly in analyzer_results, but we can
+        # infer trust from the brand_impersonation details if available.
+        brand_result = analyzer_results.get("brand_impersonation")
+        if brand_result and brand_result.details:
+            signals = brand_result.details.get("signals", [])
+            # If brand_impersonation found NO signals, the sender domain
+            # matched a known brand → trusted.
+            if not signals:
+                return True, f"auth_passes={auth_passes}, no brand signals"
+
+        # Fallback: if header risk is very low, trust even without brand check
+        if header_result.risk_score <= 0.10 and auth_passes >= 2:
+            return True, f"auth_passes={auth_passes}, header_risk={header_result.risk_score:.2f}"
+
+        return False, ""
+
     def _phase_decision(
         self, analyzer_results: dict[str, AnalyzerResult]
     ) -> tuple[Verdict, float, float, str]:
@@ -498,6 +582,11 @@ class PhishingPipeline:
         Uses weights from config.scoring.weights to compute overall score.
         Maps score ranges to verdicts based on config thresholds.
 
+        Applies authenticated-sender trust dampening: when header_analysis
+        confirms SPF/DKIM/DMARC pass for a high-reputation domain, scores
+        from nlp_intent and brand_impersonation are dampened to prevent
+        false positives on legitimate security alerts and notifications.
+
         Args:
             analyzer_results: Dictionary of analyzer results.
 
@@ -506,6 +595,25 @@ class PhishingPipeline:
         """
         weights = self.config.scoring.weights
         thresholds = self.config.scoring.thresholds
+
+        # ── Authenticated sender trust dampening ──
+        # Legitimate security alerts from Google, GitHub, etc. use the same
+        # urgent language as phishing. When authentication passes for a
+        # known sender, we dampen content-based analyzer scores so they
+        # don't dominate the verdict.
+        is_trusted, trust_reason = self._is_trusted_authenticated_sender(analyzer_results)
+        # Dampening factors: 1.0 = no change, lower = more dampening
+        score_dampening = {}
+        if is_trusted:
+            score_dampening = {
+                "nlp_intent": 0.15,           # Heavily dampen — urgent language is expected
+                "brand_impersonation": 0.25,   # Dampen — brand keywords are expected
+                "domain_intelligence": 0.5,    # Moderate dampen
+            }
+            self.logger.info(
+                f"Trusted authenticated sender detected ({trust_reason}). "
+                f"Dampening content-based scores."
+            )
 
         # Compute weighted score
         total_weight = 0.0
@@ -544,13 +652,25 @@ class PhishingPipeline:
                     )
                     continue
 
-                weighted_sum += result.risk_score * weight
+                # Apply dampening for trusted authenticated senders
+                effective_score = result.risk_score
+                dampen_factor = score_dampening.get(analyzer_name)
+                if dampen_factor is not None:
+                    effective_score = result.risk_score * dampen_factor
+
+                weighted_sum += effective_score * weight
                 confidence_sum += result.confidence * weight
                 total_weight += weight
 
-                analyzer_details.append(
-                    f"{analyzer_name}: {result.risk_score:.3f} (conf: {result.confidence:.3f})"
-                )
+                if dampen_factor is not None:
+                    analyzer_details.append(
+                        f"{analyzer_name}: {result.risk_score:.3f}→{effective_score:.3f} "
+                        f"(dampened ×{dampen_factor}, conf: {result.confidence:.3f})"
+                    )
+                else:
+                    analyzer_details.append(
+                        f"{analyzer_name}: {result.risk_score:.3f} (conf: {result.confidence:.3f})"
+                    )
 
         # Normalize over analyzers that actually ran
         if total_weight > 0:
@@ -575,10 +695,16 @@ class PhishingPipeline:
                 break
 
         # Generate reasoning
+        trust_note = ""
+        if is_trusted:
+            trust_note = (
+                f" [TRUSTED SENDER: authenticated sender with passing SPF/DKIM/DMARC; "
+                f"content-based scores dampened ({trust_reason})]"
+            )
         reasoning = (
             f"Analyzed with {len(analyzer_results)} analyzers. "
             f"Weighted score: {overall_score:.3f}. "
-            f"Verdict: {verdict.value}. "
+            f"Verdict: {verdict.value}.{trust_note} "
             f"Analyzer breakdown: {'; '.join(analyzer_details)}"
         )
 
