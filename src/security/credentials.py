@@ -51,8 +51,10 @@ def _get_or_create_passphrase() -> str:
     if passphrase:
         return passphrase
 
-    # Generate a strong random passphrase (letters + digits + punctuation subset)
-    alphabet = string.ascii_letters + string.digits + "-_!@#$%"
+    # Generate a strong random passphrase (URL-safe chars only: letters, digits, -, _).
+    # Avoid shell/env-syntax characters like $ # ! @ % — docker-compose interprets
+    # unescaped $ in .env values as variable references, silently truncating keys.
+    alphabet = string.ascii_letters + string.digits + "-_"
     passphrase = "".join(secrets.choice(alphabet) for _ in range(_PASSPHRASE_LENGTH))
 
     # Append to .env file
