@@ -5,6 +5,9 @@ python-dotenv>=1.0
 
 # Email parsing
 mail-parser>=3.15
+# lxml is pulled transitively via mail-parser. Pinned floor to 6.1.0 to
+# close CVE-2026-41066 (XXE / local-file read via default resolve_entities).
+lxml>=6.1.0
 dkimpy>=1.1
 checkdmarc>=5.0
 dnspython>=2.4
