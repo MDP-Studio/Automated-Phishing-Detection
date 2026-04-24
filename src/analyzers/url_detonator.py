@@ -1,6 +1,40 @@
 """
-URLDetonationAnalyzer: Visit URLs in a controlled browser environment.
-Captures screenshots, follows redirects, and detects suspicious features like login forms.
+URLDetonationAnalyzer: STUB implementation.
+
+NOT the production URL detonation path. Production uses
+``src/analyzers/url_detonation.py`` (Playwright-driven), which the
+orchestrator loads first in ``src/orchestrator/pipeline.py`` and only
+falls back to this class if Playwright import fails.
+
+Why both files exist
+--------------------
+This module and its tests (tests/unit/test_url_detonation.py, 23 test
+cases) were built around a ``browser_client`` dependency-injection
+interface. The production analyzer was written later and drives
+Playwright directly — different abstraction, same class name.
+
+The pipeline fallback to this stub is effectively dead in shipped
+environments (Playwright is a declared dependency and the Docker image
+runs ``playwright install --with-deps chromium``), so in practice all
+real detonation traffic goes through ``url_detonation.py``, which has
+no unit coverage.
+
+Audit finding (open, tracked)
+-----------------------------
+Closing the duplication correctly means either:
+  (a) Rewrite the tests here to target ``url_detonation.py`` with
+      mocked Playwright so the production path is the only one with
+      tests, then delete this file, or
+  (b) Refactor ``url_detonation.py`` to accept an injected
+      ``browser_client`` (Playwright-wrapped by default, mockable in
+      tests), making this stub's interface the canonical one.
+
+Either is a real change needing a measured eval pass before merging
+— deferred to a dedicated cycle, not landed in a cleanup sprint.
+
+Captures screenshots, follows redirects, and detects suspicious
+features like login forms — but only when a ``browser_client`` is
+injected. Without one, it returns zero-confidence empty results.
 """
 import asyncio
 import logging

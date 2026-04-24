@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from src.models import EmailObject, HeaderAnalysisDetail
+from src.utils.domains import get_root_domain
 
 logger = logging.getLogger(__name__)
 
@@ -268,34 +269,6 @@ class HeaderAnalyzer:
 
         return None
 
-    @staticmethod
-    def _get_root_domain(domain: str) -> str:
-        """
-        Extract the root (registrable) domain from a full domain.
-
-        Simple heuristic: take the last two labels, or last three if the
-        second-to-last is a known short SLD (co, com, org, net, gov, etc.).
-
-        Examples:
-            noreply.github.com → github.com
-            mail.google.com    → google.com
-            auspost.com.au     → auspost.com.au
-            foo.co.uk          → foo.co.uk
-        """
-        parts = domain.lower().strip(".").split(".")
-        if len(parts) <= 2:
-            return domain.lower()
-        # Common two-part TLDs
-        two_part_tlds = {
-            "co.uk", "com.au", "co.in", "co.jp", "co.nz", "com.br",
-            "com.mx", "org.uk", "gov.uk", "gov.au", "co.za", "com.sg",
-            "com.hk", "com.py", "co.kr", "com.cn", "org.au", "net.au",
-        }
-        last_two = ".".join(parts[-2:])
-        if last_two in two_part_tlds and len(parts) >= 3:
-            return ".".join(parts[-3:])
-        return ".".join(parts[-2:])
-
     def _check_from_reply_to_mismatch(self, email: EmailObject) -> bool:
         """
         Detect From/Reply-To mismatch.
@@ -322,7 +295,7 @@ class HeaderAnalyzer:
             return False
 
         # Compare root domains — subdomains of the same org are fine
-        return self._get_root_domain(from_domain) != self._get_root_domain(reply_domain)
+        return get_root_domain(from_domain) != get_root_domain(reply_domain)
 
     def _check_display_name_spoofing(self, email: EmailObject) -> bool:
         """

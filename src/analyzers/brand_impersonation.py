@@ -14,6 +14,7 @@ import re
 from typing import Optional
 
 from src.models import AnalyzerResult, EmailObject
+from src.utils.domains import get_root_domain
 
 logger = logging.getLogger(__name__)
 
@@ -220,29 +221,6 @@ class BrandImpersonationAnalyzer:
         self.image_comparison_client = image_comparison_client
         self.brand_templates_path = brand_templates_path or "data/brand_templates"
 
-    @staticmethod
-    def _get_root_domain(domain: str) -> str:
-        """
-        Extract the root (registrable) domain from a full domain.
-
-        Examples:
-            noreply.github.com → github.com
-            mail.google.com    → google.com
-            auspost.com.au     → auspost.com.au
-        """
-        parts = domain.lower().strip(".").split(".")
-        if len(parts) <= 2:
-            return domain.lower()
-        two_part_tlds = {
-            "co.uk", "com.au", "co.in", "co.jp", "co.nz", "com.br",
-            "com.mx", "org.uk", "gov.uk", "gov.au", "co.za", "com.sg",
-            "com.hk", "com.py", "co.kr", "com.cn", "org.au", "net.au",
-        }
-        last_two = ".".join(parts[-2:])
-        if last_two in two_part_tlds and len(parts) >= 3:
-            return ".".join(parts[-3:])
-        return ".".join(parts[-2:])
-
     def _extract_domain(self, address: Optional[str]) -> Optional[str]:
         """Extract domain from an email address or URL."""
         if not address:
@@ -431,7 +409,12 @@ class BrandImpersonationAnalyzer:
             from_addr = email.from_address or ""
             from_domain = self._extract_domain(from_addr)
             from_local = from_addr.split("@")[0] if "@" in from_addr else ""
-            display_name = getattr(email, "display_name", "") or ""
+            # EmailObject exposes this as from_display_name (see src/models.py
+            # line 51). This previously read "display_name" which silently
+            # returned "" on every email, making Signal 1 (display-name brand
+            # mismatch) dead — it only fired via the subject-line fallback.
+            # Audit finding closed: activating the intended signal.
+            display_name = getattr(email, "from_display_name", "") or ""
             reply_to = getattr(email, "reply_to", "") or ""
             reply_domain = self._extract_domain(reply_to)
             body = email.body_plain or email.body_html or ""
@@ -537,8 +520,8 @@ class BrandImpersonationAnalyzer:
             # Only flag when root (registrable) domains differ. Subdomains
             # of the same org are normal (e.g., github.com → noreply.github.com).
             if reply_domain and from_domain:
-                from_root = self._get_root_domain(from_domain)
-                reply_root = self._get_root_domain(reply_domain)
+                from_root = get_root_domain(from_domain)
+                reply_root = get_root_domain(reply_domain)
                 if from_root != reply_root:
                     reply_risk = 0.6
                     if signals:  # Combined with brand signals = very suspicious

@@ -204,16 +204,54 @@ class DecisionEngine:
         contributes more to the score than one with confidence=0.3, and
         confidence=0.0 excludes the analyzer entirely.
 
-        WARNING (cycle 14): This implementation is NOT the code path used by
-        the eval harness. The pipeline orchestrator (src/orchestrator/pipeline.py,
-        _phase_decision) uses a DIFFERENT formula:
-            score = sum(weight_i * risk_i) / sum(weight_i)   [for active analyzers]
-        where confidence acts as a binary gate (>0 = participate, =0 = skip)
-        rather than a continuous multiplier. The eval JSONL data in eval_runs/
-        was produced by _phase_decision, not by this method. This dual-
-        implementation is a cycle 14 finding; reconciling them is a future
-        cycle. Both implementations skip analyzers with confidence=0.0 and
-        weight=0.0, so the url_detonation abstain fix works under either.
+        WARNING — this is NOT the runtime scoring path.
+        ================================================
+        ``DecisionEngine`` is tested (tests/unit/test_decision_engine*.py)
+        but has zero instantiation sites in runtime code as of this
+        writing. Every real verdict — including everything in
+        ``eval_runs/*.jsonl`` — is produced by
+        ``src/orchestrator/pipeline.py::_phase_decision``.
+
+        The two implementations are NOT interchangeable — they differ
+        in three substantive ways:
+
+        1. Weighted-score formula.
+           ``DecisionEngine``:
+               score = Σ(weight · risk · conf) / Σ(weight · conf)
+           ``_phase_decision``:
+               score = Σ(weight · effective_risk) / Σ(weight)
+                       over analyzers with conf > 0
+           Confidence is a continuous multiplier here and a binary
+           gate there. On the same inputs the numbers will differ.
+
+        2. ``_phase_decision`` applies trust dampening: when a known
+           brand passes SPF/DKIM/DMARC, nlp_intent and
+           brand_impersonation scores are multiplied by 0.15 / 0.25
+           / 0.5 before the weighted sum. ``DecisionEngine`` has no
+           equivalent mechanism.
+
+        3. ``DecisionEngine`` applies override rules (malware hash,
+           malicious URL, high-confidence BEC, clean-email detection)
+           and cross-analyzer calibration (ADR 0001) that are not
+           mirrored in ``_phase_decision``.
+
+        Unifying the two is not a mechanical lift-and-delete — it's
+        a design decision about which philosophy wins for each
+        concern above. Doing it correctly needs:
+          (a) an eval run on the current corpus under both scorers
+              with identical inputs, to measure verdict agreement
+              and score delta per sample, and
+          (b) a deliberate choice, per concern, between the
+              pipeline's runtime logic and DecisionEngine's richer
+              framework — probably porting the trust-dampening
+              into DecisionEngine and having ``_phase_decision``
+              delegate.
+
+        Both (a) and (b) are scheduled for a dedicated cycle. Until
+        then: any test added here locks behaviour that nothing runs,
+        and any test added to ``_phase_decision`` locks behaviour
+        that this class doesn't share. Neither is wrong; both
+        diverging silently is.
 
         Overall confidence formula:
             overall_conf = sum(weight_i * confidence_i) / sum(weight_i)

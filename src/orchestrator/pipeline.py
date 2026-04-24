@@ -316,50 +316,76 @@ class PhishingPipeline:
         Returns:
             Dictionary of analyzer results keyed by analyzer name.
         """
-        # Load all analyzers
-        analyzer_tasks = []
-        analyzer_names = [
+        # Two-phase execution to close the screenshot-handoff race
+        # (audit finding 5). Previously every analyzer was kicked off
+        # concurrently, which meant brand_impersonation captured a
+        # snapshot of iocs at task-creation time — before
+        # url_detonation had a chance to store screenshots. Writing
+        # iocs["detonation_screenshots"] later didn't help: the
+        # brand_impersonation coroutine had already read through the
+        # empty dict.
+        #
+        # Phase 1: everything that doesn't depend on a peer analyzer's
+        #          output, run concurrently.
+        # Phase 2: brand_impersonation, which reads
+        #          iocs["detonation_screenshots"] populated during
+        #          phase 1.
+        #
+        # The worst-case added latency is url_detonation's timeout
+        # (default 30s), which was already the pipeline's critical
+        # path because brand_impersonation's visual-similarity signal
+        # was silently missing before and the aggregate wait on
+        # `for ... in analyzer_tasks` blocked on the slowest task
+        # anyway.
+        phase1_names = [
             "header_analysis",
             "url_reputation",
             "domain_intelligence",
             "url_detonation",
-            "brand_impersonation",
             "attachment_analysis",
             "nlp_intent",
             "sender_profiling",
         ]
+        phase2_names = ["brand_impersonation"]
 
-        for analyzer_name in analyzer_names:
-            try:
-                analyzer = await self._load_analyzer(analyzer_name)
-                if analyzer:
-                    task = asyncio.create_task(
-                        self._run_analyzer_with_limits(
-                            analyzer_name, analyzer, email, iocs, extracted_urls
+        def _analyzer_timeout(name: str) -> float:
+            if "detonation" in name:
+                return self.config.url_detonation_timeout
+            if name in ("url_reputation", "domain_intelligence"):
+                return 60
+            return 15
+
+        async def _launch(names: list[str]) -> list[tuple[str, asyncio.Task]]:
+            tasks: list[tuple[str, asyncio.Task]] = []
+            for analyzer_name in names:
+                try:
+                    analyzer = await self._load_analyzer(analyzer_name)
+                    if analyzer:
+                        task = asyncio.create_task(
+                            self._run_analyzer_with_limits(
+                                analyzer_name, analyzer, email, iocs, extracted_urls
+                            )
                         )
-                    )
-                    analyzer_tasks.append((analyzer_name, task))
-            except Exception as e:
-                self.logger.warning(f"Failed to load analyzer {analyzer_name}: {e}")
+                        tasks.append((analyzer_name, task))
+                except Exception as e:
+                    self.logger.warning(f"Failed to load analyzer {analyzer_name}: {e}")
+            return tasks
+
+        # ── Phase 1 ──
+        phase1_tasks = await _launch(phase1_names)
 
         # Run all concurrently with timeouts
         results = {}
-        for analyzer_name, task in analyzer_tasks:
+        for analyzer_name, task in phase1_tasks:
             try:
-                result = await asyncio.wait_for(
-                    task,
-                    timeout=self.config.url_detonation_timeout
-                    if "detonation" in analyzer_name
-                    else 60 if analyzer_name in ("url_reputation", "domain_intelligence")
-                    else 15
-                )
+                result = await asyncio.wait_for(task, timeout=_analyzer_timeout(analyzer_name))
                 results[analyzer_name] = result
                 self.logger.debug(
                     f"Analyzer {analyzer_name} completed: score={result.risk_score:.3f}"
                 )
 
                 # After url_detonation completes, store screenshots in iocs
-                # so brand_impersonation can use them
+                # so brand_impersonation (phase 2) can use them.
                 if analyzer_name == "url_detonation" and result.details:
                     screenshots_b64 = result.details.get("screenshots", {})
                     if screenshots_b64:
@@ -369,6 +395,37 @@ class PhishingPipeline:
                             for url, b64_data in screenshots_b64.items()
                         }
 
+            except asyncio.TimeoutError:
+                self.logger.warning(f"Analyzer {analyzer_name} timed out")
+                results[analyzer_name] = AnalyzerResult(
+                    analyzer_name=analyzer_name,
+                    risk_score=0.5,
+                    confidence=0.0,
+                    details={"error": "timeout"},
+                    errors=["Analyzer timed out"],
+                )
+            except Exception as e:
+                self.logger.error(f"Analyzer {analyzer_name} failed: {e}")
+                results[analyzer_name] = AnalyzerResult(
+                    analyzer_name=analyzer_name,
+                    risk_score=0.5,
+                    confidence=0.0,
+                    details={"error": str(e)},
+                    errors=[str(e)],
+                )
+
+        # ── Phase 2: analyzers that depend on phase-1 outputs ──
+        # iocs now contains detonation_screenshots (if any were
+        # captured). brand_impersonation can read through to a
+        # populated dict instead of an empty one.
+        phase2_tasks = await _launch(phase2_names)
+        for analyzer_name, task in phase2_tasks:
+            try:
+                result = await asyncio.wait_for(task, timeout=_analyzer_timeout(analyzer_name))
+                results[analyzer_name] = result
+                self.logger.debug(
+                    f"Analyzer {analyzer_name} completed: score={result.risk_score:.3f}"
+                )
             except asyncio.TimeoutError:
                 self.logger.warning(f"Analyzer {analyzer_name} timed out")
                 results[analyzer_name] = AnalyzerResult(
