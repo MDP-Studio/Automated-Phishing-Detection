@@ -218,10 +218,13 @@
     .btn-detonate:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-detonate:disabled { opacity: .5; cursor: not-allowed; }
 
-    /* Detonation result in modal */
+    /* Detonation result inline under URL */
     .det-result {
-      margin-top: 12px; padding: 16px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px;
+      margin: 8px 0 4px 0; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--accent);
+      border-radius: 8px; animation: det-slide-in .3s ease-out;
     }
+    @keyframes det-slide-in { from { opacity: 0; max-height: 0; padding: 0 16px; } to { opacity: 1; max-height: 800px; padding: 16px; } }
+    .det-result .det-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--accent-light); }
     .det-screenshot { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); margin-top: 12px; }
     .det-info { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
     .det-indicators { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -230,6 +233,10 @@
       background: var(--v-phishing-bg); color: var(--v-phishing); border: 1px solid var(--v-phishing-border);
     }
     .det-ind.safe { background: var(--v-clean-bg); color: var(--v-clean); border-color: var(--v-clean-border); }
+    .url-item.detonating { border-color: var(--accent); background: var(--bg-hover); }
+    .btn-detonate .spin-icon { display: inline-block; }
+    .btn-detonate.loading .spin-icon { animation: spin .8s linear infinite; }
+    .btn-detonate.loading { opacity: .7; }
 
     /* Feedback buttons */
     .btn-fb { padding: 6px 14px; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .2s; }
@@ -675,14 +682,14 @@
         var u = urls[i];
         var urlStr = typeof u === 'string' ? u : (u.url || '');
         var source = typeof u === 'object' ? (u.source || '') : '';
-        html += '<li class="url-item">';
+        html += '<li class="url-item" id="url-item-' + i + '">';
         html += '<span class="url-text">' + esc(urlStr) + '</span>';
         if (source) html += '<span class="url-source">' + esc(source) + '</span>';
-        html += '<button class="btn-detonate" onclick="detonateUrl(\'' + escAttr(urlStr) + '\', this)">Simulate Click</button>';
+        html += '<button class="btn-detonate" onclick="detonateUrl(\'' + escAttr(urlStr) + '\', this, ' + i + ')"><span class="spin-icon">⟳</span> Simulate Click</button>';
         html += '</li>';
+        html += '<li id="det-result-' + i + '" style="list-style:none;padding:0;margin:0"></li>';
       }
       html += '</ul>';
-      html += '<div id="det-result-area"></div>';
       html += '</div>';
     }
 
@@ -789,13 +796,22 @@
     }
   }
 
-  // ── URL Detonation ──
-  async function detonateUrl(url, btn) {
-    btn.disabled = true;
-    btn.textContent = 'Loading...';
+  // ── URL Detonation (inline results) ──
+  async function detonateUrl(url, btn, idx) {
+    // Highlight the URL row and show loading state
+    var urlItem = document.getElementById('url-item-' + idx);
+    var resultSlot = document.getElementById('det-result-' + idx);
+    if (urlItem) urlItem.classList.add('detonating');
 
-    var area = document.getElementById('det-result-area');
-    area.innerHTML = '<div class="det-result" style="text-align:center;color:var(--text-info)">Visiting URL in sandboxed browser... This may take 10-20 seconds.</div>';
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.innerHTML = '<span class="spin-icon">⟳</span> Scanning...';
+
+    // Show inline loading indicator
+    resultSlot.innerHTML = '<div class="det-result" style="text-align:center;color:var(--text-info);padding:12px">' +
+      '<span class="spin-icon" style="display:inline-block;animation:spin .8s linear infinite;font-size:16px;margin-right:8px">⟳</span>' +
+      'Visiting URL in sandboxed browser... 10-20 seconds</div>';
+    resultSlot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     try {
       var r = await fetch('/api/detonate-url', {
@@ -807,14 +823,12 @@
       var data = await r.json();
 
       if (!r.ok) {
-        area.innerHTML = '<div class="det-result"><strong style="color:var(--v-phishing)">Error:</strong> ' + esc(data.detail || 'Unknown error') + '</div>';
-        btn.disabled = false;
-        btn.textContent = 'Simulate Click';
+        resultSlot.innerHTML = '<div class="det-result"><strong style="color:var(--v-phishing)">Error:</strong> ' + esc(data.detail || 'Unknown error') + '</div>';
+        resetDetonateBtn(btn, urlItem);
         return;
       }
 
       var html = '<div class="det-result">';
-      html += '<strong style="color:var(--accent-light)">Detonation Result for:</strong> <span style="color:var(--text-secondary);font-size:12px;word-break:break-all">' + esc(url) + '</span>';
 
       // Screenshot
       if (data.screenshot_b64) {
@@ -855,14 +869,21 @@
       }
 
       html += '</div>';
-      area.innerHTML = html;
+      resultSlot.innerHTML = html;
+      resultSlot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     } catch(e) {
-      area.innerHTML = '<div class="det-result"><strong style="color:var(--v-phishing)">Failed:</strong> ' + esc(e.message) + '</div>';
+      resultSlot.innerHTML = '<div class="det-result"><strong style="color:var(--v-phishing)">Failed:</strong> ' + esc(e.message) + '</div>';
     }
 
+    resetDetonateBtn(btn, urlItem);
+  }
+
+  function resetDetonateBtn(btn, urlItem) {
     btn.disabled = false;
-    btn.textContent = 'Simulate Click';
+    btn.classList.remove('loading');
+    btn.innerHTML = '<span class="spin-icon">⟳</span> Simulate Click';
+    if (urlItem) urlItem.classList.remove('detonating');
   }
 
   // ── Helpers ──

@@ -268,15 +268,48 @@ class HeaderAnalyzer:
 
         return None
 
+    @staticmethod
+    def _get_root_domain(domain: str) -> str:
+        """
+        Extract the root (registrable) domain from a full domain.
+
+        Simple heuristic: take the last two labels, or last three if the
+        second-to-last is a known short SLD (co, com, org, net, gov, etc.).
+
+        Examples:
+            noreply.github.com → github.com
+            mail.google.com    → google.com
+            auspost.com.au     → auspost.com.au
+            foo.co.uk          → foo.co.uk
+        """
+        parts = domain.lower().strip(".").split(".")
+        if len(parts) <= 2:
+            return domain.lower()
+        # Common two-part TLDs
+        two_part_tlds = {
+            "co.uk", "com.au", "co.in", "co.jp", "co.nz", "com.br",
+            "com.mx", "org.uk", "gov.uk", "gov.au", "co.za", "com.sg",
+            "com.hk", "com.py", "co.kr", "com.cn", "org.au", "net.au",
+        }
+        last_two = ".".join(parts[-2:])
+        if last_two in two_part_tlds and len(parts) >= 3:
+            return ".".join(parts[-3:])
+        return ".".join(parts[-2:])
+
     def _check_from_reply_to_mismatch(self, email: EmailObject) -> bool:
         """
         Detect From/Reply-To mismatch.
+
+        Only flags when the root (registrable) domains differ. Subdomains
+        of the same org (e.g., github.com vs noreply.github.com) are NOT
+        considered mismatches because many services use different subdomains
+        for transactional vs notification emails.
 
         Args:
             email: EmailObject
 
         Returns:
-            True if From and Reply-To differ
+            True if From and Reply-To root domains differ
         """
         if not email.reply_to or not email.from_address:
             return False
@@ -285,8 +318,11 @@ class HeaderAnalyzer:
         from_domain = email.from_address.split("@")[1].lower() if "@" in email.from_address else ""
         reply_domain = email.reply_to.split("@")[1].lower() if "@" in email.reply_to else ""
 
-        # Flag if domains differ
-        return from_domain != reply_domain if from_domain and reply_domain else False
+        if not from_domain or not reply_domain:
+            return False
+
+        # Compare root domains — subdomains of the same org are fine
+        return self._get_root_domain(from_domain) != self._get_root_domain(reply_domain)
 
     def _check_display_name_spoofing(self, email: EmailObject) -> bool:
         """

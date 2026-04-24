@@ -552,8 +552,10 @@ class PhishingPipeline:
         if auth_passes < 2 or auth_fails > 0:
             return False, ""
 
-        # Risk score must be low (authentication-clean)
-        if header_result.risk_score > 0.25:
+        # Risk score must be low (authentication-clean).
+        # Allow up to 0.35 to accommodate minor non-spoofing signals
+        # like subdomain reply-to that aren't truly suspicious.
+        if header_result.risk_score > 0.35:
             return False, ""
 
         # Check sender domain against trusted list.
@@ -566,9 +568,14 @@ class PhishingPipeline:
             # matched a known brand → trusted.
             if not signals:
                 return True, f"auth_passes={auth_passes}, no brand signals"
+            # If the only signals are low-risk or informational (not actual
+            # impersonation), still allow trust
+            high_risk_signals = [s for s in signals if s.get("risk", 0) >= 0.6]
+            if not high_risk_signals:
+                return True, f"auth_passes={auth_passes}, only low-risk brand signals"
 
         # Fallback: if header risk is very low, trust even without brand check
-        if header_result.risk_score <= 0.10 and auth_passes >= 2:
+        if header_result.risk_score <= 0.15 and auth_passes >= 2:
             return True, f"auth_passes={auth_passes}, header_risk={header_result.risk_score:.2f}"
 
         return False, ""

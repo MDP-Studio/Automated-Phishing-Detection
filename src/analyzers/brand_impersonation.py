@@ -220,6 +220,29 @@ class BrandImpersonationAnalyzer:
         self.image_comparison_client = image_comparison_client
         self.brand_templates_path = brand_templates_path or "data/brand_templates"
 
+    @staticmethod
+    def _get_root_domain(domain: str) -> str:
+        """
+        Extract the root (registrable) domain from a full domain.
+
+        Examples:
+            noreply.github.com → github.com
+            mail.google.com    → google.com
+            auspost.com.au     → auspost.com.au
+        """
+        parts = domain.lower().strip(".").split(".")
+        if len(parts) <= 2:
+            return domain.lower()
+        two_part_tlds = {
+            "co.uk", "com.au", "co.in", "co.jp", "co.nz", "com.br",
+            "com.mx", "org.uk", "gov.uk", "gov.au", "co.za", "com.sg",
+            "com.hk", "com.py", "co.kr", "com.cn", "org.au", "net.au",
+        }
+        last_two = ".".join(parts[-2:])
+        if last_two in two_part_tlds and len(parts) >= 3:
+            return ".".join(parts[-3:])
+        return ".".join(parts[-2:])
+
     def _extract_domain(self, address: Optional[str]) -> Optional[str]:
         """Extract domain from an email address or URL."""
         if not address:
@@ -511,17 +534,22 @@ class BrandImpersonationAnalyzer:
                             max_risk = max(max_risk, risk)
 
             # ── Signal 4: Reply-To domain mismatch ──
-            if reply_domain and from_domain and reply_domain != from_domain:
-                reply_risk = 0.6
-                if signals:  # Combined with brand signals = very suspicious
-                    reply_risk = 0.85
-                signals.append({
-                    "signal": "reply_to_domain_mismatch",
-                    "from_domain": from_domain,
-                    "reply_domain": reply_domain,
-                    "risk": reply_risk,
-                })
-                max_risk = max(max_risk, reply_risk)
+            # Only flag when root (registrable) domains differ. Subdomains
+            # of the same org are normal (e.g., github.com → noreply.github.com).
+            if reply_domain and from_domain:
+                from_root = self._get_root_domain(from_domain)
+                reply_root = self._get_root_domain(reply_domain)
+                if from_root != reply_root:
+                    reply_risk = 0.6
+                    if signals:  # Combined with brand signals = very suspicious
+                        reply_risk = 0.85
+                    signals.append({
+                        "signal": "reply_to_domain_mismatch",
+                        "from_domain": from_domain,
+                        "reply_domain": reply_domain,
+                        "risk": reply_risk,
+                    })
+                    max_risk = max(max_risk, reply_risk)
 
             # ── Signal 5: Random/generated sender address ──
             random_score = self._detect_random_sender(from_local)
