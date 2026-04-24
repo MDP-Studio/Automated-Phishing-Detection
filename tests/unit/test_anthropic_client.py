@@ -3,7 +3,9 @@ Tests for src/analyzers/clients/anthropic_client.py.
 
 Locks the LLM determinism contract:
 - temperature=0
-- top_p=1
+- top_p NOT set (the Anthropic API rejects requests that set both
+  temperature and top_p; temperature=0 alone is sufficient for greedy
+  decoding on Claude models)
 - model_id is captured per-call (drift detection)
 - LLMResponse is the structured return type
 
@@ -46,11 +48,14 @@ class TestDeterminismContract:
         assert kwargs["temperature"] == 0
 
     @pytest.mark.asyncio
-    async def test_top_p_is_one(self, client_with_mocked_api):
-        """The audit's #13 fix: top_p must be pinned alongside temperature."""
+    async def test_top_p_not_set(self, client_with_mocked_api):
+        """top_p must NOT be passed: the Anthropic API rejects requests
+        that set both temperature and top_p. temperature=0 alone is
+        sufficient for greedy decoding. See anthropic_client.py
+        determinism contract docstring."""
         await client_with_mocked_api.analyze("hello")
         kwargs = client_with_mocked_api._client.messages.create.call_args.kwargs
-        assert kwargs["top_p"] == 1
+        assert "top_p" not in kwargs
 
     @pytest.mark.asyncio
     async def test_model_passed_to_api(self, client_with_mocked_api):

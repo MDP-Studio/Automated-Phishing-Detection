@@ -461,7 +461,7 @@ class PhishingDetectionApp:
                 monitor_path.read_text(encoding="utf-8")
             ))
 
-        @app.get("/api/monitor/stats")
+        @app.get("/api/monitor/stats", dependencies=[Depends(require_token)])
         async def monitor_stats():
             """Return current monitor stats and recent results."""
             # Merge IMAP monitor results + manual upload results
@@ -488,7 +488,7 @@ class PhishingDetectionApp:
                 "quarantine_folder": getattr(self._monitor, "quarantine_folder", None) if self._monitor else None,
             }
 
-        @app.get("/api/monitor/log")
+        @app.get("/api/monitor/log", dependencies=[Depends(require_token)])
         async def monitor_log(limit: int = 100):
             """Return recent results from the JSONL log file."""
             log_path = Path("data/results.jsonl")

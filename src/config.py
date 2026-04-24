@@ -74,7 +74,25 @@ class PipelineConfig:
 
     @classmethod
     def from_env(cls) -> "PipelineConfig":
-        """Load configuration from environment variables."""
+        """
+        Load configuration. If ``config.yaml`` exists in the process CWD
+        (or at the path named by ``CONFIG_YAML_PATH``), delegate to
+        :meth:`from_yaml`, which applies env-var overrides on top of the
+        YAML values. Otherwise, load purely from environment variables.
+
+        This is the single runtime entrypoint — callers do not need to
+        know whether a YAML file is present. Previously ``from_yaml``
+        existed but had no callsites, which meant ``config.yaml`` was
+        effectively dead config (audit finding, cycle 14.5).
+        """
+        yaml_path = os.getenv("CONFIG_YAML_PATH", "config.yaml")
+        if Path(yaml_path).exists():
+            return cls.from_yaml(yaml_path)
+        return cls._from_env_only()
+
+    @classmethod
+    def _from_env_only(cls) -> "PipelineConfig":
+        """Load configuration purely from environment variables (no YAML)."""
         api = APIConfig(
             virustotal_key=os.getenv("VIRUSTOTAL_API_KEY", ""),
             urlscan_key=os.getenv("URLSCAN_API_KEY", ""),
@@ -125,7 +143,9 @@ class PipelineConfig:
 
         yaml_path = Path(path)
         if not yaml_path.exists():
-            return cls.from_env()
+            # Avoid recursion: from_env() delegates to from_yaml() when
+            # a YAML file exists, so fall through to the env-only loader.
+            return cls._from_env_only()
 
         with open(yaml_path) as f:
             data = yaml.safe_load(f) or {}
