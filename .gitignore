@@ -89,6 +89,7 @@ coverage.xml
 pytest-cache-files-*/
 
 # ===== Local Codex Import Backups =====
+AGENTS.md
 AGENTS.md.before-codex-memory-import-*
 
 # ===== Training Data =====
