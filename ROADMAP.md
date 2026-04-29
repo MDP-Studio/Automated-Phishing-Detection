@@ -53,8 +53,10 @@ Status is one of:
 | **Persistent email_id lookup for analyst feedback (ADR 0002)** — closes audit #9. Feedback endpoint and `/api/monitor/email/{id}` now resolve email_id via an in-memory `email_id → byte_offset` index over `data/results.jsonl` instead of scanning the 200-cap in-memory `_upload_results` list. Survives restart and the 200-cap roll. The display path keeps `_upload_results` unchanged — see ADR §"Why this split". | `src/feedback/email_lookup.py`, `main.py`, `src/automation/retention.py` (20 tests including cross-restart smoking gun) |
 | **Diagnostic refactor (audit #10)** — three duplicate API health-check implementations (`diagnose_apis.py`, `test_apis.py`, `/api/diagnose`) consolidated into `src/diagnostics/api_checks.py` with a `CheckResult` dataclass and registry-driven `run_all_checks()`. `test_apis.py` deleted. | `src/diagnostics/` (18 tests covering the SKIP path, registry shape, dispatch, and `summarize()`) |
 | **Eval harness with per-sample JSONL storage** — corpus-agnostic `src/eval/harness.py` and `scripts/run_eval.py`. Each run produces one JSONL row per sample (sample_id, true_label, predicted_verdict, per_analyzer_scores, calibration outcome, model_id, commit_sha, TP/FP/TN/FN) plus an aggregate `.summary.json` under `eval_runs/`. Two binary projections (permissive/strict) computed and stored separately. The first baseline against `tests/real_world_samples/` is committed. The harness is the deliverable; numbers are data. | `src/eval/harness.py`, `scripts/run_eval.py`, `eval_runs/` (27 tests covering schema, projection, aggregate arithmetic) |
+| **Payment Fraud Firewall** — payment-specific analyzer that turns invoice, supplier, BEC, and bank-detail-change email signals into `SAFE`, `VERIFY`, or `DO_NOT_PAY` business decisions. | `src/analyzers/payment_fraud.py`, wired into pipeline and decision overrides |
+| **Payment scam dataset tooling** — ignored local dataset scaffold, synthetic bank-detail-change seed set, redaction/audit path for real samples, ML JSONL export, and payment-decision eval reports. | `src/eval/payment_dataset.py`, `src/eval/payment_decision_eval.py`, `scripts/payment_dataset.py`, `scripts/payment_eval.py` |
 | Docker Compose deployment (single orchestrator container today; multi-container split planned) | `docker-compose.yml`                            |
-| 944 tests (34 modules) | unit + integration |
+| 1001 tests (44 modules) | unit + integration |
 
 ---
 
@@ -77,8 +79,8 @@ HTML pages (`/`, `/monitor`, `/accounts`, `/dashboard`) load without auth even t
 ### Audit trail for feedback labels
 Append-only log of who relabeled what. Closes residual risk **R2**. Required before the project is honest about being multi-analyst.
 
-### Automated evaluation harness
-Run the pipeline against a labeled corpus and emit precision/recall/F1 per analyzer and per verdict. Methodology lives in `docs/EVALUATION.md`. Today the project has unit tests but no detection-quality metrics on real corpora.
+### Public-corpus eval baseline
+The eval harness and corpus prep are shipped. The remaining work is to run the ignored public-corpus workflow from `docs/EVALUATION.md`, inspect failures, and record a fresh baseline summary without committing raw corpora.
 
 ### Sigma converter integration
 Pipe the static rule library through `sigmac` / `pysigma` in CI to validate rules against multiple SIEM backends (Splunk SPL, Elastic EQL, Sentinel KQL). Currently rules are hand-written and untested against a converter.

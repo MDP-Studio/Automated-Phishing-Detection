@@ -33,6 +33,11 @@ from src.eval.payment_dataset import (
     seed_synthetic_bank_change_dataset,
     validate_dataset,
 )
+from src.eval.payment_decision_eval import (
+    PaymentDecisionEvalRow,
+    PaymentDecisionEvalSummary,
+    evaluate_payment_decisions,
+)
 
 __all__ = [
     "AggregateMetrics",
@@ -41,6 +46,8 @@ __all__ = [
     "FailureRow",
     "MLExportSummary",
     "PerSampleRow",
+    "PaymentDecisionEvalRow",
+    "PaymentDecisionEvalSummary",
     "PreparedCorpus",
     "RedactionFinding",
     "RedactionSummary",
@@ -49,6 +56,7 @@ __all__ = [
     "audit_dataset_pii",
     "build_report",
     "export_ml_jsonl",
+    "evaluate_payment_decisions",
     "init_dataset",
     "prepare_corpus",
     "redact_eml",

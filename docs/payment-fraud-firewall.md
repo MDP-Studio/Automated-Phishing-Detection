@@ -104,11 +104,16 @@ Validate and export generic eval labels:
 python scripts/payment_dataset.py validate --dataset data/payment_scam_dataset
 python scripts/payment_dataset.py export-eval-labels --dataset data/payment_scam_dataset
 python scripts/payment_dataset.py export-ml-jsonl --dataset data/payment_scam_dataset
+python scripts/payment_eval.py --dataset data/payment_scam_dataset
 ```
 
 `export-ml-jsonl` refuses samples that are not marked `contains_real_pii=no`
 unless `--allow-pii` is explicitly passed. Keep the default refusal for normal
 experiments.
+
+`payment_eval.py` writes JSON, CSV, and Markdown reports under
+`data/payment_scam_dataset/reports/` comparing expected vs predicted `SAFE`,
+`VERIFY`, and `DO_NOT_PAY` decisions.
 
 Seed the first reproducible development set:
 
