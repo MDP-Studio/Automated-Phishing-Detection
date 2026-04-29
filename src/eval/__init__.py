@@ -18,12 +18,20 @@ from src.eval.harness import (
     run_eval,
 )
 from src.eval.corpus_prepare import PreparedCorpus, prepare_corpus
+from src.eval.failure_inspector import FailureReport, FailureRow, build_report
+from src.eval.payment_dataset import ValidationResult, init_dataset, validate_dataset
 
 __all__ = [
     "AggregateMetrics",
     "EvalRun",
+    "FailureReport",
+    "FailureRow",
     "PerSampleRow",
     "PreparedCorpus",
+    "ValidationResult",
+    "build_report",
+    "init_dataset",
     "prepare_corpus",
     "run_eval",
+    "validate_dataset",
 ]

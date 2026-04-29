@@ -53,6 +53,62 @@ When an email returns `VERIFY` or `DO_NOT_PAY`:
 4. Require second-person approval for any bank-detail change.
 5. Record verifier name, date, and approval outcome before releasing funds.
 
+## Payment Scam Dataset
+
+Keep this dataset separate from the generic phishing corpora. Generic phishing
+labels answer "is this malicious"; the payment dataset also answers "what
+should the business do before paying".
+
+Initialize it locally:
+
+```bash
+python scripts/payment_dataset.py init --dataset data/payment_scam_dataset
+```
+
+Add a labeled `.eml`:
+
+```bash
+python scripts/payment_dataset.py add \
+  --dataset data/payment_scam_dataset \
+  --source path/to/redacted-sample.eml \
+  --label PAYMENT_SCAM \
+  --payment-decision DO_NOT_PAY \
+  --scenario bank_detail_change \
+  --source-type redacted \
+  --split train \
+  --verified-by meidie \
+  --contains-real-pii no \
+  --notes "Supplier bank details changed with urgency and reply-to mismatch"
+```
+
+Validate and export generic eval labels:
+
+```bash
+python scripts/payment_dataset.py validate --dataset data/payment_scam_dataset
+python scripts/payment_dataset.py export-eval-labels --dataset data/payment_scam_dataset
+```
+
+Recommended minimum collection:
+
+| Scenario | Scam | Legitimate |
+|---|---:|---:|
+| Bank detail change | 50 | 50 |
+| Supplier impersonation | 50 | 25 |
+| Executive transfer request | 50 | 25 |
+| Overdue invoice pressure | 50 | 50 |
+| Payment portal link | 30 | 30 |
+| Invoice attachment | 50 | 50 |
+| Normal business non-payment mail | 0 | 100 |
+
+Label rules:
+
+- `PAYMENT_SCAM`: confirmed malicious, red-team generated, or synthetic attack sample.
+- `LEGITIMATE_PAYMENT`: real or synthetic normal invoice, remittance, statement, or verified bank-detail change.
+- `NON_PAYMENT`: normal clean business mail with no payment context.
+- `payment_decision=DO_NOT_PAY`: payment must be blocked.
+- `payment_decision=VERIFY`: payment can continue only after out-of-band supplier or executive verification.
+- `payment_decision=SAFE`: no material payment-risk signal is expected.
+
 ## Product Positioning
 
 Working name:

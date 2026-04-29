@@ -58,6 +58,7 @@ brand_references/generated_hashes/
 data/corpora/
 data/eval_corpus*/
 data/ml_corpus*/
+data/payment_scam_dataset*/
 
 # ===== Runtime Data =====
 data/results.jsonl

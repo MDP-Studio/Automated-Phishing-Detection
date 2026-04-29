@@ -103,9 +103,24 @@ python scripts/run_eval.py \
   --corpus data/eval_corpus \
   --labels data/eval_corpus/labels.json \
   --output eval_runs
+
+# 3. Inspect false positives, false negatives, and errors.
+python scripts/eval_inspect_failures.py \
+  --results eval_runs/RUN_ID.jsonl \
+  --manifest data/eval_corpus/manifest.jsonl \
+  --projection permissive \
+  --output data/eval_corpus/failure_report_permissive
+
+python scripts/eval_inspect_failures.py \
+  --results eval_runs/RUN_ID.jsonl \
+  --manifest data/eval_corpus/manifest.jsonl \
+  --projection strict \
+  --output data/eval_corpus/failure_report_strict
 ```
 
 `scripts/eval_prepare_corpus.py` writes a flat `.eml` directory, `labels.json` for `scripts/run_eval.py`, `labels.csv` for ML workflows, `manifest.jsonl` for source provenance, and `summary.json` for reproducibility. `scripts/run_eval.py` writes per-sample JSONL and an aggregate `.summary.json` under `eval_runs/`.
+
+`scripts/eval_inspect_failures.py` writes JSON, CSV, and Markdown reports that rank each failure by top analyzer signal. Use the permissive report to reduce false positives and the strict report to find phishing samples stuck in `SUSPICIOUS`.
 
 The generated corpus is intentionally not committed. Raw external corpora are large, carry licensing constraints, and should be rebuilt from the downloader plus the manifest instead of stored in git.
 
