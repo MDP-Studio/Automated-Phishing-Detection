@@ -17,5 +17,13 @@ from src.eval.harness import (
     PerSampleRow,
     run_eval,
 )
+from src.eval.corpus_prepare import PreparedCorpus, prepare_corpus
 
-__all__ = ["AggregateMetrics", "EvalRun", "PerSampleRow", "run_eval"]
+__all__ = [
+    "AggregateMetrics",
+    "EvalRun",
+    "PerSampleRow",
+    "PreparedCorpus",
+    "prepare_corpus",
+    "run_eval",
+]

@@ -85,22 +85,29 @@ Latency matters because the pipeline is async and concurrent. A regression in on
 ### 3.1 Reproducible run
 
 ```bash
-# 1. Stage corpus
-python scripts/eval_prepare_corpus.py --output ./eval_corpus/
+# 0. Download raw public corpora once. Generated data is ignored by git.
+bash scripts/download_corpora.sh
 
-# 2. Run pipeline against every email, write structured results
-python scripts/eval_run.py --corpus ./eval_corpus/ --output ./eval_results.jsonl
+# 1. Stage a deterministic eval/ML-ready corpus.
+python scripts/eval_prepare_corpus.py \
+  --corpora-dir data/corpora \
+  --output data/eval_corpus \
+  --phishing 200 \
+  --enron-ham 200 \
+  --spamassassin-ham 100 \
+  --seed 1337 \
+  --clean-output
 
-# 3. Compute metrics against ground-truth labels
-python scripts/eval_metrics.py --results ./eval_results.jsonl --labels ./eval_corpus/labels.csv
-
-# 4. Diff against baseline
-python scripts/eval_diff.py --baseline ./eval_baselines/2026-04.json --current ./eval_results_summary.json
+# 2. Run the pipeline against every staged email.
+python scripts/run_eval.py \
+  --corpus data/eval_corpus \
+  --labels data/eval_corpus/labels.json \
+  --output eval_runs
 ```
 
-**None of these scripts exist yet.** Building this harness is a roadmap item (see `ROADMAP.md` "Automated evaluation harness"). Today the project has unit tests but no detection-quality metrics on real corpora.
+`scripts/eval_prepare_corpus.py` writes a flat `.eml` directory, `labels.json` for `scripts/run_eval.py`, `labels.csv` for ML workflows, `manifest.jsonl` for source provenance, and `summary.json` for reproducibility. `scripts/run_eval.py` writes per-sample JSONL and an aggregate `.summary.json` under `eval_runs/`.
 
-The shape of the harness is documented here so when it gets built, the design isn't reinvented.
+The generated corpus is intentionally not committed. Raw external corpora are large, carry licensing constraints, and should be rebuilt from the downloader plus the manifest instead of stored in git.
 
 ### 3.2 What to fix the seed on
 
@@ -120,18 +127,19 @@ The unit tests in `tests/unit/` use a small set of hand-crafted emails that exis
 
 As of this commit:
 
-- **No corpus-based evaluation has been run.** The numbers above are *targets*, not reported results.
-- **Unit tests pass at 676/676**, but unit tests measure code correctness, not detection quality. They are necessary, not sufficient.
+- **External corpus preparation is implemented.** Nazario phishing mboxes, Enron sent-mail ham, and SpamAssassin ham can now be staged into a labeled `.eml` corpus with reproducible sampling.
+- **No full public-corpus evaluation number is committed.** The numbers above are *targets*, not reported results.
+- **Unit tests measure code correctness, not detection quality.** They are necessary, not sufficient.
 - **Manual verification** has been done on the small sample set in `tests/real_world_samples/` and `tests/sample_emails/`. Those are smoke tests, not evaluation.
-- **The evaluation harness (§3) is not built.** Building it is on the roadmap. Until it exists, any precision/recall claim from this project is suspect and should be challenged.
+- **The eval harness is built, but corpus results must be regenerated locally.** Until a generated run exists for the chosen public-corpus slice, any precision/recall claim from that corpus is suspect and should be challenged.
 
-This is the right answer to give a reviewer: "we have a methodology and we know we don't have results yet." It is wrong to publish made-up numbers and worse to publish numbers from a corpus that overlaps the test set.
+This is the right answer to give a reviewer: "we have a methodology, a preparation script, and an eval harness, but corpus metrics need a fresh run from the raw ignored data." It is wrong to publish made-up numbers and worse to publish numbers from a corpus that overlaps the test set.
 
 ---
 
 ## 5. When numbers exist
 
-When the harness lands and produces real numbers, this section will be filled in with:
+When public-corpus runs produce stable real numbers, this section will be filled in with:
 
 - Date of evaluation run
 - Commit SHA

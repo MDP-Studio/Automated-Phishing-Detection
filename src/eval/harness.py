@@ -3,10 +3,10 @@ Detection eval harness.
 
 The harness is corpus-agnostic: give it a directory of .eml files and a
 label dict, and it returns one row per sample plus an aggregate summary.
-The first integration is the project's own `tests/real_world_samples/`
-corpus (22 samples) because that is what's available locally. Integrating
-Nazario / PhishTank / Enron-ham is documented as a follow-up — the harness
-shape doesn't change, only the corpus loader does.
+The default integration is the project's own `tests/real_world_samples/`
+corpus (22 samples). Larger external mail corpora can be staged with
+`scripts/eval_prepare_corpus.py`, then evaluated by passing its output
+directory and labels.json.
 
 Per-sample row shape (the high-leverage decision from the cycle 9 review):
 

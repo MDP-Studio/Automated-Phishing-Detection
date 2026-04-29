@@ -2,7 +2,7 @@
 
 Analyzes phishing emails through a 7-stage async pipeline with concurrent threat intelligence lookups, MITRE ATT&CK mapping across 12 sub-techniques, Sigma rule export, and STIX 2.1 IOC generation. Designed as analyst tooling, not autonomous detection.
 
-**Current eval (live APIs):** 0.90 recall, 1.00 precision, 0.95 F1 (permissive scoring) on a 22-sample corpus. TP=9, FP=0, TN=12, FN=1. Strict recall is 0.00: all phishing detections cluster in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold. This is a score calibration problem, not a detection gap. 977 automated tests. Per-sample data in [`eval_runs/`](eval_runs/). The corpus is project-curated and small; these numbers are a directional baseline, not production metrics. Public corpus integration (Nazario/Enron-ham) is next.
+**Current eval (live APIs):** 0.90 recall, 1.00 precision, 0.95 F1 (permissive scoring) on a 22-sample corpus. TP=9, FP=0, TN=12, FN=1. Strict recall is 0.00: all phishing detections cluster in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold. This is a score calibration problem, not a detection gap. 981 automated tests. Per-sample data in [`eval_runs/`](eval_runs/). The corpus is project-curated and small; these numbers are a directional baseline, not production metrics. External corpus preparation now supports Nazario phishing plus Enron and SpamAssassin ham; public-corpus eval results should be generated locally from ignored data.
 
 **What makes this project different** is not the detection numbers. It is the engineering arc documented in [`HISTORY.md`](HISTORY.md): fourteen disciplined audit cycles, seven stacked discipline gaps that took four audits to surface, a mechanical pre-cycle gate that enforces reading outcomes before narrative, and honest eval data that includes the cycles where the numbers were bad. The full story -- including how a 0.20 recall baseline was misdiagnosed for two cycles before the real cause was found -- is in the [writeup](docs/WRITEUP.md).
 
@@ -51,13 +51,21 @@ The decision engine has two passes: pass 1 runs analyzers concurrently, pass 2 a
 
 Per-sample eval data lives in [`eval_runs/`](eval_runs/) — one JSONL per run plus a `.summary.json` aggregate. Each row records the predicted verdict, the per-analyzer scores, the calibration outcome, the LLM model ID actually used, and the commit SHA the eval was run against. **The directory is the link, not any specific run** — numbers go stale and individual filenames decay.
 
-To produce a new run:
+To produce a new run against the built-in 22-sample corpus:
 
 ```bash
 python scripts/run_eval.py
 ```
 
-Default corpus is `tests/real_world_samples/` (the project's own 22-sample labeled set). Pass `--corpus DIR --labels LABELS.json` to evaluate against a different set (Nazario, PhishTank, Enron-ham integration is a planned cycle — the harness shape is corpus-agnostic, only the loader changes).
+Default corpus is `tests/real_world_samples/` (the project's own 22-sample labeled set). To prepare a larger ignored local corpus from downloaded public data:
+
+```bash
+bash scripts/download_corpora.sh
+python scripts/eval_prepare_corpus.py --output data/eval_corpus --phishing 200 --enron-ham 200 --spamassassin-ham 100 --clean-output
+python scripts/run_eval.py --corpus data/eval_corpus --labels data/eval_corpus/labels.json
+```
+
+`scripts/eval_prepare_corpus.py` writes `.eml` samples, `labels.json` for the evaluator, `labels.csv` for ML workflows, `manifest.jsonl` for provenance, and `summary.json` for reproducibility. The generated corpus stays out of git.
 
 The harness produces per-sample TP/FP/TN/FN flags under two binary projections (permissive: SUSPICIOUS+ counts as PHISHING; strict: LIKELY_PHISHING+). Aggregate precision/recall/F1 and accuracy are computed from the flags.
 

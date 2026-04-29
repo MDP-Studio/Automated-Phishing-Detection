@@ -7,9 +7,9 @@ plus an aggregate summary to `eval_runs/`. The harness itself is the
 deliverable; the numbers from any single run are data, not goalposts.
 
 Default corpus: tests/real_world_samples/ (the project's own 22-sample
-labeled set). Larger external corpora (Nazario, PhishTank, Enron-ham)
-are documented as a follow-up — the harness shape is corpus-agnostic,
-only the loader changes.
+labeled set). Prepare larger external corpora with
+scripts/eval_prepare_corpus.py, then pass its output directory and
+labels.json here.
 
 Usage:
     # Default: run against tests/real_world_samples/

@@ -56,6 +56,8 @@ brand_references/generated_hashes/
 
 # ===== Corpora (downloaded by scripts/download_corpora.sh) =====
 data/corpora/
+data/eval_corpus*/
+data/ml_corpus*/
 
 # ===== Runtime Data =====
 data/results.jsonl
