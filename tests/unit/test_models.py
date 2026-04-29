@@ -26,6 +26,10 @@ from src.models import (
     FeedbackRecord,
     HeaderAnalysisDetail,
     IntentClassification,
+    PaymentDecision,
+    PaymentFraudAnalysis,
+    PaymentFraudSignal,
+    PaymentSignalSeverity,
 )
 
 
@@ -90,6 +94,38 @@ class TestIntentCategoryEnum:
         ]
         assert len(categories) == 7
         assert IntentCategory.CREDENTIAL_HARVESTING.value == "credential_harvesting"
+
+
+class TestPaymentModels:
+    """Test payment fraud decision models."""
+
+    def test_payment_decision_values(self):
+        """Test that payment decisions are defined."""
+        assert PaymentDecision.SAFE.value == "SAFE"
+        assert PaymentDecision.VERIFY.value == "VERIFY"
+        assert PaymentDecision.DO_NOT_PAY.value == "DO_NOT_PAY"
+
+    def test_payment_fraud_analysis_defaults(self):
+        """Test payment fraud analysis default containers."""
+        signal = PaymentFraudSignal(
+            name="bank_detail_change_request",
+            severity=PaymentSignalSeverity.CRITICAL,
+            evidence="Updated bank details requested",
+            recommendation="Verify through saved supplier contact",
+            risk_weight=0.42,
+        )
+        analysis = PaymentFraudAnalysis(
+            decision=PaymentDecision.DO_NOT_PAY,
+            risk_score=0.8,
+            confidence=0.9,
+            summary="Block payment pending verification",
+            signals=[signal],
+        )
+
+        assert analysis.decision == PaymentDecision.DO_NOT_PAY
+        assert analysis.signals[0].severity == PaymentSignalSeverity.CRITICAL
+        assert analysis.extracted_payment_fields == {}
+        assert analysis.verification_steps == []
 
 
 class TestAttachmentObject:

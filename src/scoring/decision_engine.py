@@ -330,7 +330,8 @@ class DecisionEngine:
         1. Known malware hash → CONFIRMED_PHISHING
         2. URL on phishing feed (VT detection > 30%) → min LIKELY_PHISHING
         3. NLP intent = bec_wire_fraud with confidence > 0.8 → min LIKELY_PHISHING
-        4. All SPF+DKIM+DMARC pass + known sender + no URLs + no attachments → max CLEAN
+        4. Payment fraud decision blocks payment release → min LIKELY_PHISHING
+        5. All SPF+DKIM+DMARC pass + known sender + no URLs + no attachments → max CLEAN
 
         Order matters. BEC detection MUST run before the "clean email"
         check because a pure-text BEC email (the highest-risk variant)
@@ -376,7 +377,20 @@ class DecisionEngine:
                 "High-confidence Business Email Compromise intent detected",
             )
 
-        # Rule 4: All auth passes + known sender + no URLs/attachments
+        # Rule 4: Payment fraud layer blocks payment release.
+        payment_result = results.get("payment_fraud")
+        if payment_result and self._is_payment_fraud_threat(payment_result):
+            if payment_result.risk_score >= 0.78:
+                return (
+                    Verdict.CONFIRMED_PHISHING,
+                    "Payment fraud analyzer blocked payment release",
+                )
+            return (
+                Verdict.LIKELY_PHISHING,
+                "Payment fraud analyzer requires payment to be blocked pending verification",
+            )
+
+        # Rule 5: All auth passes + known sender + no URLs/attachments
         if self._is_clean_email(results, email_data):
             return Verdict.CLEAN, "All authentication checks passed, no suspicious indicators"
 
@@ -516,6 +530,25 @@ class DecisionEngine:
                 return True
 
         return False
+
+    def _is_payment_fraud_threat(self, payment_result: AnalyzerResult) -> bool:
+        """
+        Check whether payment fraud analysis blocks payment release.
+
+        Args:
+            payment_result: Payment fraud analyzer result
+
+        Returns:
+            True when a payment should not be released before verification
+        """
+        details = payment_result.details or {}
+        decision = details.get("decision")
+
+        return (
+            decision == "DO_NOT_PAY"
+            and payment_result.risk_score >= 0.40
+            and payment_result.confidence >= 0.55
+        )
 
     def _apply_confidence_capping(
         self,

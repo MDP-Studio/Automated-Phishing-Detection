@@ -347,6 +347,7 @@ class PhishingPipeline:
             "attachment_analysis",
             "nlp_intent",
             "sender_profiling",
+            "payment_fraud",
         ]
         phase2_names = ["brand_impersonation"]
 
@@ -539,6 +540,12 @@ class PhishingPipeline:
                 return await analyzer.analyze(email)
             elif name == "sender_profiling":
                 return await analyzer.analyze(email)
+            elif name == "payment_fraud":
+                return await analyzer.analyze(
+                    email=email,
+                    iocs=iocs,
+                    extracted_urls=urls,
+                )
             else:
                 # Fallback: try calling with just email
                 return await analyzer.analyze(email)
@@ -857,6 +864,26 @@ class PhishingPipeline:
                 verdict = v
                 break
 
+        payment_result = analyzer_results.get("payment_fraud")
+        if payment_result and payment_result.confidence > 0:
+            payment_decision = (payment_result.details or {}).get("decision")
+            if payment_decision == "DO_NOT_PAY" and payment_result.risk_score >= 0.78:
+                verdict = Verdict.CONFIRMED_PHISHING
+                analyzer_details.append(
+                    "payment_fraud override: DO_NOT_PAY with high payment risk"
+                )
+            elif payment_decision == "DO_NOT_PAY":
+                if verdict in (Verdict.CLEAN, Verdict.SUSPICIOUS):
+                    verdict = Verdict.LIKELY_PHISHING
+                analyzer_details.append(
+                    "payment_fraud override: DO_NOT_PAY pending supplier verification"
+                )
+            elif payment_decision == "VERIFY" and verdict == Verdict.CLEAN:
+                verdict = Verdict.SUSPICIOUS
+                analyzer_details.append(
+                    "payment_fraud override: VERIFY before payment approval"
+                )
+
         # Generate reasoning
         trust_note = ""
         if is_trusted:
@@ -947,6 +974,9 @@ class PhishingPipeline:
             elif name == "sender_profiling":
                 from src.analyzers.sender_profiling import SenderProfileAnalyzer
                 analyzer = SenderProfileAnalyzer()
+            elif name == "payment_fraud":
+                from src.analyzers.payment_fraud import PaymentFraudAnalyzer
+                analyzer = PaymentFraudAnalyzer()
             else:
                 return None
 

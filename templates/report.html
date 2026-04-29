@@ -293,6 +293,47 @@
             line-height: 1.8;
         }
 
+        .payment-decision {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .payment-decision.safe {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .payment-decision.verify {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .payment-decision.do-not-pay {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .payment-signal {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .payment-signal strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .verification-list {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
         .metadata {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -406,6 +447,49 @@
                 </div>
             </div>
         </div>
+
+        <!-- Payment Protection -->
+        {% if payment_protection %}
+        <div class="card">
+            <h2>Payment Protection</h2>
+            <div class="payment-decision {{ payment_protection.decision|lower|replace('_', '-') }}">
+                {{ payment_protection.decision|replace('_', ' ') }}
+            </div>
+            <p style="margin-bottom: 15px;">{{ payment_protection.summary }}</p>
+
+            <div class="score-section">
+                <div class="score-label">
+                    <span>Payment Fraud Risk</span>
+                    <span style="color: #667eea; font-weight: bold;">{{ "%.3f"|format(payment_protection.risk_score or 0) }}</span>
+                </div>
+                <div class="score-bar-container">
+                    <div class="score-bar-fill" style="width: {{ (payment_protection.risk_score or 0) * 100 }}%">
+                        {{ "%.1f"|format((payment_protection.risk_score or 0) * 100) }}%
+                    </div>
+                </div>
+            </div>
+
+            {% if payment_protection.signals %}
+            <h3 style="font-size: 16px; margin: 15px 0 10px;">Signals</h3>
+            {% for signal in payment_protection.signals %}
+            <div class="payment-signal">
+                <strong>{{ signal.name|replace('_', ' ')|title }} ({{ signal.severity|upper }})</strong>
+                <div>{{ signal.evidence }}</div>
+                <div style="color: #666; margin-top: 4px;">{{ signal.recommendation }}</div>
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% if payment_protection.verification_steps %}
+            <h3 style="font-size: 16px; margin: 15px 0 10px;">Verification Steps</h3>
+            <ol class="verification-list">
+                {% for step in payment_protection.verification_steps %}
+                <li>{{ step }}</li>
+                {% endfor %}
+            </ol>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Email Authentication Headers -->
         <div class="card">

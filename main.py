@@ -76,7 +76,7 @@ def _compact_monitor_record(record: dict) -> dict:
     score = record.get("overall_score", record.get("score"))
     confidence = record.get("overall_confidence", record.get("confidence"))
     analyzer_results = record.get("analyzer_results")
-    return {
+    compact = {
         "email_id": record.get("email_id"),
         "from": record.get("from"),
         "subject": record.get("subject"),
@@ -88,6 +88,9 @@ def _compact_monitor_record(record: dict) -> dict:
         "quarantined": record.get("quarantined", False),
         "analyzer_count": len(analyzer_results) if isinstance(analyzer_results, dict) else 0,
     }
+    if record.get("payment_protection") is not None:
+        compact["payment_protection"] = record.get("payment_protection")
+    return compact
 
 
 class PhishingDetectionApp:
@@ -313,6 +316,10 @@ class PhishingDetectionApp:
                         "errors": ar.errors if ar.errors else None,
                     }
 
+                payment_protection = None
+                if "payment_fraud" in analyzer_results:
+                    payment_protection = analyzer_results["payment_fraud"].get("details")
+
                 extracted_urls_list = [
                     {"url": u.url, "source": u.source.value, "source_detail": u.source_detail}
                     if hasattr(u, 'source') else {"url": u.url if hasattr(u, 'url') else str(u), "source": "unknown", "source_detail": ""}
@@ -368,6 +375,7 @@ class PhishingDetectionApp:
                     "confidence": result.overall_confidence,
                     "quarantined": False,
                     "analyzer_results": analyzer_results,
+                    "payment_protection": payment_protection,
                     "extracted_urls": extracted_urls_list,
                     "reasoning": reasoning_text,
                     "body_preview": (email.body_plain or "")[:2000],
@@ -410,6 +418,7 @@ class PhishingDetectionApp:
                     "overall_confidence": result.overall_confidence,
                     "timestamp": timestamp,
                     "analyzer_results": analyzer_results,
+                    "payment_protection": payment_protection,
                     "extracted_urls": extracted_urls_list,
                     "reasoning": result.reasoning if isinstance(result.reasoning, list) else [str(result.reasoning)],
                     "iocs": {"headers": headers_out},
@@ -940,6 +949,10 @@ class PhishingDetectionApp:
                                 "errors": ar.errors if ar.errors else None,
                             }
 
+                        payment_protection = None
+                        if "payment_fraud" in analyzer_results:
+                            payment_protection = analyzer_results["payment_fraud"].get("details")
+
                         extracted_urls_list = [
                             {"url": u.url, "source": u.source.value, "source_detail": u.source_detail}
                             if hasattr(u, 'source') else {"url": u.url if hasattr(u, 'url') else str(u), "source": "unknown", "source_detail": ""}
@@ -962,6 +975,7 @@ class PhishingDetectionApp:
                             "confidence": result.overall_confidence,
                             "quarantined": False,
                             "analyzer_results": analyzer_results,
+                            "payment_protection": payment_protection,
                             "extracted_urls": extracted_urls_list,
                             "reasoning": result.reasoning if isinstance(result.reasoning, str) else str(result.reasoning),
                             "body_preview": (email_obj.body_plain or "")[:2000],
@@ -991,6 +1005,7 @@ class PhishingDetectionApp:
                             "score": result.overall_score,
                             "subject": email_obj.subject or "",
                             "from": email_obj.from_address or "",
+                            "payment_protection": payment_protection,
                         })
 
                     except Exception as e:

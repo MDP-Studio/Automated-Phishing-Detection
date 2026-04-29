@@ -239,6 +239,26 @@ class TestOverrideRules:
         override_verdict, reason = engine._check_override_rules(results, 0.5, {})
         assert override_verdict == Verdict.LIKELY_PHISHING
 
+    def test_override_payment_fraud_do_not_pay(self, scoring_config):
+        """Test override for blocked payment fraud decision."""
+        engine = DecisionEngine(scoring_config)
+        results = {
+            "payment_fraud": AnalyzerResult(
+                analyzer_name="payment_fraud",
+                risk_score=0.82,
+                confidence=0.9,
+                details={
+                    "decision": "DO_NOT_PAY",
+                    "summary": "Payment should be blocked",
+                },
+            ),
+        }
+
+        override_verdict, reason = engine._check_override_rules(results, 0.5, {})
+
+        assert override_verdict == Verdict.CONFIRMED_PHISHING
+        assert "payment" in reason.lower()
+
 
 class TestConfidenceCapping:
     """Test confidence-based verdict capping."""

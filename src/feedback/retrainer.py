@@ -214,6 +214,7 @@ class WeightRetainer:
                 "attachment_risk_score",
                 "nlp_intent_score",
                 "sender_reputation_score",
+                "payment_fraud_score",
             ]
 
             array = []
@@ -251,6 +252,7 @@ class WeightRetainer:
             "attachment_analysis",
             "nlp_intent",
             "sender_profiling",
+            "payment_fraud",
         ]
 
         # Use absolute values, normalize

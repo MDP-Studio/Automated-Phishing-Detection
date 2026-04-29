@@ -76,6 +76,17 @@ class TestGenerateJsonReport:
                     confidence=0.80,
                     details={"spf_pass": False},
                 ),
+                "payment_fraud": AnalyzerResult(
+                    analyzer_name="payment_fraud",
+                    risk_score=0.82,
+                    confidence=0.9,
+                    details={
+                        "decision": "DO_NOT_PAY",
+                        "summary": "Payment should be blocked until verified",
+                        "signals": [],
+                        "verification_steps": ["Call saved supplier contact"],
+                    },
+                ),
             },
             extracted_urls=[
                 ExtractedURL(
@@ -118,6 +129,7 @@ class TestGenerateJsonReport:
             assert "analyzer_breakdown" in report
             assert "extracted_urls" in report
             assert "iocs" in report
+            assert report["payment_protection"]["decision"] == "DO_NOT_PAY"
 
     def test_generate_json_analyzer_breakdown(self, sample_pipeline_result):
         """Test JSON report includes analyzer breakdown."""

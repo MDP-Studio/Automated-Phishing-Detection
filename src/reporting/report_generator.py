@@ -5,6 +5,7 @@ Produces JSON and human-readable HTML reports with full detail breakdown.
 import json
 import logging
 import base64
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from io import BytesIO
 from typing import Optional
@@ -54,8 +55,8 @@ class ReportGenerator:
             analyzer_breakdown[analyzer_name] = {
                 "risk_score": analyzer_result.risk_score,
                 "confidence": analyzer_result.confidence,
-                "details": analyzer_result.details,
-                "errors": analyzer_result.errors,
+                "details": self._json_safe(analyzer_result.details),
+                "errors": self._json_safe(analyzer_result.errors),
             }
 
         # Defang URLs for safe reporting
@@ -76,10 +77,11 @@ class ReportGenerator:
             "verdict": result.verdict.value,
             "overall_score": result.overall_score,
             "overall_confidence": result.overall_confidence,
+            "payment_protection": self._extract_payment_protection(result),
             "reasoning": result.reasoning,
             "analyzer_breakdown": analyzer_breakdown,
             "extracted_urls": defanged_urls,
-            "iocs": result.iocs,
+            "iocs": self._json_safe(result.iocs),
         }
 
         return report
@@ -117,6 +119,8 @@ class ReportGenerator:
         """Prepare data context for template rendering."""
         # Extract header details
         headers = result.iocs.get("headers", {})
+        if hasattr(headers, "__dict__"):
+            headers = vars(headers)
         header_details = {
             "spf": headers.get("spf_pass"),
             "dkim": headers.get("dkim_pass"),
@@ -174,6 +178,7 @@ class ReportGenerator:
             "verdict_color": verdict_colors.get(result.verdict, "#999"),
             "overall_score": round(result.overall_score, 3),
             "overall_confidence": round(result.overall_confidence, 3),
+            "payment_protection": self._extract_payment_protection(result),
             "reasoning": result.reasoning,
             "header_details": header_details,
             "defanged_urls": defanged_urls,
@@ -181,6 +186,39 @@ class ReportGenerator:
             "analyzer_scores": analyzer_scores,
             "raw_headers": result.iocs.get("raw_headers", ""),
         }
+
+    def _extract_payment_protection(self, result: PipelineResult) -> Optional[dict]:
+        """Extract business-facing payment fraud details if available."""
+        payment_result = result.analyzer_results.get("payment_fraud")
+        if not payment_result:
+            return None
+
+        details = payment_result.details or {}
+        return {
+            "decision": details.get("decision"),
+            "risk_score": details.get("risk_score", payment_result.risk_score),
+            "confidence": details.get("confidence", payment_result.confidence),
+            "summary": details.get("summary", ""),
+            "signals": self._json_safe(details.get("signals", [])),
+            "extracted_payment_fields": self._json_safe(details.get("extracted_payment_fields", {})),
+            "verification_steps": self._json_safe(details.get("verification_steps", [])),
+        }
+
+    def _json_safe(self, value):
+        """Convert report fields to JSON-safe values."""
+        if is_dataclass(value):
+            return self._json_safe(asdict(value))
+        if isinstance(value, dict):
+            return {str(k): self._json_safe(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple, set)):
+            return [self._json_safe(item) for item in value]
+        if isinstance(value, bytes):
+            return "(binary data)"
+        if hasattr(value, "value"):
+            return value.value
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return value
 
     def _generate_fallback_report(self, result: PipelineResult) -> str:
         """Generate simple HTML report if template not available."""

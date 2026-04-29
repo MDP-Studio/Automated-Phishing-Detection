@@ -83,6 +83,10 @@ htmlcov/
 .coverage
 coverage.xml
 .mypy_cache/
+pytest-cache-files-*/
+
+# ===== Local Codex Import Backups =====
+AGENTS.md.before-codex-memory-import-*
 
 # ===== Training Data =====
 data/feedback_store/*.csv

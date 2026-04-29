@@ -633,10 +633,36 @@
     html += row('To', esc((r.to || []).join(', ') || '—'));
     html += row('Subject', esc(r.subject || '—'));
     html += row('Time', fmtTime(r.timestamp));
+    if (r.payment_protection && r.payment_protection.decision) {
+      html += row('Payment Decision', esc(String(r.payment_protection.decision).replace(/_/g, ' ')));
+    }
     if (r.quarantined) html += row('Quarantined', '<span class="qbadge yes">Yes</span>');
     html += '</div></div>';
 
     // ── Analyzer Results ──
+    if (r.payment_protection && r.payment_protection.decision) {
+      var pp = r.payment_protection;
+      html += '<div class="detail-section"><h3>Payment Protection</h3>';
+      html += '<div class="body-preview" style="max-height:none">';
+      html += '<strong>Decision:</strong> ' + esc(String(pp.decision).replace(/_/g, ' ')) + '<br>';
+      html += '<strong>Risk:</strong> ' + pct(pp.risk_score || 0) + '%<br>';
+      html += '<strong>Summary:</strong> ' + esc(pp.summary || '') + '<br>';
+      if (pp.signals && pp.signals.length) {
+        html += '<br><strong>Signals:</strong><br>';
+        for (var psi = 0; psi < Math.min(pp.signals.length, 5); psi++) {
+          var ps = pp.signals[psi];
+          html += '- ' + esc((ps.name || '').replace(/_/g, ' ')) + ': ' + esc(ps.evidence || '') + '<br>';
+        }
+      }
+      if (pp.verification_steps && pp.verification_steps.length) {
+        html += '<br><strong>Verification steps:</strong><br>';
+        for (var pvi = 0; pvi < Math.min(pp.verification_steps.length, 6); pvi++) {
+          html += (pvi + 1) + '. ' + esc(pp.verification_steps[pvi]) + '<br>';
+        }
+      }
+      html += '</div></div>';
+    }
+
     var ar = r.analyzer_results || {};
     if (Object.keys(ar).length > 0) {
       html += '<div class="detail-section"><h3>Analyzer Results</h3><div class="analyzer-cards">';
@@ -665,6 +691,8 @@
         if (details.url_count != null) detailItems.push('URLs checked: ' + details.url_count);
         if (details.urls_loaded != null) detailItems.push('URLs detonated: ' + details.urls_loaded);
         if (details.risk_signals && details.risk_signals.length) detailItems.push('Risk signals: ' + details.risk_signals.length);
+        if (details.decision) detailItems.push('Decision: ' + details.decision.replace(/_/g, ' '));
+        if (details.signals && details.signals.length) detailItems.push('Payment signals: ' + details.signals.length);
         if (detailItems.length) {
           html += '<div class="ac-details">' + detailItems.map(esc).join(' · ') + '</div>';
         }

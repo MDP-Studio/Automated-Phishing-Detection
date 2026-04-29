@@ -42,6 +42,20 @@ class IntentCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
+class PaymentDecision(str, Enum):
+    SAFE = "SAFE"
+    VERIFY = "VERIFY"
+    DO_NOT_PAY = "DO_NOT_PAY"
+
+
+class PaymentSignalSeverity(str, Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 @dataclass
 class EmailObject:
     """Standardized email representation produced by the ingestion layer."""
@@ -142,3 +156,25 @@ class IntentClassification:
     reasoning: str
     urgency_score: float
     red_flags: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PaymentFraudSignal:
+    """A single explainable signal from payment or invoice fraud analysis."""
+    name: str
+    severity: PaymentSignalSeverity
+    evidence: str
+    recommendation: str
+    risk_weight: float
+
+
+@dataclass
+class PaymentFraudAnalysis:
+    """Business-facing payment approval analysis."""
+    decision: PaymentDecision
+    risk_score: float
+    confidence: float
+    summary: str
+    signals: list[PaymentFraudSignal] = field(default_factory=list)
+    extracted_payment_fields: dict = field(default_factory=dict)
+    verification_steps: list[str] = field(default_factory=list)

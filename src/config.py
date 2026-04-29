@@ -43,7 +43,8 @@ class ScoringConfig:
         "brand_impersonation": 0.10,
         "attachment_analysis": 0.15,
         "nlp_intent": 0.15,
-        "sender_profiling": 0.10,
+        "sender_profiling": 0.00,
+        "payment_fraud": 0.10,
     })
     thresholds: dict[str, tuple[float, float]] = field(default_factory=lambda: {
         "CLEAN": (0.0, 0.3),

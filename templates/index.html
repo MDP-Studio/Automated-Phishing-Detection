@@ -176,6 +176,13 @@
     .kv .v.red    { color: var(--v-phishing); }
     .kv .v.yellow { color: var(--v-suspicious); }
 
+    .payment-pill { display: inline-block; padding: 5px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .payment-pill.safe { background: #052e16; color: #4ade80; }
+    .payment-pill.verify { background: #1c1400; color: #fbbf24; }
+    .payment-pill.do-not-pay { background: #1f0000; color: #f87171; }
+    .payment-steps { margin-left: 18px; color: #94a3b8; font-size: 13px; line-height: 1.6; }
+    .payment-signal { margin-top: 10px; padding: 10px; border-radius: 8px; background: #0f1117; border: 1px solid #2d3148; font-size: 12px; color: #94a3b8; }
+
     /* ── URLs list ── */
     .url-list { list-style: none; }
     .url-list li {
@@ -294,6 +301,10 @@
       <div class="card">
         <h3>Authentication</h3>
         <div id="auth-content"></div>
+      </div>
+      <div class="card full-width" id="payment-card" style="display:none">
+        <h3>Payment Protection</h3>
+        <div id="payment-content"></div>
       </div>
       <div class="card full-width">
         <h3>Reasoning</h3>
@@ -489,6 +500,8 @@
       ['Display Name Spoof', hdrs.display_name_spoofing ? 'Yes' : 'No', hdrs.display_name_spoofing ? 'red' : 'green'],
     ]);
 
+    renderPaymentProtection(data.payment_protection);
+
     // Reasoning
     const rl = document.getElementById('reasoning-list');
     const reasons = Array.isArray(data.reasoning) ? data.reasoning : (data.reasoning ? [data.reasoning] : []);
@@ -511,6 +524,42 @@
     document.getElementById('results').style.display = 'block';
     try { document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     catch(e) { document.getElementById('results').scrollIntoView(true); }
+  }
+
+  function renderPaymentProtection(payment) {
+    const card = document.getElementById('payment-card');
+    const content = document.getElementById('payment-content');
+    if (!payment || !payment.decision) {
+      card.style.display = 'none';
+      return;
+    }
+
+    const cls = String(payment.decision).toLowerCase().replace(/_/g, '-');
+    const risk = Math.round((payment.risk_score || 0) * 100);
+    const signals = payment.signals || [];
+    const steps = payment.verification_steps || [];
+
+    let html = `
+      <div class="kv"><span class="k">Decision</span><span class="v"><span class="payment-pill ${cls}">${escHtml(payment.decision.replace(/_/g, ' '))}</span></span></div>
+      <div class="kv"><span class="k">Payment Risk</span><span class="v">${risk}%</span></div>
+      <div class="kv"><span class="k">Summary</span><span class="v">${escHtml(payment.summary || '')}</span></div>
+    `;
+
+    if (signals.length) {
+      html += signals.slice(0, 4).map(s => `
+        <div class="payment-signal">
+          <strong>${escHtml((s.name || '').replace(/_/g, ' '))} (${escHtml(s.severity || '')})</strong><br>
+          ${escHtml(s.evidence || '')}
+        </div>
+      `).join('');
+    }
+
+    if (steps.length) {
+      html += '<ol class="payment-steps">' + steps.slice(0, 5).map(step => `<li>${escHtml(step)}</li>`).join('') + '</ol>';
+    }
+
+    content.innerHTML = html;
+    card.style.display = '';
   }
 
   function kv(rows) {

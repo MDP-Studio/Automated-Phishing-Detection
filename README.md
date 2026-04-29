@@ -2,7 +2,7 @@
 
 Analyzes phishing emails through a 7-stage async pipeline with concurrent threat intelligence lookups, MITRE ATT&CK mapping across 12 sub-techniques, Sigma rule export, and STIX 2.1 IOC generation. Designed as analyst tooling, not autonomous detection.
 
-**Current eval (live APIs):** 0.90 recall, 1.00 precision, 0.95 F1 (permissive scoring) on a 22-sample corpus. TP=9, FP=0, TN=12, FN=1. Strict recall is 0.00: all phishing detections cluster in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold. This is a score calibration problem, not a detection gap. 947 unit tests. Per-sample data in [`eval_runs/`](eval_runs/). The corpus is project-curated and small; these numbers are a directional baseline, not production metrics. Public corpus integration (Nazario/Enron-ham) is next.
+**Current eval (live APIs):** 0.90 recall, 1.00 precision, 0.95 F1 (permissive scoring) on a 22-sample corpus. TP=9, FP=0, TN=12, FN=1. Strict recall is 0.00: all phishing detections cluster in the SUSPICIOUS band (0.30-0.60), none crossing the LIKELY_PHISHING threshold. This is a score calibration problem, not a detection gap. 977 automated tests. Per-sample data in [`eval_runs/`](eval_runs/). The corpus is project-curated and small; these numbers are a directional baseline, not production metrics. Public corpus integration (Nazario/Enron-ham) is next.
 
 **What makes this project different** is not the detection numbers. It is the engineering arc documented in [`HISTORY.md`](HISTORY.md): fourteen disciplined audit cycles, seven stacked discipline gaps that took four audits to surface, a mechanical pre-cycle gate that enforces reading outcomes before narrative, and honest eval data that includes the cycles where the numbers were bad. The full story -- including how a 0.20 recall baseline was misdiagnosed for two cycles before the real cause was found -- is in the [writeup](docs/WRITEUP.md).
 
@@ -38,7 +38,7 @@ The full cycle history with commit hashes, audit-item closures per cycle, and di
 ```
 Email Ingestion → Feature Extraction → Concurrent Analysis → Decision Engine → Reporting
      │                   │                    │                    │              │
-  IMAP poll         EML parsing         7 analyzers           Weighted        JSON/HTML
+  IMAP poll         EML parsing         8 analyzers           Weighted        JSON/HTML
   Manual upload     Header analysis     (async parallel)      scoring         STIX 2.1
   .eml/.msg files   URL extraction      API clients           Overrides       Dashboard
                     QR decoding         NLP intent            Calibration     Sigma rules
@@ -80,9 +80,25 @@ The mapping doc also includes an explicit **uncovered techniques** table — wha
 
 1. **Ingestion** — IMAP polling with UID tracking, manual `.eml`/`.msg` upload, FastAPI upload endpoint
 2. **Extraction** — MIME parsing, header analysis (SPF/DKIM/DMARC), URL extraction, QR code decoding, attachment classification via magic bytes
-3. **Analysis** — 7 concurrent analyzers: header analysis, URL reputation, domain intelligence, URL detonation, brand impersonation, attachment sandbox, NLP intent classification
+3. **Analysis** — 8 concurrent analyzers: header analysis, URL reputation, domain intelligence, URL detonation, brand impersonation, attachment sandbox, NLP intent classification, payment fraud
 4. **Decision** — Weighted confidence scoring with override rules (known malware, BEC intent, confirmed feeds), confidence capping, verdict thresholds
 5. **Feedback** — Analyst verdict submission via REST API, logistic regression weight retraining, scheduled retraining loop
+
+## Payment Fraud Firewall
+
+The pipeline now includes a payment-specific fraud layer for invoice scams, supplier impersonation, and business email compromise. It keeps the detection engineering core, but gives SMEs a direct payment-release decision.
+
+The `payment_fraud` analyzer turns email analysis into a business decision:
+
+| Decision | Meaning |
+|----------|---------|
+| `SAFE` | No material payment scam indicators were found. |
+| `VERIFY` | Payment should not proceed until the supplier or executive is independently verified. |
+| `DO_NOT_PAY` | Payment release should be blocked until verification is completed. |
+
+Detected payment signals include changed bank details, urgent payment pressure, approval bypass language, CEO/CFO transfer requests, reply-to mismatch, email authentication failure, free-email supplier requests, risky invoice attachments, and masked extraction of BSBs, account numbers, IBANs, SWIFT/BIC codes, PayIDs, ABNs, and amounts.
+
+See [`docs/payment-fraud-firewall.md`](docs/payment-fraud-firewall.md) for the product workflow and SME positioning.
 
 ## Quick Start
 

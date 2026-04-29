@@ -52,3 +52,25 @@ def test_compact_monitor_record_drops_heavy_details():
         "quarantined": False,
         "analyzer_count": 2,
     }
+
+
+def test_compact_monitor_record_keeps_payment_protection_when_present():
+    record = {
+        "email_id": "email-2",
+        "from": "ap@example.com",
+        "subject": "Updated invoice",
+        "verdict": "LIKELY_PHISHING",
+        "score": 0.7,
+        "overall_confidence": 0.8,
+        "timestamp": "2026-04-27T11:00:00",
+        "quarantined": False,
+        "payment_protection": {
+            "decision": "DO_NOT_PAY",
+            "summary": "Supplier bank details changed",
+        },
+        "analyzer_results": {"payment_fraud": {"details": {"decision": "DO_NOT_PAY"}}},
+    }
+
+    compact = _compact_monitor_record(record)
+
+    assert compact["payment_protection"] == record["payment_protection"]

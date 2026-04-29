@@ -56,8 +56,9 @@ scoring:
   # cycle 4's lesson applied incompletely, compounded by doc/config
   # drift, compounded by no end-to-end eval until cycle 10, compounded
   # by cycle 10 framing absorbing the result. Cycle 12 closes all four.
-  # Total weights intentionally sum to 0.90; re-weighting is a future
-  # tuning cycle, not a correctness-fix cycle.
+  # The pre-payment analyzer weights intentionally sum to 0.90. The
+  # payment_fraud layer adds a focused 0.10 business-decision signal while
+  # preserving sender_profiling as advisory-only.
   weights:
     header_analysis: 0.10
     url_reputation: 0.15
@@ -67,6 +68,7 @@ scoring:
     attachment_analysis: 0.15
     nlp_intent: 0.15
     sender_profiling: 0.00
+    payment_fraud: 0.10
 
   # Verdict score ranges: [lower_bound, upper_bound)
   thresholds:

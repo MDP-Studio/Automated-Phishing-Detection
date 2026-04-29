@@ -13,7 +13,9 @@ Image preprocessing includes 2x resize, adaptive thresholding, sharpening, contr
 """
 
 import io
+import importlib.util
 import logging
+import os
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -35,12 +37,19 @@ except ImportError:
     HAS_PIL = False
     logger.warning("PIL not available; image-based QR decoding will be skipped")
 
+_PYZBAR_DLL_HANDLE = None
 try:
+    if hasattr(os, "add_dll_directory"):
+        pyzbar_spec = importlib.util.find_spec("pyzbar")
+        if pyzbar_spec and pyzbar_spec.submodule_search_locations:
+            pyzbar_dir = Path(list(pyzbar_spec.submodule_search_locations)[0])
+            _PYZBAR_DLL_HANDLE = os.add_dll_directory(str(pyzbar_dir))
     from pyzbar import pyzbar
     HAS_PYZBAR = True
-except ImportError:
+except Exception as e:
     HAS_PYZBAR = False
-    logger.warning("pyzbar not available; QR code detection will be limited")
+    pyzbar = None
+    logger.warning(f"pyzbar not available; QR code detection will be limited: {e}")
 
 try:
     import cv2
