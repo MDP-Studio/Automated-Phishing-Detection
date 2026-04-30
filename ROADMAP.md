@@ -64,8 +64,9 @@ Status is one of:
 | **Public-corpus smoke eval baseline** - 15-sample Nazario/Enron/SpamAssassin run on commit `c459237`, with permissive and strict failure reports generated from ignored corpora. | `docs/EVALUATION.md`, `scripts/eval_inspect_failures.py` |
 | **Feedback DB retention policy** - `purge --target feedback|all` purges old SQLAlchemy feedback labels by age while optionally keeping N newest records. | `src/automation/retention.py`, `main.py purge` |
 | **Browser session auth for dashboard** - `/login` sets signed session and CSRF cookies; the same `TokenVerifier` accepts bearer or browser session auth. | `src/security/web_security.py`, `main.py`, `templates/login.html`, `templates/_shared.html` |
+| **Self-hosted dashboard chart asset** - dashboard graphs load Chart.js from `/static/vendor/` so the strict `script-src 'self'` CSP allows charts without public-CDN dependency; fallback charts remain for asset/runtime failure. | `main.py`, `templates/dashboard.html`, `static/vendor/`, `tests/unit/test_dashboard_session_auth.py` |
 | **Multi-container Docker Compose browser split** - URL detonation connects to a separate `browser-sandbox` Playwright service via `PLAYWRIGHT_WS_ENDPOINT`. | `docker-compose.yml`, `docker-compose.production.yml`, `src/analyzers/url_detonation.py` |
-| 1052 tests (49 test modules) | unit + integration |
+| 1054 tests (49 test modules) | unit + integration |
 
 ---
 

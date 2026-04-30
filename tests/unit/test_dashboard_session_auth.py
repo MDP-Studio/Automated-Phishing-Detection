@@ -39,6 +39,40 @@ def test_dashboard_redirects_to_login_without_session():
     assert response.headers["location"].startswith("/login?next=")
 
 
+def test_dashboard_uses_self_hosted_chart_asset_after_login():
+    client = TestClient(
+        _build_app_with_token(),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    client.post("/login", data={"token": "secret", "next": "/dashboard"})
+
+    response = client.get("/dashboard/")
+
+    assert response.status_code == 200
+    assert '/static/vendor/chart.umd.js' in response.text
+    assert "cdn.jsdelivr" not in response.text
+    assert 'id="verdictFallback"' in response.text
+    assert 'id="trendsFallback"' in response.text
+
+
+def test_dashboard_serves_self_hosted_chart_asset_without_session():
+    client = TestClient(
+        _build_app_with_token(),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+
+    response = client.get("/static/vendor/chart.umd.js")
+
+    assert response.status_code == 200
+    assert "Chart.js v4.4.0" in response.text[:200]
+
+    source_map = client.get("/static/vendor/chart.umd.js.map")
+    assert source_map.status_code == 200
+    assert '"version":3' in source_map.text[:100]
+
+
 def test_login_sets_secure_session_and_csrf_cookies():
     client = TestClient(
         _build_app_with_token(),

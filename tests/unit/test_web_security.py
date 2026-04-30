@@ -398,6 +398,8 @@ class TestSecurityHeadersMiddleware:
         assert "Content-Security-Policy" in r.headers
         csp = r.headers["Content-Security-Policy"]
         assert "default-src 'self'" in csp
+        assert "script-src 'self' 'unsafe-inline'" in csp
+        assert "cdn.jsdelivr" not in csp
         assert "frame-src 'none'" in csp
         assert "object-src 'none'" in csp
 

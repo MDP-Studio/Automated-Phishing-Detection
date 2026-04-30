@@ -6,13 +6,8 @@ Analyzes phishing emails through a 7-stage async pipeline with concurrent threat
 
 **What makes this project different** is not the detection numbers. It is the engineering arc documented in [`HISTORY.md`](HISTORY.md): fourteen disciplined audit cycles, seven stacked discipline gaps that took four audits to surface, a mechanical pre-cycle gate that enforces reading outcomes before narrative, and honest eval data that includes the cycles where the numbers were bad. The full story -- including how a 0.20 recall baseline was misdiagnosed for two cycles before the real cause was found -- is in the [writeup](docs/WRITEUP.md).
 
-<!-- TODO: Replace with actual screenshot after running the dashboard.
-     1. Start the server: python main.py --serve
-     2. Navigate to http://localhost:8000
-     3. Analyze a sample email to populate the dashboard
-     4. Screenshot at 1200x700
-     Alternatively, open docs/demo_screenshot.html in a browser for a
-     static mock with realistic data. -->
+Static demo screenshot generated from `docs/demo_screenshot.html` with realistic sample data:
+
 ![Dashboard](docs/demo_screenshot.png)
 
 ## Project Arc
@@ -303,7 +298,7 @@ The static Sigma rule library in [`sigma_rules/`](sigma_rules/) ships hand-writt
 
 ## Testing
 
-The test suite has **1052 tests across 49 test modules** (unit + integration), exercising every analyzer, the decision engine override rules (including the cycle 7 ordering fix that catches pure-text BEC), the cross-analyzer calibration pass (ADR 0001) with explicit cap-ceiling tests, the persistent email_id lookup index (ADR 0002) with cross-restart smoking-gun tests, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the generic phishing ML baseline, the payment-fraud dataset/eval/train/demo workflow, the body_html sanitizer with hostile XSS payloads, the data retention purge and per-subject erasure, and the web security middleware (bearer auth, browser session auth with CSRF, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file. CI-bites verified by deliberate-red sanity check on a throwaway branch.
+The test suite has **1054 tests across 49 test modules** (unit + integration), exercising every analyzer, the decision engine override rules (including the cycle 7 ordering fix that catches pure-text BEC), the cross-analyzer calibration pass (ADR 0001) with explicit cap-ceiling tests, the persistent email_id lookup index (ADR 0002) with cross-restart smoking-gun tests, scoring confidence capping, IOC export, the Sigma exporter, the URL reputation dead-domain confidence downgrade, credential encryption migration, the LLM determinism contract, the generic phishing ML baseline, the payment-fraud dataset/eval/train/demo workflow, the body_html sanitizer with hostile XSS payloads, the data retention purge and per-subject erasure, dashboard self-hosted chart assets/fallback rendering, and the web security middleware (bearer auth, browser session auth with CSRF, SSRF guard, security headers). CI runs the full suite on every push and PR against a fresh checkout from the hash-pinned lock file. CI-bites verified by deliberate-red sanity check on a throwaway branch.
 
 ```bash
 # Run all tests

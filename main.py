@@ -20,6 +20,7 @@ load_dotenv(override=True)  # override=True so .env values win over empty system
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from uvicorn import run
 
 from src.config import PipelineConfig
@@ -248,6 +249,12 @@ class PhishingDetectionApp:
         # Attach security headers (CSP, X-Frame-Options, HSTS, etc.)
         # to every response. See src/security/web_security.py.
         add_security_headers_middleware(app)
+
+        static_dir = Path("./static")
+        if static_dir.exists():
+            app.mount("/static", StaticFiles(directory=static_dir), name="static")
+        else:
+            logger.warning("Static asset directory not found; dashboard vendor assets unavailable")
 
         # Capture token verifier locally so route closures can reference it
         # without re-reading self.token_verifier on every request.

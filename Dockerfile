@@ -33,6 +33,7 @@ RUN playwright install --with-deps chromium \
 # Copy application code
 COPY src/ src/
 COPY templates/ templates/
+COPY static/ static/
 COPY main.py .
 COPY scripts/ scripts/
 COPY tests/ tests/
