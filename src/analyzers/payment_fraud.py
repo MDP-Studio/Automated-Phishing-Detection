@@ -120,6 +120,7 @@ class PaymentFraudAnalyzer:
         r"no\s+(?:bank|payment|account)\s+details?\s+(?:have\s+)?changed",
         r"no\s+new\s+(?:bank|payment|account)\s+details?\s+(?:are\s+)?provided",
         r"does\s+not\s+change\s+any\s+(?:bank|payment|account)\s+details",
+        r"not\s+(?:a\s+)?request\s+to\s+change\s+(?:bank|payment|account)\s+details",
         r"no\s+supplier\s+bank\s+details\s+are\s+included",
     ]
 
@@ -134,6 +135,11 @@ class PaymentFraudAnalyzer:
         r"\bpast\s+due\b",
         r"\bavoid\s+(?:late\s+)?fees\b",
         r"\bpayment\s+hold\b",
+    ]
+
+    URGENCY_NEGATIONS = [
+        r"urgent\s+(?:enquiries|inquiries|support|questions?|help)",
+        r"(?:for|with)\s+urgent\s+(?:enquiries|inquiries|support|questions?|help)",
     ]
 
     BYPASS_PATTERNS = [
@@ -505,6 +511,8 @@ class PaymentFraudAnalyzer:
             ))
 
     def _add_urgency_signal(self, text: str, signals: list[PaymentFraudSignal]) -> None:
+        if self._matched_patterns(text, self.URGENCY_NEGATIONS):
+            return
         matches = self._matched_patterns(text, self.URGENCY_PATTERNS)
         if matches:
             signals.append(self._signal(

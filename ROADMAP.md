@@ -68,9 +68,9 @@ Status is one of:
 | **CI dashboard browser smoke test** - GitHub Actions installs Playwright Chromium and runs the dashboard chart smoke check under strict CSP. | `.github/workflows/ci.yml`, `scripts/dashboard_browser_check.py` |
 | **Formal vendored Chart.js process** - update/check script validates version, SHA256s, and local dashboard reference. | `scripts/vendor_chartjs.py`, `static/vendor/README.md` |
 | **Production operations hardening** - backup, health/alert, load/error probe scripts plus cron/logrotate runbook. | `scripts/backup_runtime_data.py`, `scripts/production_health_check.py`, `scripts/monitor_load_test.py`, `docs/production-operations.md` |
-| **Redacted Gmail-derived payment samples** - local ignored payment dataset now includes redacted real Gmail search-summary invoice/receipt/payment examples and fresh decision eval/ML exports. Raw mail is not committed. | `data/payment_scam_dataset/` (ignored), `scripts/payment_dataset.py readiness` |
+| **Redacted Gmail-derived payment samples** - local ignored payment dataset now includes redacted real Gmail search-summary examples plus 25 full-body invoice/receipt/payment examples and fresh decision eval/ML exports. Raw mail is not committed. | `data/payment_scam_dataset/` (ignored), `scripts/payment_dataset.py readiness` |
 | **Multi-container Docker Compose browser split** - URL detonation connects to a separate `browser-sandbox` Playwright service via `PLAYWRIGHT_WS_ENDPOINT`. | `docker-compose.yml`, `docker-compose.production.yml`, `src/analyzers/url_detonation.py` |
-| 1067 tests (50 test modules) | unit + integration |
+| 1069 tests (50 test modules) | unit + integration |
 
 ---
 
@@ -78,8 +78,8 @@ Status is one of:
 
 Ordered by intended sequence, not priority.
 
-### Full-body real redacted payment samples
-The payment dataset has tooling, synthetic seed data, public-advisory-derived `VERIFY`/`DO_NOT_PAY` seed and holdout data, public-corpus-mined payment scam language, readiness reporting, redaction, eval, demo, ML training, and 10 redacted Gmail search-summary examples. It still needs full-body redacted invoice, bank-change, remittance, and supplier-update samples before external product metrics are credible. Target: 20 to 50 full-body redacted examples across `SAFE`, `VERIFY`, and `DO_NOT_PAY`.
+### Broader real redacted payment samples
+The payment dataset has tooling, synthetic seed data, public-advisory-derived `VERIFY`/`DO_NOT_PAY` seed and holdout data, public-corpus-mined payment scam language, readiness reporting, redaction, eval, demo, ML training, 10 redacted Gmail search-summary examples, and 25 redacted Gmail full-body `SAFE` invoice/receipt/payment examples. The remaining evidence gap is real full-body `VERIFY` and `DO_NOT_PAY` coverage: bank-change, supplier-update, executive-transfer, and payment-redirection samples gathered from client-approved or user-owned mail and redacted before labeling.
 
 ### Audit trail for feedback labels
 Append-only log of who relabeled what. Closes residual risk **R2**. Required before the project is honest about being multi-analyst.

@@ -163,6 +163,52 @@ async def test_no_bank_details_changed_language_stays_safe():
 
 
 @pytest.mark.asyncio
+async def test_not_a_request_to_change_payment_details_stays_safe():
+    analyzer = PaymentFraudAnalyzer()
+    attachment = AttachmentObject(
+        filename="invoice-0000.pdf",
+        content_type="application/pdf",
+        magic_type="application/pdf",
+        size_bytes=2048,
+        content=b"%PDF-1.4",
+        is_archive=False,
+        has_macros=False,
+    )
+    email = make_email(
+        subject="Retail invoice",
+        body=(
+            "Tax invoice INV-0000 is attached for your records. "
+            "This is a transactional invoice notice and not a request to change payment details."
+        ),
+        attachments=[attachment],
+        auth_results="mx.example.com; spf=pass dkim=pass dmarc=pass",
+    )
+
+    result = await analyzer.analyze(email)
+
+    assert result.details["decision"] == "SAFE"
+    assert not any(s["name"] == "bank_detail_change_request" for s in result.details["signals"])
+
+
+@pytest.mark.asyncio
+async def test_urgent_enquiries_support_text_stays_safe():
+    analyzer = PaymentFraudAnalyzer()
+    email = make_email(
+        subject="Payment receipt",
+        body=(
+            "Payment receipt. Total paid AUD $102.53 including processing fee. "
+            "For urgent enquiries call the normal support number."
+        ),
+        auth_results="mx.example.com; spf=pass dkim=pass dmarc=pass",
+    )
+
+    result = await analyzer.analyze(email)
+
+    assert result.details["decision"] == "SAFE"
+    assert not any(s["name"] == "payment_urgency_pressure" for s in result.details["signals"])
+
+
+@pytest.mark.asyncio
 async def test_payment_portal_action_link_requires_verify():
     analyzer = PaymentFraudAnalyzer()
     email = make_email(

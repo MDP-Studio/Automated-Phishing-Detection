@@ -119,6 +119,12 @@ python scripts/payment_demo.py --dataset data/payment_scam_dataset
 unless `--allow-pii` is explicitly passed. Keep the default refusal for normal
 experiments.
 
+Current local ignored dataset snapshot (2026-04-30): 259 rows, 0 PII audit
+findings, rules eval 259/259, and payment ML test/holdout accuracy 1.000/1.000.
+The 63 redacted rows include full-body Gmail-derived `SAFE` invoice and receipt
+examples. More real full-body `VERIFY` and `DO_NOT_PAY` examples are still the
+main evidence gap before claiming external production metrics.
+
 `payment_eval.py` writes JSON, CSV, and Markdown reports under
 `data/payment_scam_dataset/reports/` comparing expected vs predicted `SAFE`,
 `VERIFY`, and `DO_NOT_PAY` decisions. Reports include accuracy by source type
