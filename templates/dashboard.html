@@ -108,6 +108,90 @@
     .card-title .ml { margin-left: auto; }
 
     .chart-wrap { position: relative; height: 260px; }
+    .fallback-chart {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+    }
+    .fallback-row {
+      display: grid;
+      grid-template-columns: 96px 1fr 34px;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .fallback-track {
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+    }
+    .fallback-fill {
+      display: block;
+      height: 100%;
+      min-width: 2px;
+      border-radius: inherit;
+    }
+    .fallback-fill.clean, .trend-seg.clean { background: #4ade80; }
+    .fallback-fill.suspicious, .trend-seg.suspicious { background: #fbbf24; }
+    .fallback-fill.likely_phishing, .trend-seg.likely_phishing { background: #fb923c; }
+    .fallback-fill.confirmed_phishing, .trend-seg.confirmed_phishing { background: #f87171; }
+    .trend-bars {
+      height: 190px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding-top: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .trend-day {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .trend-stack {
+      width: 100%;
+      max-width: 38px;
+      min-height: 4px;
+      border-radius: 7px 7px 2px 2px;
+      overflow: hidden;
+      background: var(--bg-tertiary);
+      display: flex;
+      flex-direction: column-reverse;
+      border: 1px solid rgba(255,255,255,.04);
+    }
+    .trend-seg { width: 100%; }
+    .trend-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .trend-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+    .legend-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
 
     /* ── Status grid ── */
     .status-grid {
@@ -241,11 +325,17 @@
   <div class="charts-row">
     <div class="card" style="margin-bottom:0">
       <div class="card-title">Verdict Split</div>
-      <div class="chart-wrap"><canvas id="verdictChart"></canvas></div>
+      <div class="chart-wrap">
+        <canvas id="verdictChart"></canvas>
+        <div id="verdictFallback" class="fallback-chart" hidden></div>
+      </div>
     </div>
     <div class="card" style="margin-bottom:0">
-      <div class="card-title">Detection Trends — Last 14 Days</div>
-      <div class="chart-wrap"><canvas id="trendsChart"></canvas></div>
+      <div class="card-title">Detection Trends - Recent Runs</div>
+      <div class="chart-wrap">
+        <canvas id="trendsChart"></canvas>
+        <div id="trendsFallback" class="fallback-chart" hidden></div>
+      </div>
     </div>
   </div>
 
@@ -333,10 +423,110 @@ function countVerdicts(entries) {
   return c;
 }
 
+const VERDICT_META = [
+  ['clean', 'Clean'],
+  ['suspicious', 'Suspicious'],
+  ['likely_phishing', 'Likely'],
+  ['confirmed_phishing', 'Confirmed'],
+];
+
+function safeDay(value) {
+  const day = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : '';
+}
+
+function emptyBuckets(days) {
+  const buckets = {};
+  for (const day of days) buckets[day] = { day, clean: 0, suspicious: 0, likely_phishing: 0, confirmed_phishing: 0 };
+  return buckets;
+}
+
+function fillBuckets(buckets, entries) {
+  for (const e of entries) {
+    const day = safeDay(e.timestamp || e.ts);
+    const key = vc(e.verdict);
+    if (buckets[day] && key in buckets[day]) buckets[day][key]++;
+  }
+}
+
+function buildTrendBuckets(entries) {
+  const today = new Date();
+  const recentDays = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    recentDays.push(d.toISOString().slice(0, 10));
+  }
+
+  let buckets = emptyBuckets(recentDays);
+  fillBuckets(buckets, entries);
+  if (Object.values(buckets).some(b => b.clean + b.suspicious + b.likely_phishing + b.confirmed_phishing > 0) || !entries.length) {
+    return recentDays.map(day => buckets[day]);
+  }
+
+  const dataDays = Array.from(new Set(entries.map(e => safeDay(e.timestamp || e.ts)).filter(Boolean))).sort().slice(-14);
+  buckets = emptyBuckets(dataDays);
+  fillBuckets(buckets, entries);
+  return dataDays.map(day => buckets[day]);
+}
+
+function setFallbackVisible(canvasId, fallbackId, showFallback) {
+  const canvas = document.getElementById(canvasId);
+  const fallback = document.getElementById(fallbackId);
+  if (canvas) canvas.hidden = showFallback;
+  if (fallback) fallback.hidden = !showFallback;
+}
+
+function renderFallbackCharts(entries) {
+  setFallbackVisible('verdictChart', 'verdictFallback', true);
+  setFallbackVisible('trendsChart', 'trendsFallback', true);
+
+  const c = countVerdicts(entries);
+  const total = Math.max(1, entries.length);
+  const verdictFallback = document.getElementById('verdictFallback');
+  if (verdictFallback) {
+    verdictFallback.innerHTML = VERDICT_META.map(([key, label]) => {
+      const value = c[key] || 0;
+      const width = Math.max(2, Math.round((value / total) * 100));
+      return `<div class="fallback-row">
+        <span>${label}</span>
+        <span class="fallback-track"><span class="fallback-fill ${key}" style="width:${width}%"></span></span>
+        <strong>${value}</strong>
+      </div>`;
+    }).join('');
+  }
+
+  const trendFallback = document.getElementById('trendsFallback');
+  if (trendFallback) {
+    const buckets = buildTrendBuckets(entries);
+    const maxTotal = Math.max(1, ...buckets.map(b => b.clean + b.suspicious + b.likely_phishing + b.confirmed_phishing));
+    const bars = buckets.map(b => {
+      const totalForDay = b.clean + b.suspicious + b.likely_phishing + b.confirmed_phishing;
+      const height = Math.max(totalForDay ? 8 : 4, Math.round((totalForDay / maxTotal) * 170));
+      const segments = VERDICT_META.map(([key]) => {
+        const value = b[key] || 0;
+        if (!value) return '';
+        return `<span class="trend-seg ${key}" style="height:${Math.max(8, Math.round((value / totalForDay) * height))}px"></span>`;
+      }).join('');
+      return `<div class="trend-day">
+        <div class="trend-stack" title="${b.day}: ${totalForDay}" style="height:${height}px">${segments}</div>
+        <span class="trend-label">${b.day.slice(5).replace('-', '/')}</span>
+      </div>`;
+    }).join('');
+    trendFallback.innerHTML = `<div class="trend-bars">${bars}</div>
+      <div class="trend-legend">
+        <span class="legend-key"><span class="legend-dot trend-seg clean"></span>Clean</span>
+        <span class="legend-key"><span class="legend-dot trend-seg suspicious"></span>Suspicious</span>
+        <span class="legend-key"><span class="legend-dot trend-seg likely_phishing"></span>Likely</span>
+        <span class="legend-key"><span class="legend-dot trend-seg confirmed_phishing"></span>Confirmed</span>
+      </div>`;
+  }
+}
+
 // ── Charts ────────────────────────────────────────────────────────────────────
 function initCharts() {
   if (!window.Chart) {
-    console.warn('Chart.js unavailable; dashboard will render without charts');
+    console.warn('Chart.js unavailable; using fallback dashboard charts');
     return;
   }
   const verdictCanvas = document.getElementById('verdictChart');
@@ -394,36 +584,23 @@ function initCharts() {
 }
 
 function updateCharts(entries) {
-  const c = countVerdicts(entries);
-  if (verdictChart) {
-    verdictChart.data.datasets[0].data = [c.clean, c.suspicious, c.likely_phishing, c.confirmed_phishing];
-    verdictChart.update();
+  if (!verdictChart || !trendsChart) {
+    renderFallbackCharts(entries);
+    return;
   }
+  setFallbackVisible('verdictChart', 'verdictFallback', false);
+  setFallbackVisible('trendsChart', 'trendsFallback', false);
 
-  const today = new Date();
-  const days = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    days.push(d.toISOString().slice(0, 10));
-  }
-  const b = {};
-  for (const d of days) b[d] = { p: 0, s: 0, c: 0 };
-  for (const e of entries) {
-    const day = (e.timestamp || e.ts || '').slice(0, 10);
-    if (!(day in b)) continue;
-    const k = vc(e.verdict);
-    if (k === 'clean') b[day].c++;
-    else if (k === 'suspicious') b[day].s++;
-    else b[day].p++;
-  }
-  if (trendsChart) {
-    trendsChart.data.labels = days.map(d => d.slice(5));
-    trendsChart.data.datasets[0].data = days.map(d => b[d].p);
-    trendsChart.data.datasets[1].data = days.map(d => b[d].s);
-    trendsChart.data.datasets[2].data = days.map(d => b[d].c);
-    trendsChart.update();
-  }
+  const c = countVerdicts(entries);
+  verdictChart.data.datasets[0].data = [c.clean, c.suspicious, c.likely_phishing, c.confirmed_phishing];
+  verdictChart.update();
+
+  const buckets = buildTrendBuckets(entries);
+  trendsChart.data.labels = buckets.map(b => b.day.slice(5));
+  trendsChart.data.datasets[0].data = buckets.map(b => b.likely_phishing + b.confirmed_phishing);
+  trendsChart.data.datasets[1].data = buckets.map(b => b.suspicious);
+  trendsChart.data.datasets[2].data = buckets.map(b => b.clean);
+  trendsChart.update();
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
