@@ -131,6 +131,12 @@ bash scripts/docker_self_heal.sh
 Check that `.env` exists and has the required `ANALYST_API_TOKEN`. If the app
 stays unhealthy after self-heal, rebuild with `bash scripts/docker_deploy.sh`.
 
+**URL detonation reports Playwright version mismatch:**
+Run `bash scripts/docker_deploy.sh` so the browser sandbox is recreated from
+the checked-in Compose file. Compose pins `npx playwright@... run-server` to the
+same version as the Python client in `requirements.lock`; `pytest
+tests/unit/test_docker_playwright_version.py` catches drift before deploy.
+
 **Cloudflare shows 502:**
 The app has not finished its startup health window yet or crashed. Check
 orchestrator logs.
