@@ -185,9 +185,21 @@
         return window.location.origin + window.location.pathname;
       }
 
+      function projectName() {
+        var host = window.location.hostname.toLowerCase();
+        var path = window.location.pathname;
+        if (host.indexOf('payshield.') === 0 || path === '/product' || path.indexOf('/app') === 0) {
+          return 'PayShield';
+        }
+        if (/^\/admin(\/|$)/.test(path)) {
+          return 'PhishAnalyze Admin';
+        }
+        return 'PhishAnalyze';
+      }
+
       function feedbackBody() {
         return [
-          'Project: PhishAnalyze',
+          'Project: ' + projectName(),
           'Page: ' + pageUrl(),
           'Type: ' + form.category.value,
           '',
@@ -251,7 +263,7 @@
           messageEl.focus();
           return;
         }
-        var subject = 'Feedback: PhishAnalyze - ' + form.category.value;
+        var subject = 'Feedback: ' + projectName() + ' - ' + form.category.value;
         var href = 'mailto:meidie@mdpstudio.com.au?subject=' +
           encodeURIComponent(subject) + '&body=' +
           encodeURIComponent(feedbackBody());

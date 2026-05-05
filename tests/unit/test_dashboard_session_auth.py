@@ -118,7 +118,8 @@ def test_saas_app_login_shell_uses_link_based_auth_navigation():
     assert 'id="authTitle"' in response.text
     assert 'href="/app" class="active" aria-current="page">Payment app</a>' in response.text
     assert "PayShield" in response.text
-    assert "by PhishAnalyze" in response.text
+    assert "Payment scam firewall" in response.text
+    assert "by PhishAnalyze" not in response.text
     assert 'href="/trust">Trust</a>' in response.text
     assert 'href="/login">Analyst login</a>' not in response.text
     assert 'href="/demo">Demo</a>' not in response.text
@@ -226,7 +227,7 @@ def test_saas_app_mailbox_workflow_is_first_class_and_plan_gated():
     assert 'id="mailboxSection"' in response.text
     assert "Connect payment inboxes" in response.text
     assert "Customer monitoring separate from the internal PhishAnalyze analyst console" not in response.text
-    assert "keeps customer monitoring separate from the internal PhishAnalyze analyst console" in response.text
+    assert "keeps customer monitoring separate from owner admin tools" in response.text
     assert 'id="mailboxForm"' in response.text
     assert 'id="mailboxList"' in response.text
     assert 'id="mailboxNotice" hidden' in response.text
@@ -258,6 +259,21 @@ def test_public_phishanalyze_routes_open_without_analyst_session():
         assert "/static/phish_app.css" in response.text
         assert "/static/phish_app.js" in response.text
         assert "Analyst token" not in response.text
+        assert "PayShield" not in response.text
+        assert "Payment app" not in response.text
+
+
+def test_phishanalyze_plan_panel_is_compact_and_phish_specific():
+    css = Path("static/phish_app.css").read_text(encoding="utf-8")
+    js = Path("static/phish_app.js").read_text(encoding="utf-8")
+
+    assert "grid-template-columns: minmax(220px, 1.05fr)" in css
+    assert "min-height: 360px" not in css
+    assert ".plan-card-action" in css
+    assert "function featureCopy" in js
+    assert "Try manual phishing checks" in js
+    assert "Business email compromise, urgency" in js
+    assert "PayShield" not in js
 
 
 def test_admin_analyze_redirects_to_admin_login_without_session():
@@ -496,7 +512,7 @@ def test_html_static_asset_urls_are_versioned(monkeypatch):
     assert '/static/saas.js?v=testbuild123' in response.text
     assert '/static/shared.css?v=testbuild123' in response.text
     assert '/static/shared.js?v=testbuild123' in response.text
-    assert '/static/product.css?v=testbuild123' in trust.text
+    assert '/static/phish_app.css?v=testbuild123' in trust.text
     assert '/static/shared.css?v=testbuild123' in trust.text
     assert health.json()["build_sha"] == "testbuild123"
     assert health.json()["static_asset_version"] == "testbuild123"
@@ -513,6 +529,8 @@ def test_product_shell_opens_without_analyst_session():
 
     assert response.status_code == 200
     assert "PayShield for invoice-heavy SMEs" in response.text
+    assert "by PhishAnalyze" not in response.text
+    assert "PhishAnalyze remains" not in response.text
     assert 'href="/agent-demo"' not in response.text
     assert 'href="/demo"' not in response.text
     assert 'href="/login">Analyst login</a>' not in response.text
@@ -539,14 +557,35 @@ def test_trust_page_opens_without_analyst_session():
     assert response.status_code == 200
     assert "Trust and privacy" in response.text
     assert "Uploads are for analysis, not model training" in response.text
-    assert "Analyst pages remain private owner tools" in response.text
-    assert "PayShield is the customer payment-risk app" in response.text
+    assert "Each result shows analyzer status" in response.text
+    assert "Public users sign in with normal workspace accounts" in response.text
+    assert "PayShield" not in response.text
     assert 'href="/login">Analyst login</a>' not in response.text
-    assert "/static/product.css" in response.text
+    assert "/static/phish_app.css" in response.text
     csp = response.headers["Content-Security-Policy"]
     assert "script-src 'self'" in csp
     assert "style-src 'self'" in csp
     assert "'unsafe-inline'" not in csp
+
+
+def test_payshield_trust_page_stays_payment_product_specific(monkeypatch):
+    monkeypatch.setenv("PAYSHIELD_PUBLIC_URL", "https://payshield.example.test")
+    client = TestClient(
+        _build_app_with_token(),
+        base_url="https://payshield.example.test",
+        follow_redirects=False,
+    )
+
+    response = client.get("/trust")
+
+    assert response.status_code == 200
+    assert "Trust - PayShield" in response.text
+    assert "Payment-risk scans should be explainable" in response.text
+    assert "PayShield is the customer payment-risk app" in response.text
+    assert "Payment scam firewall" in response.text
+    assert "by PhishAnalyze" not in response.text
+    assert "/static/product.css" in response.text
+    assert 'href="/login">Analyst login</a>' not in response.text
 
 
 def test_product_shell_links_demo_pages_only_when_demo_is_enabled():

@@ -991,11 +991,10 @@ class PhishingDetectionApp:
                 "entitlement": entitlement_payload,
                 "workflow": {
                     "customer_product": "PayShield",
-                    "engine": "PhishAnalyze",
                     "status": "credential_saved_pending_worker",
                     "message": (
                         "Mailbox credentials are stored per workspace. Customer "
-                        "mailbox polling is kept separate from the private analyst console."
+                        "mailbox polling is kept separate from owner admin tools."
                     ),
                 },
             }
@@ -1275,10 +1274,11 @@ class PhishingDetectionApp:
         @app.get("/trust", response_class=HTMLResponse)
         async def trust_page(request: Request):
             """Serve public trust and privacy controls for customer reviewers."""
-            redirect = _redirect_pay_app_to_payshield(request, "/trust")
-            if redirect:
-                return redirect
-            trust_path = Path("./templates/trust.html")
+            trust_path = (
+                Path("./templates/trust.html")
+                if _is_payshield_host(request)
+                else Path("./templates/phish_trust.html")
+            )
             return HTMLResponse(
                 content=_inject_shared(trust_path.read_text(encoding="utf-8")),
                 headers={"Content-Security-Policy": STATIC_PAGE_CSP},
@@ -1591,7 +1591,7 @@ class PhishingDetectionApp:
                     "mailbox": mailbox.to_public_dict(),
                     "message": (
                         "Mailbox credential saved. Customer polling is queued for "
-                        "the PayShield mailbox worker, separate from the owner analyst console."
+                        "the workspace mailbox worker, separate from owner admin tools."
                     ),
                 }
             )

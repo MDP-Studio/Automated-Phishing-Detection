@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trust - PhishAnalyze</title>
+  <link rel="stylesheet" href="/static/phish_app.css">
+</head>
+<body data-page="trust">
+  <header class="phish-topbar">
+    <a class="phish-brand" href="/analyze" aria-label="PhishAnalyze home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-4-4"></path>
+      </svg>
+      <span>PhishAnalyze</span>
+    </a>
+    <nav class="phish-nav" aria-label="PhishAnalyze trust navigation">
+      <a href="/analyze">Analyze</a>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/monitor">Monitor</a>
+      <a href="/trust" class="active" aria-current="page">Trust</a>
+    </nav>
+  </header>
+
+  <main class="phish-shell trust-shell">
+    <section class="trust-hero-panel">
+      <p class="workspace-label">Trust and privacy</p>
+      <h1>Email analysis should be private, explainable, and reversible.</h1>
+      <p>
+        PhishAnalyze helps people inspect suspicious emails inside their own
+        workspace. Uploaded messages are used for the requested analysis,
+        stored only for workspace history, and can be deleted by the user.
+      </p>
+    </section>
+
+    <section class="trust-card-grid" aria-label="PhishAnalyze trust controls">
+      <article>
+        <span>Data use</span>
+        <h2>Uploads are for analysis, not model training</h2>
+        <p>
+          Email files are processed to produce the scan result and evidence.
+          They are not added to public demos or training datasets.
+        </p>
+      </article>
+      <article>
+        <span>Evidence</span>
+        <h2>Each result shows analyzer status</h2>
+        <p>
+          The app shows which checks completed, which checks were unavailable,
+          and which checks require a higher plan before they can run.
+        </p>
+      </article>
+      <article>
+        <span>Retention</span>
+        <h2>Workspace history can be deleted</h2>
+        <p>
+          Signed-in users can remove stored scan results from their workspace
+          history. Production retention jobs can also purge older records.
+        </p>
+      </article>
+      <article>
+        <span>Authentication</span>
+        <h2>User accounts are separate from owner admin tools</h2>
+        <p>
+          Public users sign in with normal workspace accounts. Owner-only admin
+          monitoring stays on private admin routes and is not part of the public
+          workflow.
+        </p>
+      </article>
+      <article>
+        <span>Mailboxes</span>
+        <h2>Mailbox monitoring requires explicit connection</h2>
+        <p>
+          PhishAnalyze does not read an inbox just because someone signs in.
+          Monitoring requires a connected mailbox, encrypted credentials, and
+          plan permission.
+        </p>
+      </article>
+      <article>
+        <span>Third parties</span>
+        <h2>Paid API-backed checks are visible</h2>
+        <p>
+          URL reputation, domain intelligence, sandbox, browser, and LLM checks
+          are shown as included or locked so users know what happened.
+        </p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

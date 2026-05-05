@@ -53,7 +53,8 @@ Implemented foundation:
   bundles.
 - `/trust` documents the customer-facing privacy boundary, analyzer visibility,
   deletion controls, and the separation between normal accounts and private
-  analyst admin pages.
+  admin pages. The route is hostname-aware: PhishAnalyze renders email-analysis
+  trust copy, while PayShield renders payment-risk trust copy.
 - The pipeline accepts a per-request `feature_gate`; locked analyzers return
   `feature_locked` metadata with the required tier before paid API clients are
   loaded.

@@ -43,11 +43,42 @@
   let lastPlansPayload = null;
   let featureCatalog = new Map();
   const planOrder = ["free", "starter", "pro", "business"];
+  const phishPlanCopy = {
+    free: {
+      best_for: "Personal testing and light manual checks",
+      summary: "Try manual phishing checks without connecting a mailbox or using paid APIs.",
+    },
+    starter: {
+      best_for: "Individuals and small teams",
+      summary: "Manual scans with URL reputation, domain context, and stored history.",
+    },
+    pro: {
+      best_for: "Teams that monitor shared inboxes",
+      summary: "Mailbox monitoring plus LLM, attachment, and browser-backed analysis.",
+    },
+    business: {
+      best_for: "Security teams and agencies",
+      summary: "Higher scan limits, more mailboxes, team controls, and audit history.",
+    },
+  };
+  const phishFeatureCopy = {
+    payment_rules: {
+      name: "BEC and payment-language signals",
+      description: "Business email compromise, urgency, and executive-transfer wording checks.",
+    },
+    sender_profiling: {
+      description: "Baseline sender patterns and flag unusual sender behavior.",
+    },
+    llm_intent: {
+      name: "LLM social-engineering reasoning",
+      description: "LLM-backed phishing, BEC, and intent analysis.",
+    },
+  };
 
   const pageCopy = {
     analyze: {
       title: "Email risk analyzer",
-      sub: "Upload an .eml file to analyze phishing indicators, malicious URLs, and payment-risk signals.",
+      sub: "Upload an .eml file to analyze phishing indicators, malicious URLs, sender signals, and attachments.",
     },
     dashboard: {
       title: "Workspace dashboard",
@@ -190,6 +221,19 @@
     return `${count.toLocaleString()} ${suffix}`;
   }
 
+  function planCopy(plan, key) {
+    return (phishPlanCopy[plan.slug] && phishPlanCopy[plan.slug][key]) || plan[key] || "";
+  }
+
+  function featureCopy(feature) {
+    const override = phishFeatureCopy[feature.slug] || {};
+    return {
+      ...feature,
+      name: override.name || feature.name,
+      description: override.description || feature.description,
+    };
+  }
+
   function billingIntervalLabel() {
     return selectedBillingInterval === "yearly" ? "/ month, billed yearly" : "/ month";
   }
@@ -284,7 +328,7 @@
     portalButton.disabled = !hasStripeCustomer;
     portalButton.textContent = hasStripeCustomer ? "Manage billing" : "Billing portal locked";
     billingHelp.textContent = hasStripeCustomer
-      ? "Manage invoices, cards, and subscription changes in Stripe."
+      ? "Manage payment methods and subscription changes in Stripe."
       : isHighestPlan
         ? "You are already on the highest plan. Billing portal appears after first checkout."
         : "Use Upgrade when you need more scans or paid checks.";
@@ -334,7 +378,7 @@
         : "Open this when you need more scans, mailbox monitoring, or paid API-backed checks.";
     }
     planGrid.innerHTML = "";
-    (payload.plans || []).forEach((plan, index) => {
+    (payload.plans || []).forEach((plan) => {
       const targetRank = planRank(plan.slug);
       const isCurrent = plan.slug === currentPlan;
       const isCovered = targetRank < currentRank;
@@ -354,15 +398,6 @@
       const savingsBadge = selectedBillingInterval === "yearly" && savings > 0
         ? `<span class="plan-badge save">Save ${escapeHtml(String(savings))}%</span>`
         : "";
-      const previousPlan = (payload.plans || [])[index - 1];
-      const directFeatures = (payload.features || []).filter((feature) => feature.minimum_plan === plan.slug);
-      const featureIntro = isFree
-        ? "Included in Free:"
-        : `Everything in ${previousPlan ? previousPlan.name : "the previous plan"}, plus:`;
-      const featureItems = directFeatures
-        .slice(0, 4)
-        .map((feature) => `<li>${escapeHtml(feature.name)}</li>`)
-        .join("");
       const buttonText = isCurrent
         ? "Current plan"
         : isCovered || isFree
@@ -374,7 +409,7 @@
         <div class="plan-card-head">
           <div>
             <h3>${escapeHtml(plan.name)}</h3>
-            <p class="plan-audience">${escapeHtml(plan.best_for || "")}</p>
+            <p class="plan-audience">${escapeHtml(planCopy(plan, "best_for"))}</p>
           </div>
           <div class="plan-card-badges">
             ${savingsBadge}
@@ -382,20 +417,20 @@
             ${isCurrent ? '<span class="plan-badge">Current</span>' : ""}
           </div>
         </div>
-        <div class="plan-price"><span>${escapeHtml(price)}</span>${isFree ? "" : `<small>${escapeHtml(billingIntervalLabel())}</small>`}</div>
-        <div class="plan-billing-note">${escapeHtml(billingNote)}</div>
-        <p class="plan-summary">${escapeHtml(plan.summary || "")}</p>
+        <div class="plan-price">
+          <span>${escapeHtml(price)}</span>
+          ${isFree ? "" : `<small>${escapeHtml(billingIntervalLabel())}</small>`}
+          <em>${escapeHtml(billingNote)}</em>
+        </div>
         <div class="plan-limits">
           <span>${escapeHtml(formatCount(plan.scan_quota, "scan"))} / month</span>
           <span>${escapeHtml(formatCount(plan.mailbox_quota, "mailbox"))}</span>
         </div>
-        <button type="button" data-plan="${escapeHtml(plan.slug)}" ${canUpgrade ? "" : "disabled"}>
-          ${escapeHtml(buttonText)}
-        </button>
-        <div class="plan-divider"></div>
-        <div class="plan-feature-list">
-          <strong>${escapeHtml(featureIntro)}</strong>
-          <ul>${featureItems}</ul>
+        <div class="plan-card-action">
+          <p class="plan-summary">${escapeHtml(planCopy(plan, "summary"))}</p>
+          <button type="button" data-plan="${escapeHtml(plan.slug)}" ${canUpgrade ? "" : "disabled"}>
+            ${escapeHtml(buttonText)}
+          </button>
         </div>
       `;
       planGrid.appendChild(card);
@@ -404,15 +439,31 @@
 
   function renderFeatureAccess(payload) {
     if (!featureGrid) return;
-    featureGrid.innerHTML = (payload.features || []).map((feature) => {
-      const available = Boolean(feature.available);
-      const status = available ? "Included" : `Locked: ${feature.required_plan_name || "Upgrade"}`;
+    const plans = new Map((payload.plans || []).map((plan) => [plan.slug, plan]));
+    const currentPlan = payload.current_plan || (payload.account && payload.account.plan_slug) || "free";
+    const currentRank = planRank(currentPlan);
+    featureGrid.innerHTML = planOrder.map((planSlug) => {
+      const plan = plans.get(planSlug) || { name: label(planSlug) };
+      const features = (payload.features || []).filter((feature) => feature.minimum_plan === planSlug);
+      if (!features.length) return "";
+      const groupRank = planRank(planSlug);
+      const available = currentRank >= groupRank;
+      const status = available ? "Included now" : `${plan.name} unlocks`;
+      const heading = planSlug === "free" ? "Core checks" : `${plan.name} checks`;
+      const rows = features.map((rawFeature) => {
+        const feature = featureCopy(rawFeature);
+        return `
+          <li>
+            <strong>${escapeHtml(feature.name)}</strong>
+            <span>${escapeHtml(feature.description)}</span>
+          </li>
+        `;
+      }).join("");
       return `
         <article class="feature-card ${available ? "available" : "locked"}">
           <span class="feature-status">${escapeHtml(status)}</span>
-          <h3>${escapeHtml(feature.name)}</h3>
-          <p>${escapeHtml(feature.description)}</p>
-          <small>${escapeHtml(feature.category || "")}</small>
+          <h3>${escapeHtml(heading)}</h3>
+          <ul>${rows}</ul>
         </article>
       `;
     }).join("");
@@ -506,7 +557,7 @@
     const cards = locks.map((lock) => {
       const details = (lock && lock.details) || {};
       const slug = details.feature_slug || "";
-      const feature = featureCatalog.get(slug) || {};
+      const feature = featureCatalog.has(slug) ? featureCopy(featureCatalog.get(slug)) : {};
       const requiredPlan = details.required_plan_name || feature.required_plan_name || "Upgrade";
       return `
         <article class="locked-check-card">
