@@ -35,7 +35,7 @@ git clone https://github.com/meidielo/Automated-Phishing-Detection.git
 cd Automated-Phishing-Detection
 
 # Copy the production env template
-cp .env.production .env
+cp .env.production.example .env
 
 # Edit .env -- fill in your API keys
 nano .env

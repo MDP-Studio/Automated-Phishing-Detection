@@ -56,8 +56,9 @@ current test/browser/dependency gates.
 - Bandit static scan: `0 high`, `0 medium`, `80 low`, `18 skipped`.
 - Tracked-secret scan found placeholders/test strings only. Runtime `.env`
   remains untracked and must stay that way.
-- Docker Compose production config validates against `.env.production`; remote
-  Docker Compose is new enough for raw env-file mode.
+- Docker Compose production config validates against `.env.production.example`;
+  real runtime values live only in ignored `.env` or host-managed environment
+  variables. Remote Docker Compose is new enough for raw env-file mode.
 - Desktop MCP bridge JavaScript syntax check passes with `node --check`.
 - Public production health check passes against
   `https://phishanalyze.mdpstudio.com.au/api/health`.
