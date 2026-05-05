@@ -826,6 +826,48 @@ def test_saas_checkout_and_portal_create_stripe_sessions(tmp_path, monkeypatch):
     assert session.json()["account"]["stripe_customer_id"] == "cus_test"
 
 
+def test_saas_checkout_from_phishanalyze_returns_to_phishanalyze(tmp_path, monkeypatch):
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "stripe_secret_for_tests")
+    monkeypatch.setenv("STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("PHISHANALYZE_PUBLIC_URL", "https://phishanalyze.example.test")
+    monkeypatch.setenv("PAYSHIELD_PUBLIC_URL", "https://payshield.example.test")
+    monkeypatch.setattr(app_main, "StripeBillingClient", FakeStripeBillingClient)
+    FakeStripeBillingClient.created_customers = []
+    FakeStripeBillingClient.checkout_sessions = []
+    FakeStripeBillingClient.portal_sessions = []
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://phishanalyze.example.test",
+        follow_redirects=False,
+    )
+
+    assert _signup(client, origin="https://phishanalyze.example.test").status_code == 200
+    checkout = _post_json_with_csrf(
+        client,
+        "/api/saas/billing/checkout",
+        {"plan": "starter"},
+        origin="https://phishanalyze.example.test",
+    )
+    portal = _post_json_with_csrf(
+        client,
+        "/api/saas/billing/portal",
+        {},
+        origin="https://phishanalyze.example.test",
+    )
+
+    assert checkout.status_code == 200
+    assert FakeStripeBillingClient.checkout_sessions[0]["success_url"].startswith(
+        "https://phishanalyze.example.test/dashboard?billing=success"
+    )
+    assert FakeStripeBillingClient.checkout_sessions[0]["cancel_url"] == (
+        "https://phishanalyze.example.test/dashboard?billing=cancelled"
+    )
+    assert portal.status_code == 200
+    assert FakeStripeBillingClient.portal_sessions[0]["return_url"] == (
+        "https://phishanalyze.example.test/dashboard?billing=portal"
+    )
+
+
 def test_saas_yearly_checkout_uses_yearly_price(tmp_path, monkeypatch):
     monkeypatch.setenv("STRIPE_SECRET_KEY", "stripe_secret_for_tests")
     monkeypatch.setenv("STRIPE_PRICE_STARTER", "price_starter")

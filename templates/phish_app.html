@@ -19,7 +19,6 @@
       <a href="/analyze" data-nav="analyze">Analyze</a>
       <a href="/dashboard" data-nav="dashboard">Dashboard</a>
       <a href="/monitor" data-nav="monitor">Monitor</a>
-      <a href="{{PAYSHIELD_URL}}">PayShield</a>
       <a href="/trust">Trust</a>
     </nav>
   </header>
@@ -90,7 +89,33 @@
           <strong id="userEmail">-</strong>
         </article>
         <article class="account-actions">
-          <a href="{{PAYSHIELD_APP_URL}}" id="upgradeLink">Upgrade</a>
+          <span>Billing</span>
+          <div class="account-action-buttons">
+            <button class="upgrade-button" type="button" id="upgradeButton">Upgrade</button>
+            <button class="secondary-button" type="button" id="portalButton">Manage billing</button>
+          </div>
+          <small class="account-note" id="billingHelp">Use Upgrade when you need more scans or paid checks.</small>
+        </article>
+      </section>
+      <div class="notice" id="billingNotice" hidden></div>
+
+      <section class="page-panel pricing-panel" id="pricingPanel" hidden aria-label="Plan options">
+        <article class="wide-card">
+          <div class="card-heading pricing-heading">
+            <div>
+              <h2 id="pricingTitle">Upgrade options</h2>
+              <p id="pricingDescription">Open this when you need more scans, mailbox monitoring, or paid API-backed checks.</p>
+            </div>
+            <div class="pricing-actions">
+              <div class="billing-cycle" id="billingCycle" aria-label="Billing cadence">
+                <button class="active" type="button" data-billing-interval="monthly" aria-pressed="true">Monthly</button>
+                <button type="button" data-billing-interval="yearly" aria-pressed="false">Yearly <span>Save 20%</span></button>
+              </div>
+              <button class="secondary-button" type="button" id="closePricingButton">Close</button>
+            </div>
+          </div>
+          <div class="plan-grid" id="planGrid"></div>
+          <div class="feature-grid" id="featureGrid"></div>
         </article>
       </section>
 

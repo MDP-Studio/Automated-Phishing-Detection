@@ -93,8 +93,11 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     assert phish_product.status_code == 303
     assert phish_product.headers["location"] == "https://payshield.example.test/product"
     assert phish_analyze.status_code == 200
-    assert 'href="https://payshield.example.test/product">PayShield</a>' in phish_analyze.text
-    assert 'href="https://payshield.example.test/app" id="upgradeLink">Upgrade</a>' in phish_analyze.text
+    assert 'href="https://payshield.example.test/product">PayShield</a>' not in phish_analyze.text
+    assert 'id="upgradeLink"' not in phish_analyze.text
+    assert 'id="upgradeButton">Upgrade</button>' in phish_analyze.text
+    assert 'id="pricingPanel"' in phish_analyze.text
+    assert 'id="planGrid"' in phish_analyze.text
     assert "API Status" not in phish_analyze.text
     assert pay_root.status_code == 200
     assert "PayShield for invoice-heavy SMEs" in pay_root.text

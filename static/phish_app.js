@@ -6,6 +6,11 @@
   const scanNotice = document.getElementById("scanNotice");
   const historyNotice = document.getElementById("historyNotice");
   const mailboxNotice = document.getElementById("mailboxNotice");
+  const billingNotice = document.getElementById("billingNotice");
+  const pricingPanel = document.getElementById("pricingPanel");
+  const billingCycle = document.getElementById("billingCycle");
+  const planGrid = document.getElementById("planGrid");
+  const featureGrid = document.getElementById("featureGrid");
   const authTitle = document.getElementById("authTitle");
   const authSubtext = document.getElementById("authSubtext");
   const resultTitle = document.getElementById("resultTitle");
@@ -34,6 +39,10 @@
   let csrfCookieName = "phishdetect_user_csrf";
   let signupEnabled = false;
   let selectedFile = null;
+  let selectedBillingInterval = "monthly";
+  let lastPlansPayload = null;
+  let featureCatalog = new Map();
+  const planOrder = ["free", "starter", "pro", "business"];
 
   const pageCopy = {
     analyze: {
@@ -57,8 +66,26 @@
   }
 
   function notice(element, message) {
+    if (!element) return;
     element.textContent = message;
     element.hidden = !message;
+  }
+
+  function showNotice(element, message) {
+    notice(element, message || "");
+  }
+
+  function hideNotice(element) {
+    notice(element, "");
+  }
+
+  function showUpgradeNotice(element, message) {
+    if (!element) return;
+    element.innerHTML = `
+      <span>${escapeHtml(message || "Upgrade to unlock this feature.")}</span>
+      <button class="notice-action" type="button" data-upgrade-trigger>View plans</button>
+    `;
+    element.hidden = false;
   }
 
   async function apiJson(path, options) {
@@ -78,6 +105,9 @@
       const error = new Error(message);
       error.status = response.status;
       error.payload = payload;
+      if (payload.locked) {
+        error.locked = payload.locked;
+      }
       throw error;
     }
     return payload;
@@ -99,6 +129,9 @@
       const error = new Error(message);
       error.status = response.status;
       error.payload = payload;
+      if (payload.locked) {
+        error.locked = payload.locked;
+      }
       throw error;
     }
     return payload;
@@ -132,6 +165,58 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function planRank(slug) {
+    const rank = planOrder.indexOf(String(slug || "").toLowerCase());
+    return rank >= 0 ? rank : 0;
+  }
+
+  function highestPlanSlug() {
+    return planOrder[planOrder.length - 1];
+  }
+
+  function formatMoney(value) {
+    const amount = Number(value || 0);
+    if (!Number.isFinite(amount)) return "0";
+    return amount % 1 === 0
+      ? amount.toLocaleString("en-AU", { maximumFractionDigits: 0 })
+      : amount.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatCount(value, singular) {
+    const count = Number(value || 0);
+    const suffix = count === 1 ? singular : singular === "mailbox" ? "mailboxes" : `${singular}s`;
+    return `${count.toLocaleString()} ${suffix}`;
+  }
+
+  function billingIntervalLabel() {
+    return selectedBillingInterval === "yearly" ? "/ month, billed yearly" : "/ month";
+  }
+
+  function billingErrorMessage(error) {
+    const message = String(error && error.message ? error.message : error || "");
+    if (/stripe|billing|checkout|portal|502|503/i.test(message)) {
+      return "Billing is not available right now. The server needs a valid Stripe secret key before checkout can start.";
+    }
+    return message || "Billing is not available right now.";
+  }
+
+  function openPricingPanel(message) {
+    if (!pricingPanel) return;
+    pricingPanel.hidden = false;
+    if (message) {
+      showUpgradeNotice(billingNotice, message);
+    }
+    if (!lastPlansPayload) {
+      loadPlans().catch((error) => showNotice(billingNotice, error.message));
+    }
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    pricingPanel.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+  }
+
+  function closePricingPanel() {
+    if (pricingPanel) pricingPanel.hidden = true;
   }
 
   function decisionText(value) {
@@ -189,8 +274,20 @@
     const used = Number(account.monthly_scan_used || 0);
     const pct = quota > 0 ? Math.min((used / quota) * 100, 100) : 0;
     document.getElementById("usageBar").style.width = `${pct}%`;
-    const upgradeLink = document.getElementById("upgradeLink");
-    upgradeLink.textContent = account.plan_slug === "business" ? "Plan details" : "Upgrade";
+    const upgradeButton = document.getElementById("upgradeButton");
+    const portalButton = document.getElementById("portalButton");
+    const billingHelp = document.getElementById("billingHelp");
+    const isHighestPlan = account.plan_slug === highestPlanSlug();
+    const hasStripeCustomer = Boolean(account.stripe_customer_id);
+    upgradeButton.textContent = isHighestPlan ? "Plan details" : "Upgrade";
+    upgradeButton.setAttribute("aria-label", isHighestPlan ? "View plan coverage" : "View upgrade options");
+    portalButton.disabled = !hasStripeCustomer;
+    portalButton.textContent = hasStripeCustomer ? "Manage billing" : "Billing portal locked";
+    billingHelp.textContent = hasStripeCustomer
+      ? "Manage invoices, cards, and subscription changes in Stripe."
+      : isHighestPlan
+        ? "You are already on the highest plan. Billing portal appears after first checkout."
+        : "Use Upgrade when you need more scans or paid checks.";
   }
 
   async function loadSession() {
@@ -209,7 +306,116 @@
     workspaceView.hidden = false;
     updateAccount(session.account);
     renderEmptyResult();
-    await Promise.all([loadHistory(), loadMailboxes()]);
+    hideNotice(billingNotice);
+    await Promise.all([loadPlans(), loadHistory(), loadMailboxes()]);
+  }
+
+  async function loadPlans() {
+    const payload = await apiJson("/api/saas/plans");
+    lastPlansPayload = payload;
+    featureCatalog = new Map((payload.features || []).map((feature) => [feature.slug, feature]));
+    if (payload.account) updateAccount(payload.account);
+    renderPricing(payload);
+    renderFeatureAccess(payload);
+  }
+
+  function renderPricing(payload) {
+    if (!planGrid) return;
+    const currentPlan = payload.current_plan || (payload.account && payload.account.plan_slug) || "free";
+    const currentRank = planRank(currentPlan);
+    const maxPlanRank = Math.max(...(payload.plans || []).map((plan) => planRank(plan.slug)));
+    const isHighestPlan = currentRank >= maxPlanRank;
+    const pricingTitle = document.getElementById("pricingTitle");
+    const pricingDescription = document.getElementById("pricingDescription");
+    if (pricingTitle && pricingDescription) {
+      pricingTitle.textContent = isHighestPlan ? "Plan coverage" : "Upgrade options";
+      pricingDescription.textContent = isHighestPlan
+        ? "You are already on the highest plan. The lower tiers are shown for comparison."
+        : "Open this when you need more scans, mailbox monitoring, or paid API-backed checks.";
+    }
+    planGrid.innerHTML = "";
+    (payload.plans || []).forEach((plan, index) => {
+      const targetRank = planRank(plan.slug);
+      const isCurrent = plan.slug === currentPlan;
+      const isCovered = targetRank < currentRank;
+      const canUpgrade = targetRank > currentRank;
+      const isFree = plan.slug === "free";
+      const priceValue = selectedBillingInterval === "yearly"
+        ? Number(plan.yearly_monthly_price_aud || plan.monthly_price_aud || 0)
+        : Number(plan.monthly_price_aud || 0);
+      const price = priceValue > 0 ? `A$${formatMoney(priceValue)}` : "A$0";
+      const yearlyTotal = Number(plan.yearly_price_aud || priceValue * 12);
+      const billingNote = isFree
+        ? "No card needed"
+        : selectedBillingInterval === "yearly"
+          ? `Billed A$${formatMoney(yearlyTotal)} yearly`
+          : "Billed monthly";
+      const savings = Number(plan.yearly_savings_percent || 0);
+      const savingsBadge = selectedBillingInterval === "yearly" && savings > 0
+        ? `<span class="plan-badge save">Save ${escapeHtml(String(savings))}%</span>`
+        : "";
+      const previousPlan = (payload.plans || [])[index - 1];
+      const directFeatures = (payload.features || []).filter((feature) => feature.minimum_plan === plan.slug);
+      const featureIntro = isFree
+        ? "Included in Free:"
+        : `Everything in ${previousPlan ? previousPlan.name : "the previous plan"}, plus:`;
+      const featureItems = directFeatures
+        .slice(0, 4)
+        .map((feature) => `<li>${escapeHtml(feature.name)}</li>`)
+        .join("");
+      const buttonText = isCurrent
+        ? "Current plan"
+        : isCovered || isFree
+          ? "Included"
+          : `Upgrade to ${plan.name}`;
+      const card = document.createElement("article");
+      card.className = `plan-card ${isCurrent ? "current" : ""} ${isCovered ? "covered" : ""}`;
+      card.innerHTML = `
+        <div class="plan-card-head">
+          <div>
+            <h3>${escapeHtml(plan.name)}</h3>
+            <p class="plan-audience">${escapeHtml(plan.best_for || "")}</p>
+          </div>
+          <div class="plan-card-badges">
+            ${savingsBadge}
+            ${isCovered ? '<span class="plan-badge included">Included</span>' : ""}
+            ${isCurrent ? '<span class="plan-badge">Current</span>' : ""}
+          </div>
+        </div>
+        <div class="plan-price"><span>${escapeHtml(price)}</span>${isFree ? "" : `<small>${escapeHtml(billingIntervalLabel())}</small>`}</div>
+        <div class="plan-billing-note">${escapeHtml(billingNote)}</div>
+        <p class="plan-summary">${escapeHtml(plan.summary || "")}</p>
+        <div class="plan-limits">
+          <span>${escapeHtml(formatCount(plan.scan_quota, "scan"))} / month</span>
+          <span>${escapeHtml(formatCount(plan.mailbox_quota, "mailbox"))}</span>
+        </div>
+        <button type="button" data-plan="${escapeHtml(plan.slug)}" ${canUpgrade ? "" : "disabled"}>
+          ${escapeHtml(buttonText)}
+        </button>
+        <div class="plan-divider"></div>
+        <div class="plan-feature-list">
+          <strong>${escapeHtml(featureIntro)}</strong>
+          <ul>${featureItems}</ul>
+        </div>
+      `;
+      planGrid.appendChild(card);
+    });
+  }
+
+  function renderFeatureAccess(payload) {
+    if (!featureGrid) return;
+    featureGrid.innerHTML = (payload.features || []).map((feature) => {
+      const available = Boolean(feature.available);
+      const status = available ? "Included" : `Locked: ${feature.required_plan_name || "Upgrade"}`;
+      return `
+        <article class="feature-card ${available ? "available" : "locked"}">
+          <span class="feature-status">${escapeHtml(status)}</span>
+          <h3>${escapeHtml(feature.name)}</h3>
+          <p>${escapeHtml(feature.description)}</p>
+          <small>${escapeHtml(feature.category || "")}</small>
+        </article>
+      `;
+    }).join("");
   }
 
   function renderEmptyResult() {
@@ -260,7 +466,8 @@
   function analyzerSummary(name, result) {
     const details = (result && result.details) || {};
     if (details.message === "feature_locked") {
-      return `Requires ${details.required_plan_name || "a higher plan"}.`;
+      const feature = featureCatalog.get(details.feature_slug || name) || {};
+      return `${feature.description || "This analyzer did not run."} Required plan: ${details.required_plan_name || feature.required_plan_name || "a higher plan"}.`;
     }
     if (details.decision) {
       return `Payment decision: ${decisionText(details.decision)}.`;
@@ -268,6 +475,61 @@
     if (details.summary) return details.summary;
     if (details.reason) return details.reason;
     return "Analyzer returned a result for this scan.";
+  }
+
+  function analyzerLabel(name) {
+    const labels = {
+      attachment_analysis: "Attachment analysis",
+      attachment_sandbox: "Attachment sandbox",
+      brand_impersonation: "Brand impersonation",
+      domain_intelligence: "Domain intelligence",
+      header_analysis: "Header authentication",
+      nlp_intent: "Intent analysis",
+      payment_fraud: "Payment scam rules",
+      sender_profiling: "Sender profiling",
+      url_detonation: "Browser URL detonation",
+      url_reputation: "URL reputation",
+    };
+    const feature = featureCatalog.get(name);
+    return (feature && feature.name) || labels[name] || label(name);
+  }
+
+  function renderLockedChecks(locks) {
+    if (!Array.isArray(locks) || !locks.length) {
+      return `
+        <section class="locked-checks clear">
+          <h3>All checks on your plan completed</h3>
+          <p>No paid API-backed analyzer was skipped for this scan.</p>
+        </section>
+      `;
+    }
+    const cards = locks.map((lock) => {
+      const details = (lock && lock.details) || {};
+      const slug = details.feature_slug || "";
+      const feature = featureCatalog.get(slug) || {};
+      const requiredPlan = details.required_plan_name || feature.required_plan_name || "Upgrade";
+      return `
+        <article class="locked-check-card">
+          <div>
+            <strong>${escapeHtml(feature.name || analyzerLabel(slug || "locked_check"))}</strong>
+            <p>${escapeHtml(feature.description || "This analyzer is available on a higher plan.")}</p>
+          </div>
+          <span>${escapeHtml(requiredPlan)}</span>
+        </article>
+      `;
+    }).join("");
+    return `
+      <section class="locked-checks">
+        <div class="locked-check-heading">
+          <div>
+            <h3>Skipped until upgrade</h3>
+            <p>These paid checks were not run on the current plan.</p>
+          </div>
+          <button class="secondary-button" type="button" data-upgrade-trigger>Upgrade</button>
+        </div>
+        <div class="locked-check-list">${cards}</div>
+      </section>
+    `;
   }
 
   function renderResult(payload) {
@@ -281,7 +543,7 @@
       const status = analyzerStatus(result);
       return `
         <div class="evidence-row">
-          <strong>${escapeHtml(label(name))}</strong>
+          <strong>${escapeHtml(analyzerLabel(name))}</strong>
           <span class="status-pill ${escapeHtml(status[1])}">${escapeHtml(status[0])}</span>
           <span>${escapeHtml(analyzerSummary(name, result))}</span>
           <span>${escapeHtml(percent(result && result.risk_score))} risk</span>
@@ -309,6 +571,7 @@
         </div>
         ${rows || '<div class="evidence-row"><span>No analyzer evidence returned.</span></div>'}
       </section>
+      ${renderLockedChecks(payload.feature_locks || [])}
     `;
     if (payload.account) updateAccount(payload.account);
   }
@@ -416,7 +679,7 @@
       control.disabled = locked;
     });
     mailboxStatus.textContent = locked
-      ? `${entitlement.reason || "Mailbox monitoring is locked on this plan."} Open PayShield to upgrade.`
+      ? `${entitlement.reason || "Mailbox monitoring is locked on this plan."} Use Upgrade to review plans.`
       : "Mailbox connections are stored per workspace.";
     mailboxList.innerHTML = "";
     if (!mailboxes.length) {
@@ -506,13 +769,91 @@
     }
   });
 
-  document.getElementById("logoutButton").addEventListener("click", async () => {
+  document.getElementById("logoutButton").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    hideNotice(billingNotice);
     try {
       await apiJson("/api/saas/auth/logout", { method: "POST", body: "{}" });
-      clearFile();
-      await loadSession();
+      window.location.href = "/analyze";
     } catch (error) {
+      button.disabled = false;
       notice(historyNotice, error.message || "Logout failed. Refresh and try again.");
+    }
+  });
+
+  document.getElementById("upgradeButton").addEventListener("click", () => {
+    hideNotice(billingNotice);
+    openPricingPanel();
+  });
+
+  document.getElementById("closePricingButton").addEventListener("click", () => {
+    closePricingPanel();
+    hideNotice(billingNotice);
+  });
+
+  document.getElementById("portalButton").addEventListener("click", async () => {
+    const portalButton = document.getElementById("portalButton");
+    if (portalButton.disabled) return;
+    hideNotice(billingNotice);
+    try {
+      const payload = await apiJson("/api/saas/billing/portal", {
+        method: "POST",
+        body: "{}",
+      });
+      if (!payload.portal_url) {
+        throw new Error("Stripe did not return a billing portal URL.");
+      }
+      window.location.href = payload.portal_url;
+    } catch (error) {
+      showNotice(billingNotice, billingErrorMessage(error));
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-upgrade-trigger]");
+    if (!trigger) return;
+    event.preventDefault();
+    openPricingPanel();
+  });
+
+  billingCycle.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-billing-interval]");
+    if (!button) return;
+    selectedBillingInterval = button.getAttribute("data-billing-interval") || "monthly";
+    billingCycle.querySelectorAll("button[data-billing-interval]").forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (lastPlansPayload) {
+      renderPricing(lastPlansPayload);
+    }
+  });
+
+  planGrid.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-plan]");
+    if (!button || button.disabled) return;
+    hideNotice(billingNotice);
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Opening Checkout";
+    try {
+      const payload = await apiJson("/api/saas/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({
+          plan: button.getAttribute("data-plan"),
+          billing_interval: selectedBillingInterval,
+        }),
+      });
+      if (!payload.checkout_url) {
+        throw new Error("Stripe did not return a Checkout URL.");
+      }
+      window.location.href = payload.checkout_url;
+    } catch (error) {
+      showNotice(billingNotice, billingErrorMessage(error));
+      button.disabled = false;
+      button.textContent = originalText;
     }
   });
 
@@ -551,7 +892,12 @@
       renderResult(payload);
       await loadHistory();
     } catch (error) {
-      notice(scanNotice, error.message);
+      if (error.status === 402) {
+        showUpgradeNotice(scanNotice, `${error.message} Upgrade to keep scanning.`);
+        openPricingPanel();
+      } else {
+        notice(scanNotice, error.message);
+      }
       resultTitle.textContent = "Analysis failed";
       resultNote.textContent = "The previous result stays cleared. Try again after fixing the issue.";
       resultBody.innerHTML = `<section class="empty-result"><strong>${escapeHtml(error.message)}</strong></section>`;
@@ -602,7 +948,12 @@
       mailboxStateReloaded = true;
       notice(mailboxNotice, payload.message || "Mailbox saved.");
     } catch (error) {
-      notice(mailboxNotice, error.status === 402 ? `${error.message} Open PayShield to upgrade.` : error.message);
+      if (error.status === 402) {
+        showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect mailbox monitoring.`);
+        openPricingPanel();
+      } else {
+        notice(mailboxNotice, error.message);
+      }
       await loadMailboxes().then(() => { mailboxStateReloaded = true; }).catch(() => {});
     } finally {
       if (!mailboxStateReloaded) {

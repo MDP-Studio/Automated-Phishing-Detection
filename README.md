@@ -58,9 +58,10 @@ Safety boundary: the public demo uses committed samples only. It does not
 connect visitor mailboxes, call paid APIs, release payments, expose full email
 bodies, or write feedback labels.
 
-The public product page and customer account app are branded as PayShield. The
-underlying detection engine and private owner console remain PhishAnalyze, so
-the customer payment-decision workflow is not confused with analyst tooling.
+PhishAnalyze is the public email-risk scanner at `/analyze`, `/dashboard`, and
+`/monitor`. PayShield is the separate payment-decision product for invoice-heavy
+teams at `/product` and `/app`. Both use the same SaaS account system and plan
+catalog, while owner-only operational controls live under `/admin`.
 
 ## Project Arc
 

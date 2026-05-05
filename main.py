@@ -1983,8 +1983,6 @@ class PhishingDetectionApp:
                 page_path.read_text(encoding="utf-8")
                 .replace("{{PAGE}}", html.escape(page, quote=True))
                 .replace("{{PAGE_TITLE}}", html.escape(page_title, quote=True))
-                .replace("{{PAYSHIELD_URL}}", html.escape(_payshield_url(request, "/product"), quote=True))
-                .replace("{{PAYSHIELD_APP_URL}}", html.escape(_payshield_url(request, "/app"), quote=True))
             )
             return HTMLResponse(
                 content=_inject_shared(html_content),
