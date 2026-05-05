@@ -41,6 +41,7 @@ from src.billing.stripe_client import (
     verify_stripe_webhook,
 )
 from src.config import PipelineConfig, _coerce_bool
+from src.analyzers.result_contract import normalize_analyzer_result
 from src.models import EmailObject
 from src.orchestrator.pipeline import PhishingPipeline
 from src.reporting.report_generator import ReportGenerator
@@ -211,21 +212,7 @@ def _safe_api_value(value):
 def _serialize_analyzer_results(result) -> dict:
     analyzer_results = {}
     for name, ar in (result.analyzer_results or {}).items():
-        details = ar.details or {}
-        safe_details = {}
-        for key, value in details.items():
-            if key == "screenshots":
-                safe_details[key] = {url: "(base64 image)" for url in (value or {})}
-            elif isinstance(value, bytes):
-                safe_details[key] = "(binary data)"
-            else:
-                safe_details[key] = value
-        analyzer_results[name] = {
-            "risk_score": ar.risk_score,
-            "confidence": ar.confidence,
-            "details": safe_details,
-            "errors": ar.errors if ar.errors else None,
-        }
+        analyzer_results[name] = normalize_analyzer_result(name, ar)
     return analyzer_results
 
 
@@ -1891,7 +1878,7 @@ class PhishingDetectionApp:
             response_payload["feature_locks"] = [
                 item
                 for item in response_payload["analyzer_results"].values()
-                if (item.get("details") or {}).get("message") == "feature_locked"
+                if item.get("status") == "feature_locked"
             ]
             return response_payload
 
@@ -2058,24 +2045,7 @@ class PhishingDetectionApp:
                         return v.isoformat()
                     return v
 
-                # Build analyzer_results with proper dict details (not str())
-                analyzer_results = {}
-                for name, ar in (result.analyzer_results or {}).items():
-                    details = ar.details or {}
-                    safe_details = {}
-                    for k, v in details.items():
-                        if k == "screenshots":
-                            safe_details[k] = {url: "(base64 image)" for url in (v or {})}
-                        elif isinstance(v, bytes):
-                            safe_details[k] = "(binary data)"
-                        else:
-                            safe_details[k] = v
-                    analyzer_results[name] = {
-                        "risk_score": ar.risk_score,
-                        "confidence": ar.confidence,
-                        "details": safe_details,
-                        "errors": ar.errors if ar.errors else None,
-                    }
+                analyzer_results = _serialize_analyzer_results(result)
 
                 payment_protection = None
                 if "payment_fraud" in analyzer_results:
@@ -2811,23 +2781,7 @@ class PhishingDetectionApp:
                         # Build monitor-compatible record (same as upload path)
                         from datetime import datetime, timezone
 
-                        analyzer_results = {}
-                        for name, ar in (result.analyzer_results or {}).items():
-                            details = ar.details or {}
-                            safe_details = {}
-                            for k, v in details.items():
-                                if k == "screenshots":
-                                    safe_details[k] = {url: "(base64 image)" for url in (v or {})}
-                                elif isinstance(v, bytes):
-                                    safe_details[k] = "(binary data)"
-                                else:
-                                    safe_details[k] = v
-                            analyzer_results[name] = {
-                                "risk_score": ar.risk_score,
-                                "confidence": ar.confidence,
-                                "details": safe_details,
-                                "errors": ar.errors if ar.errors else None,
-                            }
+                        analyzer_results = _serialize_analyzer_results(result)
 
                         payment_protection = None
                         if "payment_fraud" in analyzer_results:

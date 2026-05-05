@@ -265,9 +265,10 @@
 
   function decisionText(value) {
     const text = String(value || "").toUpperCase();
-    if (text === "SAFE") return "Safe to continue";
-    if (text === "VERIFY") return "Verify before payment";
-    if (text === "DO_NOT_PAY") return "Do not pay";
+    if (text === "CLEAN") return "Clean";
+    if (text === "SUSPICIOUS") return "Suspicious";
+    if (text === "LIKELY_PHISHING") return "Likely phishing";
+    if (text === "CONFIRMED_PHISHING") return "Confirmed phishing";
     return "Review evidence";
   }
 
@@ -277,6 +278,14 @@
     if (text === "DO_NOT_PAY" || text === "CONFIRMED_PHISHING") return "block";
     if (text === "VERIFY" || text === "SUSPICIOUS" || text === "LIKELY_PHISHING") return "verify";
     return "neutral";
+  }
+
+  function signalText(value) {
+    const text = String(value || "").toUpperCase();
+    if (text === "SAFE") return "No strong BEC or payment-language signal";
+    if (text === "VERIFY") return "Potential BEC or social-engineering signal";
+    if (text === "DO_NOT_PAY") return "High-risk BEC or payment-redirection signal";
+    return label(value || "No specific signal");
   }
 
   function updateNav() {
@@ -507,6 +516,18 @@
   }
 
   function analyzerStatus(result) {
+    const status = String((result && result.status) || "").toLowerCase();
+    const statusCopy = {
+      success: ["Completed", "done"],
+      cached: ["Cached", "cached"],
+      failed: ["Failed", "error"],
+      timeout: ["Timed out", "error"],
+      skipped: ["Skipped", "quiet"],
+      feature_locked: ["Locked", "locked"],
+      not_configured: ["Not configured", "quiet"],
+      quota_exceeded: ["Quota exceeded", "locked"],
+    };
+    if (statusCopy[status]) return statusCopy[status];
     const details = (result && result.details) || {};
     const errors = result && result.errors ? result.errors : [];
     if (details.message === "feature_locked") return ["Locked", "locked"];
@@ -516,16 +537,34 @@
 
   function analyzerSummary(name, result) {
     const details = (result && result.details) || {};
+    const evidence = Array.isArray(result && result.evidence) ? result.evidence : [];
+    if (evidence.length) {
+      const text = evidence
+        .map((item) => item && (item.text || item.value || item))
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" ");
+      if (text) return truncate(text, 170);
+    }
+    if (result && result.failure_reason) {
+      return truncate(result.failure_reason, 170);
+    }
     if (details.message === "feature_locked") {
       const feature = featureCatalog.get(details.feature_slug || name) || {};
       return `${feature.description || "This analyzer did not run."} Required plan: ${details.required_plan_name || feature.required_plan_name || "a higher plan"}.`;
     }
     if (details.decision) {
-      return `Payment decision: ${decisionText(details.decision)}.`;
+      return `BEC signal: ${signalText(details.decision)}.`;
     }
     if (details.summary) return details.summary;
     if (details.reason) return details.reason;
     return "Analyzer returned a result for this scan.";
+  }
+
+  function truncate(value, maxLength) {
+    const text = String(value || "").replace(/\s+/g, " ").trim();
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(maxLength - 1, 0)).trim()}...`;
   }
 
   function analyzerLabel(name) {
@@ -536,7 +575,7 @@
       domain_intelligence: "Domain intelligence",
       header_analysis: "Header authentication",
       nlp_intent: "Intent analysis",
-      payment_fraud: "Payment scam rules",
+      payment_fraud: "BEC and payment-language signals",
       sender_profiling: "Sender profiling",
       url_detonation: "Browser URL detonation",
       url_reputation: "URL reputation",
@@ -584,8 +623,7 @@
   }
 
   function renderResult(payload) {
-    const payment = payload.payment_protection || {};
-    const decision = payment.decision || payload.verdict || "REVIEW";
+    const decision = payload.verdict || "REVIEW";
     const source = payload.upload_filename || payload.email_id || "uploaded email";
     resultTitle.textContent = "Latest analysis";
     resultNote.textContent = `Fresh result for ${source}.`;
@@ -594,7 +632,7 @@
       const status = analyzerStatus(result);
       return `
         <div class="evidence-row">
-          <strong>${escapeHtml(analyzerLabel(name))}</strong>
+          <strong>${escapeHtml((result && result.display_name) || analyzerLabel(name))}</strong>
           <span class="status-pill ${escapeHtml(status[1])}">${escapeHtml(status[0])}</span>
           <span>${escapeHtml(analyzerSummary(name, result))}</span>
           <span>${escapeHtml(percent(result && result.risk_score))} risk</span>
@@ -602,11 +640,11 @@
       `;
     }).join("");
     resultBody.innerHTML = `
-      <section class="result-summary ${escapeHtml(decisionClass(payment.decision, payload.verdict))}">
+      <section class="result-summary ${escapeHtml(decisionClass(payload.verdict))}">
         <div>
-          <span class="result-kicker">Decision</span>
-          <strong>${escapeHtml(decisionText(payment.decision || payload.verdict))}</strong>
-          <p>Pipeline verdict: ${escapeHtml(label(payload.verdict || "Unknown"))}</p>
+          <span class="result-kicker">Phishing verdict</span>
+          <strong>${escapeHtml(decisionText(decision))}</strong>
+          <p>Review the evidence below before opening links, attachments, or replying.</p>
         </div>
         <div class="score-box">
           <span class="result-kicker">Risk score</span>

@@ -809,6 +809,18 @@ button:disabled {
   color: var(--v-suspicious);
 }
 
+.status-pill.quiet {
+  border-color: var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.status-pill.cached {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
 .status-pill.error,
 .badge.confirmed_phishing {
   border-color: var(--v-phishing-border);

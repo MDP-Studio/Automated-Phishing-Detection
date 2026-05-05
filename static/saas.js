@@ -624,7 +624,7 @@
         <article class="analyzer-row ${escapeHtml(status.className)}">
           <div class="analyzer-main">
             <div class="analyzer-title-row">
-              <strong>${escapeHtml(analyzerLabel(name))}</strong>
+              <strong>${escapeHtml((result && result.display_name) || analyzerLabel(name))}</strong>
               <span class="analyzer-status ${escapeHtml(status.className)}">${escapeHtml(status.label)}</span>
             </div>
             <p>${escapeHtml(analyzerSummary(name, result, status))}</p>
@@ -671,6 +671,20 @@
     const errors = Array.isArray(item.errors)
       ? item.errors.filter(Boolean)
       : (item.errors ? [item.errors] : []);
+    const normalizedStatus = String(item.status || "").toLowerCase();
+    const statusCopy = {
+      success: { label: "Completed", className: "done" },
+      cached: { label: "Cached", className: "cached" },
+      failed: { label: "Failed", className: "error" },
+      timeout: { label: "Timed out", className: "error" },
+      skipped: { label: "Skipped", className: "quiet" },
+      feature_locked: { label: "Locked", className: "locked" },
+      not_configured: { label: "Not configured", className: "quiet" },
+      quota_exceeded: { label: "Quota exceeded", className: "locked" },
+    };
+    if (statusCopy[normalizedStatus]) {
+      return statusCopy[normalizedStatus];
+    }
     if (details.message === "feature_locked") {
       return { label: "Locked", className: "locked" };
     }
@@ -686,6 +700,20 @@
   function analyzerSummary(name, result, status) {
     const item = result || {};
     const details = item.details || {};
+    const evidence = Array.isArray(item.evidence) ? item.evidence : [];
+    if (evidence.length) {
+      const text = evidence
+        .map((entry) => entry && (entry.text || entry.value || entry))
+        .filter(Boolean)
+        .slice(0, 2)
+        .join(" ");
+      if (text) {
+        return truncate(text, 150);
+      }
+    }
+    if (item.failure_reason) {
+      return truncate(item.failure_reason, 150);
+    }
     if (status.className === "locked") {
       const slug = details.feature_slug || name;
       const feature = featureCatalog.get(slug) || {};
@@ -783,13 +811,13 @@
   function formatDecision(value) {
     const decision = String(value || "").toUpperCase();
     if (decision === "DO_NOT_PAY") {
-      return "Do not pay";
+      return "Do not pay until independently confirmed";
     }
     if (decision === "VERIFY") {
-      return "Verify before payment";
+      return "Verify out of band";
     }
     if (decision === "SAFE") {
-      return "Safe to continue";
+      return "Safe to continue normal checks";
     }
     return formatLabel(value || "Not payment-specific");
   }
@@ -811,13 +839,13 @@
   function decisionGuidance(decision, verdict) {
     const normalized = String(decision || "").toUpperCase();
     if (normalized === "DO_NOT_PAY") {
-      return "Block payment release and confirm the request through a trusted channel.";
+      return "Do not release payment until the request is independently confirmed through a trusted channel.";
     }
     if (normalized === "VERIFY") {
       return "Hold payment and verify the supplier or bank-detail change outside email.";
     }
     if (normalized === "SAFE") {
-      return "Continue normal approval, while keeping the scan result in the workspace history.";
+      return "Continue normal internal checks, while keeping the scan result in the workspace history.";
     }
     return `Pipeline verdict: ${formatLabel(verdict || "Unknown")}. Review the evidence before acting.`;
   }

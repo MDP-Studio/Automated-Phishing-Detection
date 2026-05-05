@@ -123,6 +123,7 @@ def feature_entitlement(
 def locked_analyzer_result(analyzer_name: str, decision: EntitlementDecision | dict) -> AnalyzerResult:
     """Represent a skipped paid analyzer as structured lock metadata."""
     payload = decision.to_dict() if hasattr(decision, "to_dict") else dict(decision)
+    feature = get_feature(payload.get("feature_slug", "manual_scan"))
     return AnalyzerResult(
         analyzer_name=analyzer_name,
         risk_score=0.0,
@@ -132,6 +133,11 @@ def locked_analyzer_result(analyzer_name: str, decision: EntitlementDecision | d
             **payload,
         },
         errors=[payload.get("reason", "Feature is locked for this plan.")],
+        status="feature_locked",
+        plan_required=payload.get("required_plan", feature.minimum_plan),
+        cost_tier="paid_api" if feature.expensive else "local",
+        risk_contribution=0.0,
+        failure_reason=payload.get("reason", "Feature is locked for this plan."),
     )
 
 

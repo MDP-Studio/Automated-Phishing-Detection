@@ -2689,6 +2689,10 @@ select:focus-visible {
   border-color: color-mix(in srgb, var(--v-confirmed) 54%, var(--border));
 }
 
+.analyzer-row.cached {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+
 .analyzer-title-row {
   display: flex;
   gap: 10px;
@@ -2729,6 +2733,11 @@ select:focus-visible {
 
 .analyzer-status.quiet {
   color: var(--text-muted);
+}
+
+.analyzer-status.cached {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  color: var(--accent);
 }
 
 .analyzer-metrics {

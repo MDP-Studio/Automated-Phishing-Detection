@@ -268,6 +268,13 @@ def test_saas_signup_session_plans_upload_and_history(tmp_path):
     assert upload.json()["upload_filename"] == "sample.eml"
     assert upload.json()["account"]["monthly_scan_used"] == 1
     assert upload.json()["feature_locks"][0]["details"]["required_plan_name"] == "Starter"
+    assert upload.json()["analyzer_results"]["payment_fraud"]["status"] == "success"
+    assert upload.json()["analyzer_results"]["payment_fraud"]["display_name"] == "BEC and payment-language signals"
+    assert upload.json()["analyzer_results"]["payment_fraud"]["risk_contribution"] == 0.468
+    assert upload.json()["analyzer_results"]["url_reputation"]["status"] == "feature_locked"
+    assert upload.json()["analyzer_results"]["url_reputation"]["plan_required"] == "starter"
+    assert upload.json()["analyzer_results"]["url_reputation"]["cost_tier"] == "paid_api"
+    assert upload.json()["analyzer_results"]["url_reputation"]["evidence"]
     assert history.json()["results"][0]["payment_decision"] == "VERIFY"
 
 

@@ -26,8 +26,8 @@
         <p>
           Let finance teams and AI agents inspect invoices, supplier updates,
           and bank-detail changes before money moves. Every scan returns a
-          clear SAFE, VERIFY, or DO_NOT_PAY decision with evidence and next
-          steps.
+          clear decision with evidence: safe to continue normal checks, verify
+          out of band, or do not pay until independently confirmed.
         </p>
         <div class="hero-actions">
           {{HERO_ACTIONS}}
@@ -52,7 +52,7 @@
       <div class="workflow-item">
         <span>3</span>
         <strong>Finance gets a decision</strong>
-        <p>SAFE proceeds normally. VERIFY and DO_NOT_PAY hold payment until independent checks are complete.</p>
+        <p>Safe messages continue normal checks. Risky messages are held for out-of-band verification or paused until independently confirmed.</p>
       </div>
     </section>
 
@@ -62,13 +62,13 @@
         <h2>An AI accounts-payable agent called the firewall before release.</h2>
         <p>
           The recorded demo shows Gemini finding the local MCP server, calling
-          <code>analyze_payment_email</code>, receiving a DO_NOT_PAY result, and
-          writing a short AP team note grounded in the tool output.
+          <code>analyze_payment_email</code>, receiving a do-not-pay-until-confirmed
+          result, and writing a short AP team note grounded in the tool output.
         </p>
         <div class="sample-outcomes" aria-label="Sample decision coverage">
-          <span>SAFE sample</span>
-          <span>VERIFY sample</span>
-          <span>DO_NOT_PAY sample</span>
+          <span>Safe sample</span>
+          <span>Verify sample</span>
+          <span>Do-not-pay sample</span>
         </div>
       </div>
       <figure class="agent-proof-media">

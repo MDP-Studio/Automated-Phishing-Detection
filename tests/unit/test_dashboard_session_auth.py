@@ -408,6 +408,22 @@ def test_dashboard_static_assets_are_served_without_session():
         assert expected in response.text
 
 
+def test_phishanalyze_result_copy_stays_phishing_specific():
+    js = Path("static/phish_app.js").read_text(encoding="utf-8")
+
+    assert "Phishing verdict" in js
+    assert "Payment decision:" not in js
+    assert "Verify before payment" not in js
+
+
+def test_payshield_result_copy_uses_customer_safe_payment_wording():
+    js = Path("static/saas.js").read_text(encoding="utf-8")
+
+    assert "Do not pay until independently confirmed" in js
+    assert "Safe to continue normal checks" in js
+    assert "Verify out of band" in js
+
+
 def test_disabled_public_demo_pages_redirect_to_product_by_default():
     client = TestClient(
         _build_app_with_token(),

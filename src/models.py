@@ -110,6 +110,13 @@ class AnalyzerResult:
     confidence: float        # 0.0 (no data) to 1.0 (certain)
     details: dict
     errors: list[str] = field(default_factory=list)
+    status: str = "success"
+    plan_required: str = "free"
+    cost_tier: str = "local"
+    evidence: list[dict] = field(default_factory=list)
+    risk_contribution: Optional[float] = None
+    failure_reason: Optional[str] = None
+    timing_ms: Optional[float] = None
 
 
 @dataclass

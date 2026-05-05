@@ -7,9 +7,11 @@ import json
 import logging
 from datetime import datetime, timezone
 from email.utils import parseaddr
+from time import perf_counter
 from typing import Callable, Optional
 
 from src.billing.entitlements import ANALYZER_FEATURES, locked_analyzer_result
+from src.analyzers.result_contract import failed_analyzer_result, not_configured_analyzer_result
 from src.models import EmailObject, PipelineResult, Verdict, AnalyzerResult
 from src.config import PipelineConfig
 from src.scoring.blocklist_allowlist import BlocklistAllowlistChecker, ListCheckResult
@@ -374,8 +376,8 @@ class PhishingPipeline:
 
         results = {}
 
-        async def _launch(names: list[str]) -> list[tuple[str, asyncio.Task]]:
-            tasks: list[tuple[str, asyncio.Task]] = []
+        async def _launch(names: list[str]) -> list[tuple[str, asyncio.Task, float]]:
+            tasks: list[tuple[str, asyncio.Task, float]] = []
             for analyzer_name in names:
                 try:
                     feature_slug = ANALYZER_FEATURES.get(analyzer_name)
@@ -395,23 +397,36 @@ class PhishingPipeline:
                             continue
                     analyzer = await self._load_analyzer(analyzer_name)
                     if analyzer:
+                        started_at = perf_counter()
                         task = asyncio.create_task(
                             self._run_analyzer_with_limits(
                                 analyzer_name, analyzer, email, iocs, extracted_urls
                             )
                         )
-                        tasks.append((analyzer_name, task))
+                        tasks.append((analyzer_name, task, started_at))
+                    else:
+                        results[analyzer_name] = not_configured_analyzer_result(
+                            analyzer_name,
+                            "Analyzer is not configured or could not be loaded.",
+                        )
                 except Exception as e:
                     self.logger.warning(f"Failed to load analyzer {analyzer_name}: {e}")
+                    results[analyzer_name] = failed_analyzer_result(
+                        analyzer_name,
+                        str(e),
+                        status="failed",
+                    )
             return tasks
 
         # ── Phase 1 ──
         phase1_tasks = await _launch(phase1_names)
 
         # Run all concurrently with timeouts
-        for analyzer_name, task in phase1_tasks:
+        for analyzer_name, task, started_at in phase1_tasks:
             try:
                 result = await asyncio.wait_for(task, timeout=_analyzer_timeout(analyzer_name))
+                if result.timing_ms is None:
+                    result.timing_ms = round((perf_counter() - started_at) * 1000, 2)
                 results[analyzer_name] = result
                 self.logger.debug(
                     f"Analyzer {analyzer_name} completed: score={result.risk_score:.3f}"
@@ -430,21 +445,19 @@ class PhishingPipeline:
 
             except asyncio.TimeoutError:
                 self.logger.warning(f"Analyzer {analyzer_name} timed out")
-                results[analyzer_name] = AnalyzerResult(
-                    analyzer_name=analyzer_name,
-                    risk_score=0.5,
-                    confidence=0.0,
-                    details={"error": "timeout"},
-                    errors=["Analyzer timed out"],
+                results[analyzer_name] = failed_analyzer_result(
+                    analyzer_name,
+                    "Analyzer timed out",
+                    status="timeout",
+                    timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
             except Exception as e:
                 self.logger.error(f"Analyzer {analyzer_name} failed: {e}")
-                results[analyzer_name] = AnalyzerResult(
-                    analyzer_name=analyzer_name,
-                    risk_score=0.5,
-                    confidence=0.0,
-                    details={"error": str(e)},
-                    errors=[str(e)],
+                results[analyzer_name] = failed_analyzer_result(
+                    analyzer_name,
+                    str(e),
+                    status="failed",
+                    timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
 
         # ── Phase 2: analyzers that depend on phase-1 outputs ──
@@ -452,30 +465,30 @@ class PhishingPipeline:
         # captured). brand_impersonation can read through to a
         # populated dict instead of an empty one.
         phase2_tasks = await _launch(phase2_names)
-        for analyzer_name, task in phase2_tasks:
+        for analyzer_name, task, started_at in phase2_tasks:
             try:
                 result = await asyncio.wait_for(task, timeout=_analyzer_timeout(analyzer_name))
+                if result.timing_ms is None:
+                    result.timing_ms = round((perf_counter() - started_at) * 1000, 2)
                 results[analyzer_name] = result
                 self.logger.debug(
                     f"Analyzer {analyzer_name} completed: score={result.risk_score:.3f}"
                 )
             except asyncio.TimeoutError:
                 self.logger.warning(f"Analyzer {analyzer_name} timed out")
-                results[analyzer_name] = AnalyzerResult(
-                    analyzer_name=analyzer_name,
-                    risk_score=0.5,
-                    confidence=0.0,
-                    details={"error": "timeout"},
-                    errors=["Analyzer timed out"],
+                results[analyzer_name] = failed_analyzer_result(
+                    analyzer_name,
+                    "Analyzer timed out",
+                    status="timeout",
+                    timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
             except Exception as e:
                 self.logger.error(f"Analyzer {analyzer_name} failed: {e}")
-                results[analyzer_name] = AnalyzerResult(
-                    analyzer_name=analyzer_name,
-                    risk_score=0.5,
-                    confidence=0.0,
-                    details={"error": str(e)},
-                    errors=[str(e)],
+                results[analyzer_name] = failed_analyzer_result(
+                    analyzer_name,
+                    str(e),
+                    status="failed",
+                    timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
 
         return results
@@ -580,14 +593,18 @@ class PhishingPipeline:
                 # Fallback: try calling with just email
                 return await analyzer.analyze(email)
 
+        started_at = perf_counter()
         async with self.global_semaphore:
             # Apply per-API rate limiter
             api_name = self._get_api_name(name)
             if api_name in self.rate_limiters:
                 async with self.rate_limiters[api_name]:
-                    return await run_analyzer()
+                    result = await run_analyzer()
             else:
-                return await run_analyzer()
+                result = await run_analyzer()
+
+        result.timing_ms = round((perf_counter() - started_at) * 1000, 2)
+        return result
 
     # Domains whose authentication (SPF/DKIM/DMARC) passing is strong
     # evidence the email is legitimate, even when content looks "phishy".
