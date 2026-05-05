@@ -50,7 +50,7 @@ class SandboxStrategy(ABC):
 class HybridAnalysisStrategy(SandboxStrategy, BaseAPIClient):
     """Hybrid Analysis (Payload Security) sandbox strategy."""
 
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, api_key: str, api_secret: str = ""):
         """
         Initialize Hybrid Analysis client.
 
@@ -148,8 +148,8 @@ class HybridAnalysisStrategy(SandboxStrategy, BaseAPIClient):
         """Get Hybrid Analysis headers."""
         return {
             "api-key": self.api_key,
-            "api-secret": self.api_secret,
             "user-agent": "Phishing-Detection-Pipeline/1.0",
+            **({"api-secret": self.api_secret} if self.api_secret else {}),
         }
 
     @staticmethod

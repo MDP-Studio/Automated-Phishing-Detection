@@ -137,6 +137,19 @@ def _delete_with_csrf(
     return client.delete(path, headers=headers)
 
 
+def _patch_json_with_csrf(
+    client: TestClient,
+    path: str,
+    payload: dict,
+    *,
+    origin: str = "https://testserver",
+):
+    csrf = client.cookies.get(USER_CSRF_COOKIE_NAME)
+    headers = _same_origin_headers(origin)
+    headers["x-csrf-token"] = csrf
+    return client.patch(path, headers=headers, json=payload)
+
+
 def _stripe_signature(payload: bytes, secret: str, timestamp: int) -> str:
     signed = f"{timestamp}.{payload.decode('utf-8')}".encode("utf-8")
     digest = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
@@ -280,7 +293,147 @@ def test_saas_signup_session_plans_upload_and_history(tmp_path):
     assert upload.json()["product_verdicts"]["payshield"]["display_decision"] == "VERIFY"
     assert upload.json()["payment_protection"]["display_label"] == "Verify out of band"
     assert upload.json()["evidence_summary"]["source"] == "structured_analyzer_evidence"
+    assert upload.json()["evidence_summary"]["llm_status"] == "feature_locked"
     assert history.json()["results"][0]["payment_decision"] == "VERIFY"
+
+
+def test_saas_team_member_role_management_is_owner_scoped(tmp_path):
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+
+    assert _signup(client).status_code == 200
+    listing = client.get("/api/saas/team/members")
+    add = _post_json_with_csrf(
+        client,
+        "/api/saas/team/members",
+        {
+            "email": "analyst@example.com",
+            "password": "correct horse analyst",
+            "role": "analyst",
+        },
+    )
+    analyst_id = add.json()["member"]["user_id"]
+    update = _patch_json_with_csrf(
+        client,
+        f"/api/saas/team/members/{analyst_id}",
+        {"role": "viewer"},
+    )
+    delete = _delete_with_csrf(client, f"/api/saas/team/members/{analyst_id}")
+    owner_id = listing.json()["members"][0]["user_id"]
+    delete_last_owner = _delete_with_csrf(client, f"/api/saas/team/members/{owner_id}")
+
+    assert listing.status_code == 200
+    assert listing.json()["permissions"]["can_manage_team"] is True
+    assert listing.json()["members"][0]["role"] == "owner"
+    assert add.status_code == 200
+    assert add.json()["member"]["email"] == "analyst@example.com"
+    assert add.json()["member"]["role"] == "analyst"
+    assert update.status_code == 200
+    assert update.json()["member"]["role"] == "viewer"
+    assert delete.status_code == 200
+    assert delete.json()["deleted"] is True
+    assert delete_last_owner.status_code == 400
+
+
+def test_mailbox_scan_now_is_feature_gated_before_lookup(tmp_path):
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+
+    assert _signup(client).status_code == 200
+    response = _post_json_with_csrf(
+        client,
+        "/api/saas/mailboxes/mail_missing/scan-now",
+        {"max_results": 1},
+    )
+
+    assert response.status_code == 402
+    assert response.json()["locked"]["feature_slug"] == "mailbox_monitoring"
+
+
+def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch):
+    monkeypatch.setenv("ACCOUNTS_ENCRYPTION_KEY", "test-mailbox-encryption-key-for-unit-tests")
+
+    from src.ingestion.email_provider import FetchedEmail
+    import src.ingestion.imap_provider as imap_provider_module
+
+    class FakeIMAPProvider:
+        config_seen = None
+        disconnected = False
+
+        def __init__(self, config):
+            self.config = config
+            FakeIMAPProvider.config_seen = config
+
+        def authenticate(self):
+            return True
+
+        def fetch_new_emails(self, max_results=20):
+            assert max_results == 2
+            return [
+                FetchedEmail(
+                    provider_id="uid-1",
+                    account_id="owner@example.com",
+                    raw_bytes=(
+                        b"From: vendor@example.com\r\n"
+                        b"Subject: Mailbox scan test\r\n\r\n"
+                        b"Private mailbox body should not be returned."
+                    ),
+                    provider_type="imap",
+                    metadata={},
+                )
+            ]
+
+        def disconnect(self):
+            FakeIMAPProvider.disconnected = True
+
+    monkeypatch.setattr(imap_provider_module, "IMAPProvider", FakeIMAPProvider)
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+
+    signup = _signup(client)
+    context = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=context["org_id"], plan_slug="pro")
+    connect = _post_json_with_csrf(
+        client,
+        "/api/saas/mailboxes",
+        {
+            "provider": "imap",
+            "email": "owner@example.com",
+            "host": "imap.example.com",
+            "app_password": "secret app password",
+        },
+    )
+    mailbox_id = connect.json()["mailbox"]["id"]
+    response = _post_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{mailbox_id}/scan-now",
+        {"max_results": 2},
+    )
+    history = client.get("/api/saas/scans")
+    serialized = json.dumps(response.json())
+
+    assert response.status_code == 200
+    assert response.json()["fetched"] == 1
+    assert response.json()["analyzed"] == 1
+    assert response.json()["results"][0]["subject"] == "Mailbox scan test"
+    assert response.json()["mailbox"]["credential_saved"] is True
+    assert history.json()["results"][0]["email_id"]
+    assert FakeIMAPProvider.config_seen.host == "imap.example.com"
+    assert FakeIMAPProvider.config_seen.user == "owner@example.com"
+    assert FakeIMAPProvider.disconnected is True
+    assert "Private mailbox body" not in serialized
+    assert "secret app password" not in serialized
+    assert "encrypted_token_ref" not in serialized
 
 
 def test_saas_scan_history_delete_is_org_scoped_and_keeps_usage(tmp_path):

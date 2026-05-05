@@ -134,6 +134,46 @@ def test_paid_plan_unlocks_starter_features(tmp_path):
     assert decision.current_plan == "starter"
 
 
+def test_workspace_team_roles_preserve_last_owner(tmp_path):
+    store = SaaSStore(tmp_path / "saas.db")
+    owner = store.create_user_with_org(email="owner@example.com", password="long-password-1")
+
+    member = store.add_org_member(
+        org_id=owner.org_id,
+        actor_user_id=owner.user_id,
+        email="analyst@example.com",
+        password="long-password-2",
+        role="analyst",
+    )
+    updated = store.update_org_member_role(
+        org_id=owner.org_id,
+        actor_user_id=owner.user_id,
+        target_user_id=member.user_id,
+        role="viewer",
+    )
+
+    assert [item.role for item in store.list_org_members(owner.org_id)] == ["owner", "viewer"]
+    assert updated.role == "viewer"
+    with pytest.raises(ValueError, match="at least one owner"):
+        store.update_org_member_role(
+            org_id=owner.org_id,
+            actor_user_id=owner.user_id,
+            target_user_id=owner.user_id,
+            role="admin",
+        )
+    with pytest.raises(ValueError, match="at least one owner"):
+        store.remove_org_member(
+            org_id=owner.org_id,
+            actor_user_id=owner.user_id,
+            target_user_id=owner.user_id,
+        )
+    assert store.remove_org_member(
+        org_id=owner.org_id,
+        actor_user_id=owner.user_id,
+        target_user_id=member.user_id,
+    ) is True
+
+
 def test_scan_history_is_tenant_scoped(tmp_path):
     store = SaaSStore(tmp_path / "saas.db")
     alice = store.create_user_with_org(email="alice@example.com", password="long-password-1")

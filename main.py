@@ -49,6 +49,10 @@ from src.product_verdicts import (
     build_product_verdicts,
     enrich_payment_protection,
 )
+from src.llm_evidence_summarizer import (
+    LLMEvidenceSummarizer,
+    create_evidence_summary_client,
+)
 from src.reporting.report_generator import ReportGenerator
 from src.reporting.ioc_exporter import IOCExporter
 from src.reporting.sigma_exporter import SigmaExporter
@@ -905,6 +909,14 @@ class PhishingDetectionApp:
                 raise HTTPException(status_code=401, detail="User login required")
             return context
 
+        def _require_workspace_role(context, allowed_roles: set[str]) -> None:
+            role = str(getattr(context, "role", "") or "").lower()
+            if role not in allowed_roles:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Workspace role is not allowed to perform this action",
+                )
+
         def _saas_session_payload(request: Request) -> dict:
             if not self.saas_session_manager.enabled:
                 return {
@@ -1035,6 +1047,189 @@ class PhishingDetectionApp:
                 "used": used,
                 "remaining": 0,
                 "limit_kind": "quota",
+            }
+
+        def _mailbox_scan_limit(payload: dict) -> int:
+            try:
+                value = int(payload.get("max_results", 5))
+            except (TypeError, ValueError):
+                value = 5
+            return max(1, min(value, 10))
+
+        def _mailbox_imap_config(mailbox) -> object:
+            """Build an IMAPConfig from encrypted customer mailbox metadata."""
+            if not mailbox.encrypted_token_ref:
+                raise HTTPException(status_code=409, detail="Mailbox credential is missing")
+            from src.config import IMAPConfig
+            from src.security.credentials import decrypt_password
+
+            try:
+                bundle = json.loads(decrypt_password(mailbox.encrypted_token_ref))
+            except RuntimeError as exc:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Mailbox credential could not be decrypted. Reconnect this mailbox.",
+                ) from exc
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=409, detail="Mailbox credential is invalid") from exc
+
+            provider = str(bundle.get("provider") or mailbox.provider or "").lower()
+            host_defaults = {
+                "gmail": "imap.gmail.com",
+                "outlook": "outlook.office365.com",
+                "imap": "",
+            }
+            host = str(bundle.get("host") or host_defaults.get(provider, "")).strip()
+            user = str(bundle.get("email") or mailbox.external_account_id or "").strip()
+            password = str(bundle.get("app_password") or "").strip()
+            try:
+                port = int(bundle.get("port") or 993)
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(status_code=409, detail="Mailbox IMAP port is invalid") from exc
+            if not host or not user or not password:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Mailbox needs host, email, and app password before scanning",
+                )
+            return IMAPConfig(host=host, port=port, user=user, password=password)
+
+        async def _scan_mailbox_now(store: SaaSStore, context, mailbox, max_results: int) -> dict:
+            from src.extractors.eml_parser import EMLParser
+            from src.ingestion.imap_provider import IMAPProvider
+
+            config = _mailbox_imap_config(mailbox)
+            provider = IMAPProvider(config)
+            authenticated = await asyncio.to_thread(provider.authenticate)
+            if not authenticated:
+                store.set_mail_account_status(
+                    org_id=context.org_id,
+                    mail_account_id=mailbox.id,
+                    status="error",
+                    actor_user_id=context.user_id,
+                )
+                raise HTTPException(status_code=502, detail="Mailbox authentication failed")
+
+            try:
+                fetched = await asyncio.to_thread(provider.fetch_new_emails, max_results)
+            finally:
+                await asyncio.to_thread(provider.disconnect)
+
+            store.set_mail_account_status(
+                org_id=context.org_id,
+                mail_account_id=mailbox.id,
+                status="active",
+                actor_user_id=context.user_id,
+            )
+            parser = EMLParser()
+            analyzed = []
+
+            def feature_gate(feature_slug: str) -> dict:
+                return store.check_entitlement(
+                    org_id=context.org_id,
+                    user_id=context.user_id,
+                    feature_slug=feature_slug,
+                    enforce_scan_quota=False,
+                ).to_dict()
+
+            from datetime import datetime, timezone
+            for item in fetched:
+                email = parser.parse_bytes(item.raw_bytes)
+                if email is None:
+                    continue
+                scan_job_id = store.create_scan_job(
+                    org_id=context.org_id,
+                    user_id=context.user_id,
+                    source="mailbox_scan",
+                    mail_account_id=mailbox.id,
+                )
+                try:
+                    result = await self.pipeline.analyze(email, feature_gate=feature_gate)
+                    timestamp = datetime.now(timezone.utc).isoformat()
+                    response_payload = _api_payload_from_pipeline(email, result, timestamp)
+                    await _maybe_add_llm_evidence_summary(store, context, response_payload)
+                    response_payload["source"] = "mailbox_scan"
+                    response_payload["mail_account_id"] = mailbox.id
+                    payment = response_payload.get("payment_protection") or {}
+                    store.record_scan_result(
+                        org_id=context.org_id,
+                        user_id=context.user_id,
+                        scan_job_id=scan_job_id,
+                        email_id=result.email_id,
+                        verdict=result.verdict.value,
+                        payment_decision=payment.get("decision") if isinstance(payment, dict) else None,
+                        result=response_payload,
+                    )
+                    store.complete_scan_job(scan_job_id, "completed")
+                    analyzed.append({
+                        "email_id": result.email_id,
+                        "verdict": result.verdict.value,
+                        "payment_decision": payment.get("display_decision") or payment.get("decision"),
+                        "provider_id": item.provider_id,
+                        "subject": email.subject or "",
+                    })
+                except Exception:
+                    store.complete_scan_job(scan_job_id, "failed")
+                    raise
+
+            if analyzed:
+                store.record_usage_event(
+                    org_id=context.org_id,
+                    user_id=context.user_id,
+                    feature_slug="mailbox_monitoring",
+                    quantity=len(analyzed),
+                    idempotency_key=f"mailbox-scan:{mailbox.id}:{datetime.now(timezone.utc).isoformat()}",
+                )
+            updated_context = store.get_account_context(context.user_id) or context
+            return {
+                "status": "ok",
+                "account": updated_context.to_dict(),
+                "mailbox": store.get_mail_account(
+                    org_id=context.org_id,
+                    mail_account_id=mailbox.id,
+                ).to_public_dict(),
+                "fetched": len(fetched),
+                "analyzed": len(analyzed),
+                "results": analyzed,
+            }
+
+        async def _maybe_add_llm_evidence_summary(
+            store: SaaSStore,
+            context,
+            response_payload: dict,
+        ) -> None:
+            summary = response_payload.setdefault("evidence_summary", {})
+            entitlement = store.check_entitlement(
+                org_id=context.org_id,
+                user_id=context.user_id,
+                feature_slug="llm_intent",
+                audit_lock=False,
+            )
+            if not entitlement.available:
+                summary["llm_status"] = "feature_locked"
+                summary["llm_reason"] = entitlement.reason
+                return
+            if not _coerce_bool(os.getenv("LLM_EVIDENCE_SUMMARY_ENABLED"), False):
+                summary["llm_status"] = "disabled"
+                summary["llm_reason"] = "Set LLM_EVIDENCE_SUMMARY_ENABLED=true to call the configured LLM summarizer."
+                return
+            client = create_evidence_summary_client(self.config.api)
+            if client is None:
+                summary["llm_status"] = "not_configured"
+                summary["llm_reason"] = "No configured LLM API key is available for evidence summaries."
+                return
+            try:
+                llm_summary = await LLMEvidenceSummarizer(client).summarize(response_payload)
+            except Exception as exc:
+                logger.warning("LLM evidence summary failed: %s", exc)
+                summary["llm_status"] = "failed"
+                summary["llm_reason"] = str(exc)
+                return
+            finally:
+                if hasattr(client, "close"):
+                    await client.close()
+            response_payload["evidence_summary"] = {
+                **summary,
+                **llm_summary,
             }
 
         def _stripe_subscription_price_id(subscription: dict) -> str | None:
@@ -1483,6 +1678,7 @@ class PhishingDetectionApp:
         async def api_saas_delete_scan(request: Request, result_id: str):
             """Delete one tenant-scoped scan result from workspace history."""
             context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
             deleted = _get_saas_store().delete_scan_result(
                 org_id=context.org_id,
                 user_id=context.user_id,
@@ -1498,6 +1694,81 @@ class PhishingDetectionApp:
                 "account": updated_context.to_dict(),
             }
 
+        @app.get("/api/saas/team/members")
+        async def api_saas_team_members(request: Request):
+            """Return workspace members for role-aware product UI."""
+            context = _current_user_context(request)
+            members = _get_saas_store().list_org_members(context.org_id)
+            return {
+                "account": context.to_dict(),
+                "roles": ["owner", "admin", "analyst", "viewer"],
+                "permissions": {
+                    "can_manage_team": context.role in {"owner", "admin"},
+                    "can_scan": context.role in {"owner", "admin", "analyst"},
+                    "can_view_history": context.role in {"owner", "admin", "analyst", "viewer"},
+                },
+                "members": [item.to_public_dict() for item in members],
+            }
+
+        @app.post("/api/saas/team/members")
+        async def api_saas_add_team_member(request: Request):
+            """Create or attach a workspace member with a scoped role."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
+            payload = await _json_object_body(request)
+            try:
+                member = _get_saas_store().add_org_member(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    email=str(payload.get("email", "")),
+                    password=str(payload.get("password", "")),
+                    role=str(payload.get("role", "analyst")),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            return {
+                "status": "ok",
+                "member": member.to_public_dict(),
+                "members": [
+                    item.to_public_dict()
+                    for item in _get_saas_store().list_org_members(context.org_id)
+                ],
+            }
+
+        @app.patch("/api/saas/team/members/{user_id}")
+        async def api_saas_update_team_member(request: Request, user_id: str):
+            """Update a workspace member role."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
+            payload = await _json_object_body(request)
+            try:
+                member = _get_saas_store().update_org_member_role(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    target_user_id=user_id,
+                    role=str(payload.get("role", "")),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            return {"status": "ok", "member": member.to_public_dict()}
+
+        @app.delete("/api/saas/team/members/{user_id}")
+        async def api_saas_remove_team_member(request: Request, user_id: str):
+            """Remove one member from the signed-in workspace."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
+            try:
+                deleted = _get_saas_store().remove_org_member(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    target_user_id=user_id,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            if not deleted:
+                raise HTTPException(status_code=404, detail="Member not found")
+            return {"status": "ok", "deleted": True, "user_id": user_id}
+
         @app.get("/api/saas/mailboxes")
         async def api_saas_mailboxes(request: Request):
             """Return tenant-scoped mailbox connection state for the customer app."""
@@ -1509,6 +1780,7 @@ class PhishingDetectionApp:
         async def api_saas_connect_mailbox(request: Request):
             """Register or reconnect a user-owned mailbox for future monitoring."""
             context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
             payload = await _json_object_body(request)
             provider = str(payload.get("provider", "")).strip().lower()
             if provider not in {"gmail", "outlook", "imap"}:
@@ -1609,6 +1881,7 @@ class PhishingDetectionApp:
         async def api_saas_delete_mailbox(request: Request, mail_account_id: str):
             """Delete one tenant-scoped mailbox connection."""
             context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
             store = _get_saas_store()
             deleted = store.delete_mail_account(
                 org_id=context.org_id,
@@ -1622,10 +1895,39 @@ class PhishingDetectionApp:
             response.update({"status": "ok", "deleted": True, "mail_account_id": mail_account_id})
             return response
 
+        @app.post("/api/saas/mailboxes/{mail_account_id}/scan-now")
+        async def api_saas_scan_mailbox_now(request: Request, mail_account_id: str):
+            """Scan unread messages from one tenant-scoped mailbox on demand."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
+            payload = await _json_object_body(request)
+            store = _get_saas_store()
+            entitlement = store.check_entitlement(
+                org_id=context.org_id,
+                user_id=context.user_id,
+                feature_slug="mailbox_monitoring",
+                audit_lock=True,
+            )
+            if not entitlement.available:
+                return JSONResponse(status_code=402, content={"locked": entitlement.to_dict()})
+            mailbox = store.get_mail_account(
+                org_id=context.org_id,
+                mail_account_id=mail_account_id,
+            )
+            if mailbox is None:
+                raise HTTPException(status_code=404, detail="Mailbox not found")
+            return await _scan_mailbox_now(
+                store,
+                context,
+                mailbox,
+                _mailbox_scan_limit(payload),
+            )
+
         @app.post("/api/saas/billing/checkout")
         async def api_saas_billing_checkout(request: Request):
             """Create a Stripe Checkout Session for a subscription upgrade."""
             context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
             payload = await _json_object_body(request)
             target_plan = str(payload.get("plan", "")).strip().lower()
             billing_interval = str(payload.get("billing_interval", "monthly")).strip().lower()
@@ -1761,6 +2063,7 @@ class PhishingDetectionApp:
         async def api_saas_billing_portal(request: Request):
             """Create a short-lived Stripe Customer Portal session."""
             context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
             if not context.stripe_customer_id:
                 raise HTTPException(
                     status_code=409,
@@ -1833,6 +2136,7 @@ class PhishingDetectionApp:
         async def api_saas_analyze_upload(request: Request, file: UploadFile = File(...)):
             """Analyze an uploaded email for a signed-in user with plan gates."""
             context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
             store = _get_saas_store()
             scan_access = store.check_entitlement(
                 org_id=context.org_id,
@@ -1871,6 +2175,7 @@ class PhishingDetectionApp:
                 result = await self.pipeline.analyze(email, feature_gate=feature_gate)
                 timestamp = datetime.now(timezone.utc).isoformat()
                 response_payload = _api_payload_from_pipeline(email, result, timestamp)
+                await _maybe_add_llm_evidence_summary(store, context, response_payload)
                 response_payload["upload_filename"] = file.filename or email.email_id
                 payment = response_payload.get("payment_protection") or {}
                 store.record_usage_event(

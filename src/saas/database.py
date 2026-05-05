@@ -18,6 +18,7 @@ from src.billing.entitlements import EntitlementDecision, feature_entitlement
 from src.billing.plans import get_plan
 
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
+WORKSPACE_ROLES = {"owner", "admin", "analyst", "viewer"}
 
 
 class DuplicateEmailError(ValueError):
@@ -74,6 +75,22 @@ class MailAccountRecord:
             "status": self.status,
             "created_at": self.created_at,
             "credential_saved": bool(self.encrypted_token_ref),
+        }
+
+
+@dataclass(frozen=True)
+class TeamMemberRecord:
+    user_id: str
+    email: str
+    role: str
+    created_at: str
+
+    def to_public_dict(self) -> dict:
+        return {
+            "user_id": self.user_id,
+            "email": self.email,
+            "role": self.role,
+            "created_at": self.created_at,
         }
 
 
@@ -415,6 +432,184 @@ class SaaSStore:
             )
             conn.commit()
 
+    def list_org_members(self, org_id: str) -> list[TeamMemberRecord]:
+        """Return active workspace members without password or session data."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT u.id AS user_id, u.email, m.role, m.created_at
+                FROM memberships m
+                JOIN users u ON u.id = m.user_id
+                WHERE m.org_id = ? AND u.disabled_at IS NULL
+                ORDER BY
+                    CASE m.role
+                        WHEN 'owner' THEN 0
+                        WHEN 'admin' THEN 1
+                        WHEN 'analyst' THEN 2
+                        ELSE 3
+                    END,
+                    u.email ASC
+                """,
+                (org_id,),
+            ).fetchall()
+            return [
+                TeamMemberRecord(
+                    user_id=row["user_id"],
+                    email=row["email"],
+                    role=row["role"],
+                    created_at=row["created_at"],
+                )
+                for row in rows
+            ]
+
+    def add_org_member(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        email: str,
+        password: str,
+        role: str = "analyst",
+    ) -> TeamMemberRecord:
+        """Create or attach a user to an organization with a scoped role."""
+        normalized_email = normalize_email(email)
+        validate_password(password)
+        role = _validate_workspace_role(role)
+        now = utc_now_iso()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, disabled_at FROM users WHERE email = ?",
+                (normalized_email,),
+            ).fetchone()
+            if row is None:
+                user_id = new_id("usr")
+                conn.execute(
+                    "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
+                    (user_id, normalized_email, hash_password(password), now),
+                )
+            elif row["disabled_at"]:
+                raise ValueError("user account is disabled")
+            else:
+                user_id = row["id"]
+            existing = conn.execute(
+                "SELECT 1 FROM memberships WHERE org_id = ? AND user_id = ?",
+                (org_id, user_id),
+            ).fetchone()
+            if existing is not None:
+                raise ValueError("user is already a member of this workspace")
+            conn.execute(
+                """
+                INSERT INTO memberships (user_id, org_id, role, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (user_id, org_id, role, now),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="team.member_added",
+                target_type="user",
+                target_id=user_id,
+                metadata={"role": role},
+                now=now,
+            )
+            conn.commit()
+            return TeamMemberRecord(
+                user_id=user_id,
+                email=normalized_email,
+                role=role,
+                created_at=now,
+            )
+
+    def update_org_member_role(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        target_user_id: str,
+        role: str,
+    ) -> TeamMemberRecord:
+        """Update a member role while preserving at least one owner."""
+        role = _validate_workspace_role(role)
+        now = utc_now_iso()
+        with self._connect() as conn:
+            current = conn.execute(
+                """
+                SELECT u.email, m.role, m.created_at
+                FROM memberships m
+                JOIN users u ON u.id = m.user_id
+                WHERE m.org_id = ? AND m.user_id = ? AND u.disabled_at IS NULL
+                """,
+                (org_id, target_user_id),
+            ).fetchone()
+            if current is None:
+                raise ValueError("member not found")
+            if current["role"] == "owner" and role != "owner":
+                owner_count = self._owner_count(conn, org_id)
+                if owner_count <= 1:
+                    raise ValueError("workspace must keep at least one owner")
+            conn.execute(
+                """
+                UPDATE memberships
+                SET role = ?
+                WHERE org_id = ? AND user_id = ?
+                """,
+                (role, org_id, target_user_id),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="team.role_updated",
+                target_type="user",
+                target_id=target_user_id,
+                metadata={"role": role},
+                now=now,
+            )
+            conn.commit()
+            return TeamMemberRecord(
+                user_id=target_user_id,
+                email=current["email"],
+                role=role,
+                created_at=current["created_at"],
+            )
+
+    def remove_org_member(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        target_user_id: str,
+    ) -> bool:
+        """Remove a workspace membership without deleting the user account."""
+        now = utc_now_iso()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT role FROM memberships WHERE org_id = ? AND user_id = ?",
+                (org_id, target_user_id),
+            ).fetchone()
+            if row is None:
+                return False
+            if row["role"] == "owner" and self._owner_count(conn, org_id) <= 1:
+                raise ValueError("workspace must keep at least one owner")
+            conn.execute(
+                "DELETE FROM memberships WHERE org_id = ? AND user_id = ?",
+                (org_id, target_user_id),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="team.member_removed",
+                target_type="user",
+                target_id=target_user_id,
+                metadata={"role": row["role"]},
+                now=now,
+            )
+            conn.commit()
+            return True
+
     def get_org_id_for_stripe_customer(self, stripe_customer_id: str) -> str | None:
         with self._connect() as conn:
             row = conn.execute(
@@ -618,6 +813,30 @@ class SaaSStore:
                 )
                 for row in rows
             ]
+
+    def get_mail_account(self, *, org_id: str, mail_account_id: str) -> MailAccountRecord | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, org_id, user_id, provider, external_account_id,
+                       encrypted_token_ref, status, created_at
+                FROM mail_accounts
+                WHERE org_id = ? AND id = ?
+                """,
+                (org_id, mail_account_id),
+            ).fetchone()
+            if row is None:
+                return None
+            return MailAccountRecord(
+                id=row["id"],
+                org_id=row["org_id"],
+                user_id=row["user_id"],
+                provider=row["provider"],
+                external_account_id=row["external_account_id"],
+                encrypted_token_ref=row["encrypted_token_ref"],
+                status=row["status"],
+                created_at=row["created_at"],
+            )
 
     def set_mail_account_status(
         self,
@@ -1067,6 +1286,19 @@ class SaaSStore:
             return "free"
         return row["plan_slug"] or "free"
 
+    @staticmethod
+    def _owner_count(conn: sqlite3.Connection, org_id: str) -> int:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM memberships m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.org_id = ? AND m.role = 'owner' AND u.disabled_at IS NULL
+            """,
+            (org_id,),
+        ).fetchone()
+        return int(row["count"] or 0)
+
     def _write_audit(
         self,
         conn: sqlite3.Connection,
@@ -1121,6 +1353,13 @@ def normalize_email(email: str) -> str:
 def validate_password(password: str) -> None:
     if len(password or "") < 10:
         raise ValueError("password must be at least 10 characters")
+
+
+def _validate_workspace_role(role: str) -> str:
+    role = str(role or "").strip().lower()
+    if role not in WORKSPACE_ROLES:
+        raise ValueError("role must be owner, admin, analyst, or viewer")
+    return role
 
 
 def hash_password(password: str, *, iterations: int = 210_000) -> str:

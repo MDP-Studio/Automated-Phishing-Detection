@@ -31,7 +31,7 @@ class APIConfig:
     hybrid_analysis_key: str = ""
     anyrun_key: str = ""
     joesandbox_key: str = ""
-    llm_provider: str = "anthropic"
+    llm_provider: str = "deepseek"
     llm_api_key: str = ""
     llm_api_base: str = ""
     llm_model: str = ""
@@ -154,7 +154,7 @@ class PipelineConfig:
             hybrid_analysis_key=os.getenv("HYBRID_ANALYSIS_API_KEY", ""),
             anyrun_key=os.getenv("ANYRUN_API_KEY", ""),
             joesandbox_key=os.getenv("JOESANDBOX_API_KEY", ""),
-            llm_provider=os.getenv("LLM_PROVIDER", "anthropic"),
+            llm_provider=os.getenv("LLM_PROVIDER", "deepseek"),
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_api_base=os.getenv("LLM_API_BASE", ""),
             llm_model=os.getenv("LLM_MODEL", ""),
@@ -261,7 +261,7 @@ class PipelineConfig:
             hybrid_analysis_key=_get(api_data, "hybrid_analysis_key", "HYBRID_ANALYSIS_API_KEY"),
             anyrun_key=_get(api_data, "anyrun_key", "ANYRUN_API_KEY"),
             joesandbox_key=_get(api_data, "joesandbox_key", "JOESANDBOX_API_KEY"),
-            llm_provider=_get(api_data, "llm_provider", "LLM_PROVIDER", "anthropic"),
+            llm_provider=_get(api_data, "llm_provider", "LLM_PROVIDER", "deepseek"),
             llm_api_key=_get(api_data, "llm_api_key", "LLM_API_KEY"),
             llm_api_base=_get(api_data, "llm_api_base", "LLM_API_BASE"),
             llm_model=_get(api_data, "llm_model", "LLM_MODEL"),

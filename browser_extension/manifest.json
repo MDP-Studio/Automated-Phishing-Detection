@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "PhishAnalyze / PayShield",
+  "version": "0.1.0",
+  "description": "Quick access to PhishAnalyze email scanning and PayShield payment-risk checks.",
+  "action": {
+    "default_title": "Open PhishAnalyze / PayShield",
+    "default_popup": "popup.html"
+  },
+  "permissions": [],
+  "host_permissions": [
+    "https://phishanalyze.mdpstudio.com.au/*",
+    "https://payshield.mdpstudio.com.au/*"
+  ]
+}

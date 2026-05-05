@@ -489,6 +489,7 @@
         </div>
         <div class="history-card-actions">
           <span class="mailbox-status ${escapeHtml(item.status || "pending")}">${escapeHtml(formatLabel(item.status || "pending"))}</span>
+          <button class="subtle-button mailbox-scan" type="button" data-scan-mailbox="${escapeHtml(item.id)}">Scan now</button>
           <button class="subtle-button mailbox-delete" type="button" data-delete-mailbox="${escapeHtml(item.id)}">Delete</button>
         </div>
       `;
@@ -1135,6 +1136,39 @@
   });
 
   mailboxList.addEventListener("click", async (event) => {
+    const scanButton = event.target.closest("button[data-scan-mailbox]");
+    if (scanButton) {
+      event.preventDefault();
+      const mailboxId = scanButton.getAttribute("data-scan-mailbox") || "";
+      if (!mailboxId) {
+        return;
+      }
+      hideNotice(mailboxNotice);
+      const originalText = scanButton.textContent;
+      scanButton.disabled = true;
+      scanButton.textContent = "Scanning";
+      try {
+        const response = await apiJson(`/api/saas/mailboxes/${encodeURIComponent(mailboxId)}/scan-now`, {
+          method: "POST",
+          body: JSON.stringify({ max_results: 5 }),
+        });
+        await loadMailboxes();
+        await loadHistory();
+        const count = Number(response.analyzed || 0);
+        showNotice(mailboxNotice, count ? `Scanned ${count} new email${count === 1 ? "" : "s"}.` : "No new unread emails found.");
+      } catch (error) {
+        scanButton.disabled = false;
+        scanButton.textContent = originalText;
+        if (error.status === 402) {
+          showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to scan connected mailboxes.`);
+          openUpgradePanel();
+        } else {
+          showNotice(mailboxNotice, error.message || "Could not scan this mailbox.");
+        }
+      }
+      return;
+    }
+
     const button = event.target.closest("button[data-delete-mailbox]");
     if (!button) {
       return;
