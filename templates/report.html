@@ -451,9 +451,9 @@
         <!-- Payment Protection -->
         {% if payment_protection %}
         <div class="card">
-            <h2>Payment Protection</h2>
-            <div class="payment-decision {{ payment_protection.decision|lower|replace('_', '-') }}">
-                {{ payment_protection.decision|replace('_', ' ') }}
+            <h2>Payment Risk Decision Support</h2>
+            <div class="payment-decision {{ (payment_protection.display_decision or payment_protection.decision)|lower|replace('_', '-') }}">
+                {{ payment_protection.display_label or (payment_protection.display_decision or payment_protection.decision)|replace('_', ' ') }}
             </div>
             <p style="margin-bottom: 15px;">{{ payment_protection.summary }}</p>
 

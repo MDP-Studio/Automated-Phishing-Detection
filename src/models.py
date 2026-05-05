@@ -112,11 +112,14 @@ class AnalyzerResult:
     errors: list[str] = field(default_factory=list)
     status: str = "success"
     plan_required: str = "free"
-    cost_tier: str = "local"
+    cost_tier: str = "free_local"
     evidence: list[dict] = field(default_factory=list)
     risk_contribution: Optional[float] = None
     failure_reason: Optional[str] = None
     timing_ms: Optional[float] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    cached: bool = False
 
 
 @dataclass

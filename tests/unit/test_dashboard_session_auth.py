@@ -272,7 +272,7 @@ def test_phishanalyze_plan_panel_is_compact_and_phish_specific():
     assert ".plan-card-action" in css
     assert "function featureCopy" in js
     assert "Try manual phishing checks" in js
-    assert "Business email compromise, urgency" in js
+    assert "Business email compromise signals" in js
     assert "PayShield" not in js
 
 

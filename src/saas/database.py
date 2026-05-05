@@ -7,6 +7,7 @@ import hmac
 import json
 import secrets
 import sqlite3
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
@@ -910,6 +911,7 @@ class SaaSStore:
                 LIMIT 12
                 """
             )
+            analyzer_stats = self._aggregate_analyzer_stats(conn)
 
             audit_rows = conn.execute(
                 """
@@ -945,6 +947,7 @@ class SaaSStore:
             "mailboxes_by_provider": mailboxes_by_provider,
             "usage_this_month": usage_this_month,
             "feature_locks": feature_locks,
+            "analyzers": analyzer_stats,
             "recent_audit": recent_audit,
             "privacy": {
                 "raw_email_bodies": False,
@@ -952,7 +955,73 @@ class SaaSStore:
                 "mailbox_credentials": False,
                 "external_mailbox_ids": False,
                 "stripe_ids": False,
+                "secrets": False,
             },
+        }
+
+    def _aggregate_analyzer_stats(self, conn: sqlite3.Connection) -> dict:
+        """Aggregate normalized analyzer result metadata without raw payloads."""
+        status_counts: Counter[str] = Counter()
+        cost_tier_counts: Counter[str] = Counter()
+        failure_counts: Counter[str] = Counter()
+        locked_counts: Counter[str] = Counter()
+        not_configured_counts: Counter[str] = Counter()
+        cached_counts: Counter[str] = Counter()
+        product_verdict_counts: Counter[str] = Counter()
+        payment_display_counts: Counter[str] = Counter()
+
+        rows = conn.execute("SELECT result_json FROM scan_results").fetchall()
+        for row in rows:
+            try:
+                payload = json.loads(row["result_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+
+            product_verdicts = payload.get("product_verdicts") or {}
+            phish = product_verdicts.get("phishanalyze") or {}
+            payshield = product_verdicts.get("payshield") or {}
+            if phish.get("verdict"):
+                product_verdict_counts[str(phish["verdict"])] += 1
+            elif payload.get("verdict"):
+                product_verdict_counts[str(payload["verdict"])] += 1
+            if payshield.get("display_decision"):
+                payment_display_counts[str(payshield["display_decision"])] += 1
+            else:
+                payment_details = payload.get("payment_protection") or {}
+                if payment_details.get("display_decision"):
+                    payment_display_counts[str(payment_details["display_decision"])] += 1
+                elif payment_details.get("decision"):
+                    payment_display_counts[str(payment_details["decision"])] += 1
+
+            analyzer_results = payload.get("analyzer_results") or {}
+            if not isinstance(analyzer_results, dict):
+                continue
+            for analyzer_id, analyzer in analyzer_results.items():
+                if not isinstance(analyzer, dict):
+                    continue
+                safe_id = str(analyzer.get("analyzer_id") or analyzer_id)
+                status = str(analyzer.get("status") or "unknown").lower()
+                cost_tier = str(analyzer.get("cost_tier") or "unknown").lower()
+                status_counts[status] += 1
+                cost_tier_counts[cost_tier] += 1
+                if status in {"failed", "timeout"}:
+                    failure_counts[safe_id] += 1
+                elif status == "feature_locked":
+                    locked_counts[safe_id] += 1
+                elif status == "not_configured":
+                    not_configured_counts[safe_id] += 1
+                elif status == "cached" or analyzer.get("cached") is True:
+                    cached_counts[safe_id] += 1
+
+        return {
+            "statuses": _counter_rows(status_counts),
+            "cost_tiers": _counter_rows(cost_tier_counts),
+            "failures": _counter_rows(failure_counts),
+            "locked": _counter_rows(locked_counts),
+            "not_configured": _counter_rows(not_configured_counts),
+            "cached": _counter_rows(cached_counts),
+            "product_verdicts": _counter_rows(product_verdict_counts),
+            "payment_display_decisions": _counter_rows(payment_display_counts),
         }
 
     def feature_lock_count(self, org_id: str) -> int:
@@ -1094,6 +1163,16 @@ def month_start_iso() -> str:
     now = datetime.now(timezone.utc)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return start.isoformat()
+
+
+def _counter_rows(counter: Counter[str]) -> list[dict]:
+    return [
+        {"name": name, "count": int(count)}
+        for name, count in sorted(
+            counter.items(),
+            key=lambda item: (-item[1], item[0]),
+        )
+    ]
 
 
 SCHEMA_SQL = """

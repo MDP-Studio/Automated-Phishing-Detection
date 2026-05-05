@@ -288,7 +288,10 @@ class BaseAPIClient(ABC):
 
     def _cache_get(self, key: str) -> Optional[Any]:
         """Get value from cache."""
-        return self.cache.get(key)
+        value = self.cache.get(key)
+        if value is not None:
+            self._mark_cache_hit(value)
+        return value
 
     def _cache_set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Set value in cache."""
@@ -298,6 +301,17 @@ class BaseAPIClient(ABC):
     def _cache_clear(self) -> None:
         """Clear cache."""
         self.cache.clear()
+
+    @staticmethod
+    def _mark_cache_hit(value: Any) -> None:
+        """Annotate cached analyzer results for the normalized contract."""
+        if not all(hasattr(value, attr) for attr in ("details", "status")):
+            return
+        value.cached = True
+        value.status = "cached"
+        details = getattr(value, "details", None)
+        if isinstance(details, dict):
+            details["cached"] = True
 
     @abstractmethod
     async def verify_api_key(self) -> bool:

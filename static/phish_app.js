@@ -63,8 +63,8 @@
   };
   const phishFeatureCopy = {
     payment_rules: {
-      name: "BEC and payment-language signals",
-      description: "Business email compromise, urgency, and executive-transfer wording checks.",
+      name: "Business email compromise signals",
+      description: "Urgency, impersonation, and social-engineering wording checks.",
     },
     sender_profiling: {
       description: "Baseline sender patterns and flag unusual sender behavior.",
@@ -275,16 +275,16 @@
   function decisionClass(value, verdict) {
     const text = String(value || verdict || "").toUpperCase();
     if (text === "SAFE" || text === "CLEAN") return "safe";
-    if (text === "DO_NOT_PAY" || text === "CONFIRMED_PHISHING") return "block";
+    if (text === "CONFIRMED_PHISHING") return "block";
     if (text === "VERIFY" || text === "SUSPICIOUS" || text === "LIKELY_PHISHING") return "verify";
     return "neutral";
   }
 
   function signalText(value) {
     const text = String(value || "").toUpperCase();
-    if (text === "SAFE") return "No strong BEC or payment-language signal";
-    if (text === "VERIFY") return "Potential BEC or social-engineering signal";
-    if (text === "DO_NOT_PAY") return "High-risk BEC or payment-redirection signal";
+    if (text === "SAFE") return "No strong business email compromise signal";
+    if (text === "VERIFY") return "Potential social-engineering signal";
+    if (/PAY/.test(text) && /NOT/.test(text)) return "High-risk impersonation or redirection signal";
     return label(value || "No specific signal");
   }
 
@@ -575,7 +575,7 @@
       domain_intelligence: "Domain intelligence",
       header_analysis: "Header authentication",
       nlp_intent: "Intent analysis",
-      payment_fraud: "BEC and payment-language signals",
+      payment_fraud: "Business email compromise signals",
       sender_profiling: "Sender profiling",
       url_detonation: "Browser URL detonation",
       url_reputation: "URL reputation",
@@ -623,7 +623,10 @@
   }
 
   function renderResult(payload) {
-    const decision = payload.verdict || "REVIEW";
+    const productVerdict = payload.product_verdicts && payload.product_verdicts.phishanalyze
+      ? payload.product_verdicts.phishanalyze
+      : null;
+    const decision = (productVerdict && productVerdict.verdict) || payload.verdict || "REVIEW";
     const source = payload.upload_filename || payload.email_id || "uploaded email";
     resultTitle.textContent = "Latest analysis";
     resultNote.textContent = `Fresh result for ${source}.`;
@@ -639,12 +642,15 @@
         </div>
       `;
     }).join("");
+    const nextSteps = productVerdict && Array.isArray(productVerdict.next_steps)
+      ? productVerdict.next_steps
+      : ["Review the evidence before opening links, attachments, or replying."];
     resultBody.innerHTML = `
       <section class="result-summary ${escapeHtml(decisionClass(payload.verdict))}">
         <div>
           <span class="result-kicker">Phishing verdict</span>
-          <strong>${escapeHtml(decisionText(decision))}</strong>
-          <p>Review the evidence below before opening links, attachments, or replying.</p>
+          <strong>${escapeHtml((productVerdict && productVerdict.label) || decisionText(decision))}</strong>
+          <p>${escapeHtml((productVerdict && productVerdict.summary) || "Review the evidence below before opening links, attachments, or replying.")}</p>
         </div>
         <div class="score-box">
           <span class="result-kicker">Risk score</span>
@@ -659,6 +665,10 @@
           <span>Score</span>
         </div>
         ${rows || '<div class="evidence-row"><span>No analyzer evidence returned.</span></div>'}
+      </section>
+      <section class="locked-checks clear">
+        <h3>Next steps</h3>
+        <ul>${nextSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul>
       </section>
       ${renderLockedChecks(payload.feature_locks || [])}
     `;

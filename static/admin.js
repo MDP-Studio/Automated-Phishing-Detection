@@ -4,6 +4,10 @@
   const verdictList = document.getElementById("verdictList");
   const mailboxList = document.getElementById("mailboxList");
   const lockList = document.getElementById("lockList");
+  const analyzerStatusList = document.getElementById("analyzerStatusList");
+  const costTierList = document.getElementById("costTierList");
+  const analyzerFailureList = document.getElementById("analyzerFailureList");
+  const cachedCheckList = document.getElementById("cachedCheckList");
   const auditList = document.getElementById("auditList");
   const adminNotice = document.getElementById("adminNotice");
   const buildLabel = document.getElementById("buildLabel");
@@ -103,6 +107,14 @@
         ...(payload.mailboxes_by_provider || []).map((row) => ({ name: `provider ${row.name}`, count: row.count })),
       ], "No mailbox data");
       renderRows(lockList, payload.feature_locks, "No feature locks");
+      const analyzers = payload.analyzers || {};
+      renderRows(analyzerStatusList, analyzers.statuses, "No analyzer status data");
+      renderRows(costTierList, analyzers.cost_tiers, "No cost tier data");
+      renderRows(analyzerFailureList, [
+        ...(analyzers.failures || []).map((row) => ({ name: `failed ${row.name}`, count: row.count })),
+        ...(analyzers.not_configured || []).map((row) => ({ name: `not configured ${row.name}`, count: row.count })),
+      ], "No analyzer failures");
+      renderRows(cachedCheckList, analyzers.cached, "No cached checks");
       renderAudit(payload.recent_audit);
       buildLabel.textContent = `Build ${payload.system && payload.system.build_sha ? payload.system.build_sha : "unknown"}`;
     } catch (error) {

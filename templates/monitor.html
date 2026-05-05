@@ -686,7 +686,7 @@
     html += row('Subject', esc(r.subject || '—'));
     html += row('Time', fmtTime(r.timestamp));
     if (r.payment_protection && r.payment_protection.decision) {
-      html += row('Payment Decision', esc(String(r.payment_protection.decision).replace(/_/g, ' ')));
+      html += row('Payment Decision Support', esc(paymentDecisionLabel(r.payment_protection)));
     }
     if (r.quarantined) html += row('Quarantined', '<span class="qbadge yes">Yes</span>');
     html += '</div></div>';
@@ -696,7 +696,7 @@
       var pp = r.payment_protection;
       html += '<div class="detail-section"><h3>Payment Protection</h3>';
       html += '<div class="body-preview" style="max-height:none">';
-      html += '<strong>Decision:</strong> ' + esc(String(pp.decision).replace(/_/g, ' ')) + '<br>';
+      html += '<strong>Decision support:</strong> ' + esc(paymentDecisionLabel(pp)) + '<br>';
       html += '<strong>Risk:</strong> ' + pct(pp.risk_score || 0) + '%<br>';
       html += '<strong>Summary:</strong> ' + esc(pp.summary || '') + '<br>';
       if (pp.signals && pp.signals.length) {
@@ -988,6 +988,14 @@
   function set(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function escAttr(s) { return esc(s).replace(/'/g,'&#39;'); }
+  function paymentDecisionLabel(payment) {
+    var value = payment && (payment.display_label || payment.display_decision || payment.decision);
+    var decision = String(value || '').toUpperCase();
+    if (decision === 'DO_NOT_PAY' || decision === 'DO_NOT_PAY_UNTIL_VERIFIED') return 'Do not pay until independently confirmed';
+    if (decision === 'VERIFY') return 'Verify out of band';
+    if (decision === 'SAFE') return 'Safe to continue normal checks';
+    return String(value || '').replace(/_/g, ' ');
+  }
   function fmtTime(iso) {
     if (!iso) return '—';
     var d = new Date(iso);

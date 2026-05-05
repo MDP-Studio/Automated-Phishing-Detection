@@ -376,8 +376,8 @@ class PhishingPipeline:
 
         results = {}
 
-        async def _launch(names: list[str]) -> list[tuple[str, asyncio.Task, float]]:
-            tasks: list[tuple[str, asyncio.Task, float]] = []
+        async def _launch(names: list[str]) -> list[tuple[str, asyncio.Task, float, str]]:
+            tasks: list[tuple[str, asyncio.Task, float, str]] = []
             for analyzer_name in names:
                 try:
                     feature_slug = ANALYZER_FEATURES.get(analyzer_name)
@@ -398,12 +398,13 @@ class PhishingPipeline:
                     analyzer = await self._load_analyzer(analyzer_name)
                     if analyzer:
                         started_at = perf_counter()
+                        started_at_iso = datetime.now(timezone.utc).isoformat()
                         task = asyncio.create_task(
                             self._run_analyzer_with_limits(
                                 analyzer_name, analyzer, email, iocs, extracted_urls
                             )
                         )
-                        tasks.append((analyzer_name, task, started_at))
+                        tasks.append((analyzer_name, task, started_at, started_at_iso))
                     else:
                         results[analyzer_name] = not_configured_analyzer_result(
                             analyzer_name,
@@ -422,11 +423,15 @@ class PhishingPipeline:
         phase1_tasks = await _launch(phase1_names)
 
         # Run all concurrently with timeouts
-        for analyzer_name, task, started_at in phase1_tasks:
+        for analyzer_name, task, started_at, started_at_iso in phase1_tasks:
             try:
                 result = await asyncio.wait_for(task, timeout=_analyzer_timeout(analyzer_name))
                 if result.timing_ms is None:
                     result.timing_ms = round((perf_counter() - started_at) * 1000, 2)
+                if not result.started_at:
+                    result.started_at = started_at_iso
+                if not result.completed_at:
+                    result.completed_at = datetime.now(timezone.utc).isoformat()
                 results[analyzer_name] = result
                 self.logger.debug(
                     f"Analyzer {analyzer_name} completed: score={result.risk_score:.3f}"
@@ -445,51 +450,67 @@ class PhishingPipeline:
 
             except asyncio.TimeoutError:
                 self.logger.warning(f"Analyzer {analyzer_name} timed out")
-                results[analyzer_name] = failed_analyzer_result(
+                result = failed_analyzer_result(
                     analyzer_name,
                     "Analyzer timed out",
                     status="timeout",
                     timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
+                result.started_at = started_at_iso
+                result.completed_at = datetime.now(timezone.utc).isoformat()
+                results[analyzer_name] = result
             except Exception as e:
                 self.logger.error(f"Analyzer {analyzer_name} failed: {e}")
-                results[analyzer_name] = failed_analyzer_result(
+                result = failed_analyzer_result(
                     analyzer_name,
                     str(e),
                     status="failed",
                     timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
+                result.started_at = started_at_iso
+                result.completed_at = datetime.now(timezone.utc).isoformat()
+                results[analyzer_name] = result
 
         # ── Phase 2: analyzers that depend on phase-1 outputs ──
         # iocs now contains detonation_screenshots (if any were
         # captured). brand_impersonation can read through to a
         # populated dict instead of an empty one.
         phase2_tasks = await _launch(phase2_names)
-        for analyzer_name, task, started_at in phase2_tasks:
+        for analyzer_name, task, started_at, started_at_iso in phase2_tasks:
             try:
                 result = await asyncio.wait_for(task, timeout=_analyzer_timeout(analyzer_name))
                 if result.timing_ms is None:
                     result.timing_ms = round((perf_counter() - started_at) * 1000, 2)
+                if not result.started_at:
+                    result.started_at = started_at_iso
+                if not result.completed_at:
+                    result.completed_at = datetime.now(timezone.utc).isoformat()
                 results[analyzer_name] = result
                 self.logger.debug(
                     f"Analyzer {analyzer_name} completed: score={result.risk_score:.3f}"
                 )
             except asyncio.TimeoutError:
                 self.logger.warning(f"Analyzer {analyzer_name} timed out")
-                results[analyzer_name] = failed_analyzer_result(
+                result = failed_analyzer_result(
                     analyzer_name,
                     "Analyzer timed out",
                     status="timeout",
                     timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
+                result.started_at = started_at_iso
+                result.completed_at = datetime.now(timezone.utc).isoformat()
+                results[analyzer_name] = result
             except Exception as e:
                 self.logger.error(f"Analyzer {analyzer_name} failed: {e}")
-                results[analyzer_name] = failed_analyzer_result(
+                result = failed_analyzer_result(
                     analyzer_name,
                     str(e),
                     status="failed",
                     timing_ms=round((perf_counter() - started_at) * 1000, 2),
                 )
+                result.started_at = started_at_iso
+                result.completed_at = datetime.now(timezone.utc).isoformat()
+                results[analyzer_name] = result
 
         return results
 
@@ -594,6 +615,7 @@ class PhishingPipeline:
                 return await analyzer.analyze(email)
 
         started_at = perf_counter()
+        started_at_iso = datetime.now(timezone.utc).isoformat()
         async with self.global_semaphore:
             # Apply per-API rate limiter
             api_name = self._get_api_name(name)
@@ -604,6 +626,8 @@ class PhishingPipeline:
                 result = await run_analyzer()
 
         result.timing_ms = round((perf_counter() - started_at) * 1000, 2)
+        result.started_at = result.started_at or started_at_iso
+        result.completed_at = result.completed_at or datetime.now(timezone.utc).isoformat()
         return result
 
     # Domains whose authentication (SPF/DKIM/DMARC) passing is strong

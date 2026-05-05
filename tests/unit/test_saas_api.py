@@ -269,12 +269,17 @@ def test_saas_signup_session_plans_upload_and_history(tmp_path):
     assert upload.json()["account"]["monthly_scan_used"] == 1
     assert upload.json()["feature_locks"][0]["details"]["required_plan_name"] == "Starter"
     assert upload.json()["analyzer_results"]["payment_fraud"]["status"] == "success"
-    assert upload.json()["analyzer_results"]["payment_fraud"]["display_name"] == "BEC and payment-language signals"
+    assert upload.json()["analyzer_results"]["payment_fraud"]["display_name"] == "Business email compromise signals"
     assert upload.json()["analyzer_results"]["payment_fraud"]["risk_contribution"] == 0.468
     assert upload.json()["analyzer_results"]["url_reputation"]["status"] == "feature_locked"
     assert upload.json()["analyzer_results"]["url_reputation"]["plan_required"] == "starter"
-    assert upload.json()["analyzer_results"]["url_reputation"]["cost_tier"] == "paid_api"
+    assert upload.json()["analyzer_results"]["url_reputation"]["cost_tier"] == "paid_low"
+    assert upload.json()["analyzer_results"]["url_reputation"]["duration_ms"] == 0.0
     assert upload.json()["analyzer_results"]["url_reputation"]["evidence"]
+    assert upload.json()["product_verdicts"]["phishanalyze"]["verdict"] == "SUSPICIOUS"
+    assert upload.json()["product_verdicts"]["payshield"]["display_decision"] == "VERIFY"
+    assert upload.json()["payment_protection"]["display_label"] == "Verify out of band"
+    assert upload.json()["evidence_summary"]["source"] == "structured_analyzer_evidence"
     assert history.json()["results"][0]["payment_decision"] == "VERIFY"
 
 

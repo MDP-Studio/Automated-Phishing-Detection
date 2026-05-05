@@ -44,6 +44,11 @@ from src.config import PipelineConfig, _coerce_bool
 from src.analyzers.result_contract import normalize_analyzer_result
 from src.models import EmailObject
 from src.orchestrator.pipeline import PhishingPipeline
+from src.product_verdicts import (
+    build_evidence_summary,
+    build_product_verdicts,
+    enrich_payment_protection,
+)
 from src.reporting.report_generator import ReportGenerator
 from src.reporting.ioc_exporter import IOCExporter
 from src.reporting.sigma_exporter import SigmaExporter
@@ -198,6 +203,8 @@ def _compact_monitor_record(record: dict) -> dict:
     }
     if record.get("payment_protection") is not None:
         compact["payment_protection"] = record.get("payment_protection")
+    if record.get("product_verdicts") is not None:
+        compact["product_verdicts"] = record.get("product_verdicts")
     return compact
 
 
@@ -267,6 +274,15 @@ def _headers_payload(email: EmailObject, result) -> dict:
 
 def _api_payload_from_pipeline(email: EmailObject, result, timestamp: str) -> dict:
     analyzer_results = _serialize_analyzer_results(result)
+    product_verdicts = build_product_verdicts(
+        phishing_verdict=result.verdict.value,
+        overall_score=result.overall_score,
+        analyzer_results=analyzer_results,
+    )
+    payment_protection = enrich_payment_protection(
+        _payment_protection_from_analyzers(analyzer_results),
+        product_verdicts["payshield"],
+    )
     return {
         "email_id": result.email_id,
         "verdict": result.verdict.value,
@@ -274,7 +290,12 @@ def _api_payload_from_pipeline(email: EmailObject, result, timestamp: str) -> di
         "overall_confidence": result.overall_confidence,
         "timestamp": timestamp,
         "analyzer_results": analyzer_results,
-        "payment_protection": _payment_protection_from_analyzers(analyzer_results),
+        "payment_protection": payment_protection,
+        "product_verdicts": product_verdicts,
+        "evidence_summary": build_evidence_summary(
+            product_verdicts=product_verdicts,
+            analyzer_results=analyzer_results,
+        ),
         "extracted_urls": _extracted_urls_payload(result),
         "reasoning": result.reasoning if isinstance(result.reasoning, list) else [str(result.reasoning)],
         "iocs": {"headers": _headers_payload(email, result)},
@@ -2050,6 +2071,19 @@ class PhishingDetectionApp:
                 payment_protection = None
                 if "payment_fraud" in analyzer_results:
                     payment_protection = analyzer_results["payment_fraud"].get("details")
+                product_verdicts = build_product_verdicts(
+                    phishing_verdict=result.verdict.value,
+                    overall_score=result.overall_score,
+                    analyzer_results=analyzer_results,
+                )
+                payment_protection = enrich_payment_protection(
+                    payment_protection,
+                    product_verdicts["payshield"],
+                )
+                evidence_summary = build_evidence_summary(
+                    product_verdicts=product_verdicts,
+                    analyzer_results=analyzer_results,
+                )
 
                 extracted_urls_list = [
                     {"url": u.url, "source": u.source.value, "source_detail": u.source_detail}
@@ -2107,6 +2141,8 @@ class PhishingDetectionApp:
                     "quarantined": False,
                     "analyzer_results": analyzer_results,
                     "payment_protection": payment_protection,
+                    "product_verdicts": product_verdicts,
+                    "evidence_summary": evidence_summary,
                     "extracted_urls": extracted_urls_list,
                     "reasoning": reasoning_text,
                     "body_preview": (email.body_plain or "")[:2000],
@@ -2150,6 +2186,8 @@ class PhishingDetectionApp:
                     "timestamp": timestamp,
                     "analyzer_results": analyzer_results,
                     "payment_protection": payment_protection,
+                    "product_verdicts": product_verdicts,
+                    "evidence_summary": evidence_summary,
                     "extracted_urls": extracted_urls_list,
                     "reasoning": result.reasoning if isinstance(result.reasoning, list) else [str(result.reasoning)],
                     "iocs": {"headers": headers_out},
@@ -2786,6 +2824,19 @@ class PhishingDetectionApp:
                         payment_protection = None
                         if "payment_fraud" in analyzer_results:
                             payment_protection = analyzer_results["payment_fraud"].get("details")
+                        product_verdicts = build_product_verdicts(
+                            phishing_verdict=result.verdict.value,
+                            overall_score=result.overall_score,
+                            analyzer_results=analyzer_results,
+                        )
+                        payment_protection = enrich_payment_protection(
+                            payment_protection,
+                            product_verdicts["payshield"],
+                        )
+                        evidence_summary = build_evidence_summary(
+                            product_verdicts=product_verdicts,
+                            analyzer_results=analyzer_results,
+                        )
 
                         extracted_urls_list = [
                             {"url": u.url, "source": u.source.value, "source_detail": u.source_detail}
@@ -2810,6 +2861,8 @@ class PhishingDetectionApp:
                             "quarantined": False,
                             "analyzer_results": analyzer_results,
                             "payment_protection": payment_protection,
+                            "product_verdicts": product_verdicts,
+                            "evidence_summary": evidence_summary,
                             "extracted_urls": extracted_urls_list,
                             "reasoning": result.reasoning if isinstance(result.reasoning, str) else str(result.reasoning),
                             "body_preview": (email_obj.body_plain or "")[:2000],
@@ -2840,6 +2893,7 @@ class PhishingDetectionApp:
                             "subject": email_obj.subject or "",
                             "from": email_obj.from_address or "",
                             "payment_protection": payment_protection,
+                            "product_verdicts": product_verdicts,
                         })
 
                     except Exception as e:

@@ -556,7 +556,13 @@
       panelNote.textContent = `Fresh result for ${sourceName}. Review the decision, risk score, and any skipped checks.`;
     }
     const payment = payload.payment_protection || {};
-    const decision = payment.decision || "Not payment-specific";
+    const productDecision = payload.product_verdicts && payload.product_verdicts.payshield
+      ? payload.product_verdicts.payshield
+      : null;
+    const decision = (productDecision && productDecision.display_decision)
+      || payment.display_decision
+      || payment.decision
+      || "Not payment-specific";
     const lockedChecks = payload.feature_locks || [];
     const analyzerResults = payload.analyzer_results || {};
     const score = normalizedScore(payload.overall_score);
@@ -566,11 +572,11 @@
         <span>Analyzed file</span>
         <strong>${escapeHtml(sourceName)}</strong>
       </section>
-      <section class="result-verdict ${decisionClass}" aria-label="Payment decision">
+      <section class="result-verdict ${decisionClass}" aria-label="Payment-risk decision support">
         <div>
-          <span class="result-kicker">Payment decision</span>
-          <strong>${escapeHtml(formatDecision(decision))}</strong>
-          <p>${escapeHtml(decisionGuidance(decision, payload.verdict))}</p>
+          <span class="result-kicker">Payment-risk decision support</span>
+          <strong>${escapeHtml((productDecision && productDecision.label) || payment.display_label || formatDecision(decision))}</strong>
+          <p>${escapeHtml((productDecision && productDecision.summary) || decisionGuidance(decision, payload.verdict))}</p>
         </div>
         <div class="result-score-card">
           <span>Risk score</span>
@@ -592,6 +598,7 @@
           <strong>${escapeHtml(String(lockedChecks.length))}</strong>
         </article>
       </section>
+      ${renderPaymentIndicators(payment, productDecision)}
       ${renderAnalyzerEvidence(analyzerResults)}
       ${renderLockedChecks(lockedChecks)}
     `;
@@ -602,6 +609,36 @@
     if (payload.account) {
       updateAccount(payload.account);
     }
+  }
+
+  function renderPaymentIndicators(payment, productDecision) {
+    const signals = Array.isArray(payment.signals) ? payment.signals : [];
+    const steps = productDecision && Array.isArray(productDecision.next_steps)
+      ? productDecision.next_steps
+      : (Array.isArray(payment.verification_steps) ? payment.verification_steps : []);
+    const signalRows = signals.length
+      ? signals.slice(0, 5).map((signal) => `
+          <li>
+            <strong>${escapeHtml(formatLabel(signal.name || signal.severity || "Signal"))}</strong>
+            <span>${escapeHtml(signal.evidence || signal.recommendation || "")}</span>
+          </li>
+        `).join("")
+      : "<li><strong>No strong payment indicators</strong><span>Continue normal checks if the sender and invoice are expected.</span></li>";
+    const stepRows = steps.length
+      ? steps.slice(0, 6).map((step) => `<li>${escapeHtml(step)}</li>`).join("")
+      : "<li>Verify material supplier or bank-detail requests through a trusted channel.</li>";
+    return `
+      <section class="result-summary-grid payment-indicators" aria-label="Payment indicators">
+        <article>
+          <span>Payment indicators</span>
+          <ul>${signalRows}</ul>
+        </article>
+        <article>
+          <span>Verification checklist</span>
+          <ol>${stepRows}</ol>
+        </article>
+      </section>
+    `;
   }
 
   function renderAnalyzerEvidence(analyzerResults) {
@@ -724,7 +761,7 @@
       return "This analyzer did not return a usable result. Check API status or retry the scan.";
     }
     if (details.decision) {
-      return `Payment decision signal: ${formatDecision(details.decision)}.`;
+      return `Payment-risk signal: ${formatDecision(details.display_decision || details.decision)}.`;
     }
     if (details.summary) {
       return truncate(details.summary, 150);
@@ -810,7 +847,7 @@
 
   function formatDecision(value) {
     const decision = String(value || "").toUpperCase();
-    if (decision === "DO_NOT_PAY") {
+    if (decision === "DO_NOT_PAY" || decision === "DO_NOT_PAY_UNTIL_VERIFIED") {
       return "Do not pay until independently confirmed";
     }
     if (decision === "VERIFY") {
@@ -824,7 +861,7 @@
 
   function decisionStyle(value) {
     const decision = String(value || "").toUpperCase();
-    if (decision === "DO_NOT_PAY") {
+    if (decision === "DO_NOT_PAY" || decision === "DO_NOT_PAY_UNTIL_VERIFIED") {
       return "block";
     }
     if (decision === "VERIFY") {
@@ -838,11 +875,11 @@
 
   function decisionGuidance(decision, verdict) {
     const normalized = String(decision || "").toUpperCase();
-    if (normalized === "DO_NOT_PAY") {
-      return "Do not release payment until the request is independently confirmed through a trusted channel.";
+    if (normalized === "DO_NOT_PAY" || normalized === "DO_NOT_PAY_UNTIL_VERIFIED") {
+      return "Do not pay until the request is independently confirmed through a trusted channel.";
     }
     if (normalized === "VERIFY") {
-      return "Hold payment and verify the supplier or bank-detail change outside email.";
+      return "Pause the request and verify the supplier or bank-detail change outside email.";
     }
     if (normalized === "SAFE") {
       return "Continue normal internal checks, while keeping the scan result in the workspace history.";

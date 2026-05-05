@@ -36,7 +36,9 @@ async def test_pipeline_skips_locked_paid_analyzers_before_loading(sample_email_
 
     assert results["url_reputation"].details["message"] == "feature_locked"
     assert results["url_reputation"].status == "feature_locked"
+    assert results["url_reputation"].cost_tier == "paid_low"
     assert results["url_reputation"].details["required_plan_name"] == "Starter"
     assert results["url_detonation"].details["required_plan_name"] == "Pro"
+    assert results["url_detonation"].cost_tier == "paid_high"
     assert results["header_analysis"].status == "not_configured"
     assert results["payment_fraud"].status == "not_configured"

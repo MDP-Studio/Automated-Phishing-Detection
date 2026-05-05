@@ -188,6 +188,39 @@ def test_admin_overview_is_aggregate_and_redacted(tmp_path):
             "external_account_id": "alice@example.com",
             "encrypted_token_ref": "enc:v2:secret",
             "stripe_customer_id": "cus_secret",
+            "product_verdicts": {
+                "phishanalyze": {"verdict": "SUSPICIOUS"},
+                "payshield": {"display_decision": "VERIFY"},
+            },
+            "analyzer_results": {
+                "url_reputation": {
+                    "analyzer_id": "url_reputation",
+                    "status": "feature_locked",
+                    "cost_tier": "paid_low",
+                    "details": {
+                        "raw_email_body": "customer secret body",
+                        "stripe_customer_id": "cus_secret",
+                    },
+                },
+                "domain_intelligence": {
+                    "analyzer_id": "domain_intelligence",
+                    "status": "cached",
+                    "cost_tier": "paid_low",
+                    "cached": True,
+                },
+                "nlp_intent": {
+                    "analyzer_id": "nlp_intent",
+                    "status": "not_configured",
+                    "cost_tier": "paid_medium",
+                    "failure_reason": "secret provider token missing",
+                },
+                "url_detonation": {
+                    "analyzer_id": "url_detonation",
+                    "status": "failed",
+                    "cost_tier": "paid_high",
+                    "failure_reason": "private sandbox failure details",
+                },
+            },
         },
     )
 
@@ -200,8 +233,20 @@ def test_admin_overview_is_aggregate_and_redacted(tmp_path):
     assert payload["totals"]["mailboxes"] == 1
     assert payload["privacy"]["raw_result_json"] is False
     assert payload["privacy"]["mailbox_credentials"] is False
+    assert payload["privacy"]["secrets"] is False
+    assert {"name": "feature_locked", "count": 1} in payload["analyzers"]["statuses"]
+    assert {"name": "cached", "count": 1} in payload["analyzers"]["statuses"]
+    assert {"name": "paid_low", "count": 2} in payload["analyzers"]["cost_tiers"]
+    assert {"name": "url_reputation", "count": 1} in payload["analyzers"]["locked"]
+    assert {"name": "domain_intelligence", "count": 1} in payload["analyzers"]["cached"]
+    assert {"name": "nlp_intent", "count": 1} in payload["analyzers"]["not_configured"]
+    assert {"name": "url_detonation", "count": 1} in payload["analyzers"]["failures"]
+    assert {"name": "SUSPICIOUS", "count": 1} in payload["analyzers"]["product_verdicts"]
+    assert {"name": "VERIFY", "count": 1} in payload["analyzers"]["payment_display_decisions"]
     assert "private invoice" not in serialized
     assert "customer secret body" not in serialized
     assert "alice@example.com" not in serialized
     assert "enc:v2:secret" not in serialized
     assert "cus_secret" not in serialized
+    assert "secret provider token missing" not in serialized
+    assert "private sandbox failure details" not in serialized

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 
 from src.billing.plans import PLAN_CATALOG, get_feature, get_plan, plan_allows_feature
 from src.models import AnalyzerResult
@@ -124,6 +125,7 @@ def locked_analyzer_result(analyzer_name: str, decision: EntitlementDecision | d
     """Represent a skipped paid analyzer as structured lock metadata."""
     payload = decision.to_dict() if hasattr(decision, "to_dict") else dict(decision)
     feature = get_feature(payload.get("feature_slug", "manual_scan"))
+    now = datetime.now(timezone.utc).isoformat()
     return AnalyzerResult(
         analyzer_name=analyzer_name,
         risk_score=0.0,
@@ -135,10 +137,23 @@ def locked_analyzer_result(analyzer_name: str, decision: EntitlementDecision | d
         errors=[payload.get("reason", "Feature is locked for this plan.")],
         status="feature_locked",
         plan_required=payload.get("required_plan", feature.minimum_plan),
-        cost_tier="paid_api" if feature.expensive else "local",
+        cost_tier=_cost_tier_for_feature(feature.slug, feature.expensive),
         risk_contribution=0.0,
         failure_reason=payload.get("reason", "Feature is locked for this plan."),
+        timing_ms=0.0,
+        started_at=now,
+        completed_at=now,
     )
+
+
+def _cost_tier_for_feature(feature_slug: str, expensive: bool) -> str:
+    if feature_slug == "llm_intent":
+        return "paid_medium"
+    if feature_slug in {"url_detonation", "attachment_sandbox"}:
+        return "paid_high"
+    if expensive:
+        return "paid_low"
+    return "free_local"
 
 
 def _plan_rank_or_free(plan_slug: str) -> int:

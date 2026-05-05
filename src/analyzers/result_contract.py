@@ -20,6 +20,20 @@ VALID_ANALYZER_STATUSES = {
     "cached",
 }
 
+VALID_COST_TIERS = {
+    "free_local",
+    "paid_low",
+    "paid_medium",
+    "paid_high",
+}
+
+LEGACY_COST_TIER_MAP = {
+    "local": "free_local",
+    "paid_api": "paid_low",
+    "llm": "paid_medium",
+    "sandbox": "paid_high",
+}
+
 ANALYZER_DISPLAY_NAMES = {
     "attachment_analysis": "Attachment analysis",
     "attachment_sandbox": "Attachment sandbox",
@@ -28,7 +42,7 @@ ANALYZER_DISPLAY_NAMES = {
     "domain_intel": "Domain intelligence",
     "header_analysis": "Header authentication",
     "nlp_intent": "Intent analysis",
-    "payment_fraud": "BEC and payment-language signals",
+    "payment_fraud": "Business email compromise signals",
     "sender_profiling": "Sender profiling",
     "url_detonation": "Browser URL detonation",
     "url_reputation": "URL reputation",
@@ -75,16 +89,23 @@ def normalize_analyzer_result(
         if result.risk_contribution is not None
         else round(risk_score * confidence, 4)
     )
+    started_at = _safe_timestamp(getattr(result, "started_at", None))
+    completed_at = _safe_timestamp(getattr(result, "completed_at", None))
+    duration_ms = _duration_ms(result, details)
+    cached = (
+        status == "cached"
+        or bool(getattr(result, "cached", False))
+        or _contains_cached_marker(details)
+    )
 
     plan_required = (
         result.plan_required
         if result.plan_required and result.plan_required != "free"
         else feature["plan_required"]
     )
-    cost_tier = (
-        result.cost_tier
-        if result.cost_tier and result.cost_tier != "local"
-        else feature["cost_tier"]
+    cost_tier = _normalized_cost_tier(
+        getattr(result, "cost_tier", None),
+        feature["cost_tier"],
     )
 
     return {
@@ -100,10 +121,12 @@ def normalize_analyzer_result(
         "evidence": evidence,
         "risk_contribution": risk_contribution,
         "failure_reason": failure_reason,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "duration_ms": duration_ms,
+        "cached": cached,
         "timing": {
-            "duration_ms": _safe_float(result.timing_ms)
-            if result.timing_ms is not None
-            else None,
+            "duration_ms": duration_ms,
         },
         "risk_score": risk_score,
         "confidence": confidence,
@@ -129,6 +152,9 @@ def not_configured_analyzer_result(
         cost_tier=feature["cost_tier"],
         risk_contribution=0.0,
         failure_reason=reason,
+        started_at=_utc_iso(),
+        completed_at=_utc_iso(),
+        timing_ms=0.0,
     )
 
 
@@ -160,6 +186,8 @@ def failed_analyzer_result(
         risk_contribution=0.0,
         failure_reason=reason,
         timing_ms=timing_ms,
+        started_at=_utc_iso(),
+        completed_at=_utc_iso(),
     )
 
 
@@ -170,7 +198,7 @@ def _feature_metadata(analyzer_id: str) -> dict:
             "feature_slug": "",
             "plan_required": "free",
             "plan_required_name": "Free",
-            "cost_tier": "local",
+            "cost_tier": "free_local",
         }
     try:
         feature = get_feature(feature_slug)
@@ -180,7 +208,7 @@ def _feature_metadata(analyzer_id: str) -> dict:
             "feature_slug": feature_slug,
             "plan_required": "free",
             "plan_required_name": "Free",
-            "cost_tier": "local",
+            "cost_tier": "free_local",
         }
     return {
         "feature_slug": feature_slug,
@@ -192,12 +220,25 @@ def _feature_metadata(analyzer_id: str) -> dict:
 
 def _cost_tier(feature_slug: str, expensive: bool) -> str:
     if feature_slug == "llm_intent":
-        return "llm"
+        return "paid_medium"
     if feature_slug in {"url_detonation", "attachment_sandbox"}:
-        return "sandbox"
+        return "paid_high"
     if expensive:
-        return "paid_api"
-    return "local"
+        return "paid_low"
+    return "free_local"
+
+
+def _normalized_cost_tier(value: Any, fallback: str) -> str:
+    candidate = str(value or "").strip().lower()
+    if candidate in VALID_COST_TIERS and candidate != "free_local":
+        return candidate
+    if candidate == "free_local":
+        return fallback if fallback in VALID_COST_TIERS else "free_local"
+    if candidate == "local":
+        return fallback if fallback in VALID_COST_TIERS else "free_local"
+    if candidate in LEGACY_COST_TIER_MAP:
+        return LEGACY_COST_TIER_MAP[candidate]
+    return fallback if fallback in VALID_COST_TIERS else "free_local"
 
 
 def _status_for(result: AnalyzerResult, details: dict) -> str:
@@ -209,6 +250,8 @@ def _status_for(result: AnalyzerResult, details: dict) -> str:
 
     if explicit in VALID_ANALYZER_STATUSES and explicit != "success":
         return explicit
+    if getattr(result, "cached", False):
+        return "cached"
     if message == "feature_locked":
         return "feature_locked"
     if message in NOT_CONFIGURED_MESSAGES:
@@ -217,7 +260,7 @@ def _status_for(result: AnalyzerResult, details: dict) -> str:
         return "skipped"
     if "quota" in message and "exceed" in message:
         return "quota_exceeded"
-    if details.get("cached") is True:
+    if details.get("cached") is True or _contains_cached_marker(details):
         return "cached"
     if "timeout" in message or any(
         "timeout" in error.lower() or "timed out" in error.lower()
@@ -291,7 +334,7 @@ def _evidence_items(
     if analyzer_id == "payment_fraud" and details.get("decision"):
         evidence.append({
             "type": "decision",
-            "text": f"Decision signal: {details['decision']}",
+            "text": f"Decision signal: {_payment_decision_label(details['decision'])}",
         })
     if isinstance(details.get("red_flags"), list):
         for flag in details["red_flags"][:3]:
@@ -366,6 +409,17 @@ def _append_header_evidence(evidence: list[dict], details: dict) -> None:
 def _safe_details(details: dict[str, Any]) -> dict:
     safe_details = {}
     for key, value in details.items():
+        normalized_key = str(key).lower()
+        if any(secret in normalized_key for secret in (
+            "api_key",
+            "authorization",
+            "credential",
+            "password",
+            "secret",
+            "token",
+        )):
+            safe_details[key] = "(redacted)"
+            continue
         if key == "screenshots":
             safe_details[key] = {
                 url: "(base64 image)"
@@ -376,6 +430,16 @@ def _safe_details(details: dict[str, Any]) -> dict:
         else:
             safe_details[key] = value
     return safe_details
+
+
+def _contains_cached_marker(value: Any) -> bool:
+    if isinstance(value, dict):
+        if value.get("cached") is True:
+            return True
+        return any(_contains_cached_marker(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_cached_marker(item) for item in value)
+    return False
 
 
 def _errors(result: AnalyzerResult) -> list[str]:
@@ -391,6 +455,47 @@ def _safe_float(value: Any) -> float:
         return round(float(value or 0.0), 4)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _duration_ms(result: AnalyzerResult, details: dict) -> float | None:
+    for value in (
+        getattr(result, "timing_ms", None),
+        getattr(result, "duration_ms", None),
+        details.get("duration_ms"),
+        details.get("timing_ms"),
+    ):
+        if value is not None:
+            return _safe_float(value)
+    timing = details.get("timing")
+    if isinstance(timing, dict) and timing.get("duration_ms") is not None:
+        return _safe_float(timing.get("duration_ms"))
+    return None
+
+
+def _safe_timestamp(value: Any) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    text = str(value).strip()
+    return text or None
+
+
+def _utc_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _payment_decision_label(value: Any) -> str:
+    decision = str(value or "").upper()
+    if decision in {"DO_NOT_PAY", "DO_NOT_PAY_UNTIL_VERIFIED"}:
+        return "Do not pay until independently confirmed"
+    if decision == "VERIFY":
+        return "Verify out of band"
+    if decision == "SAFE":
+        return "Safe to continue normal checks"
+    return _label(str(value or "Payment risk"))
 
 
 def _label(value: str) -> str:
