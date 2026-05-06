@@ -49,6 +49,17 @@ Supported cost tiers:
 - `paid_high`: browser detonation, attachment sandboxing, or similar high-cost
   analysis.
 
+Analyzer-specific details:
+
+- `rmm_lure` is a free local PhishAnalyze check. Its `details` include
+  `lure_category`, `detected_remote_tool_keywords`,
+  `suspicious_download_indicators`, `linked_domains`, `file_names`,
+  `download_prompts`, `installer_language`, `risky_flow`, and
+  `user_guidance`.
+- When `rmm_lure` finds no remote-access installation lure evidence, it returns
+  `status: "skipped"` and `confidence: 0.0` so it stays visible without
+  diluting the weighted score.
+
 Cache semantics:
 
 - Cache hits use `status: "cached"` and `cached: true`.

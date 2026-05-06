@@ -45,6 +45,9 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Email parsing for sender, reply-to, subject, body, URLs, attachments, and
   headers.
 - Local analyzers that work without paid APIs.
+- Remote access lure detection for fake document, invoice, HR, tax, crypto,
+  Teams/Zoom, Adobe, and SSA-style messages that try to push installer or
+  support-tool downloads.
 - Normalized analyzer result contract with `success`, `failed`, `timeout`,
   `skipped`, `feature_locked`, `not_configured`, `quota_exceeded`, and `cached`
   statuses.
@@ -102,6 +105,7 @@ Current analyzers include:
 - `url_detonation`
 - `attachment_analysis`
 - `nlp_intent`
+- `rmm_lure`
 - `sender_profiling`
 - `payment_fraud`
 - `brand_impersonation`
@@ -219,7 +223,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1260 tests across 66 test modules
+1264 tests across 67 test modules
 ```
 
 Run all tests:

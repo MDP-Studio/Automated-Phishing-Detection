@@ -187,6 +187,7 @@ curl -X POST http://localhost:8000/api/v1/feedback \
       "brand_impersonation_score": 0.1,
       "attachment_risk_score": 0.0,
       "nlp_intent_score": 0.3,
+      "rmm_lure_score": 0.0,
       "sender_reputation_score": 0.2
     }
   }'
@@ -203,7 +204,7 @@ class FeedbackRecord:
     original_verdict: Verdict  # CLEAN, SUSPICIOUS, LIKELY_PHISHING, CONFIRMED_PHISHING
     correct_label: Verdict
     analyst_notes: str
-    feature_vector: dict  # JSON of 8 analyzer scores
+    feature_vector: dict  # JSON of analyzer scores
     submitted_at: datetime
 ```
 
@@ -250,7 +251,7 @@ class RetrainRun:
 
 1. **Data Preparation:**
    - Extract feedback records where `original_verdict != correct_label`
-   - Parse feature_vector JSON to get 8 analyzer scores
+   - Parse feature_vector JSON to get analyzer scores
    - Label each as "too conservative" (0) or "too aggressive" (1)
 
 2. **Training:**

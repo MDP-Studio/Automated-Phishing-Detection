@@ -57,6 +57,25 @@ def test_cached_status_and_safe_details_are_reported():
     assert payload["details"]["access_token"] == "(redacted)"
 
 
+def test_rmm_lure_contract_is_free_local_and_customer_readable():
+    result = AnalyzerResult(
+        analyzer_name="rmm_lure",
+        risk_score=0.82,
+        confidence=0.9,
+        details={
+            "summary": "This email may be trying to make the user install a remote access tool.",
+            "risky_flow": True,
+        },
+    )
+
+    payload = normalize_analyzer_result("rmm_lure", result)
+
+    assert payload["display_name"] == "Remote access lure detection"
+    assert payload["plan_required"] == "free"
+    assert payload["cost_tier"] == "free_local"
+    assert payload["evidence"][0]["text"] == result.details["summary"]
+
+
 def test_nested_api_client_cache_marker_promotes_cached_status():
     result = AnalyzerResult(
         analyzer_name="url_reputation",

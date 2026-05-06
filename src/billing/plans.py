@@ -110,6 +110,13 @@ FEATURE_CATALOG: tuple[Feature, ...] = (
         category="Payment firewall",
     ),
     Feature(
+        slug="rmm_lure",
+        name="Remote access lure detection",
+        description="Installer prompts, fake document/update themes, and remote-support tool mentions.",
+        minimum_plan="free",
+        category="Core detection",
+    ),
+    Feature(
         slug="scan_history",
         name="Private scan history",
         description="Database-backed result history scoped to the signed-in user or team.",

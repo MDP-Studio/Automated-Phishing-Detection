@@ -41,4 +41,5 @@ async def test_pipeline_skips_locked_paid_analyzers_before_loading(sample_email_
     assert results["url_detonation"].details["required_plan_name"] == "Pro"
     assert results["url_detonation"].cost_tier == "paid_high"
     assert results["header_analysis"].status == "not_configured"
+    assert results["rmm_lure"].status == "not_configured"
     assert results["payment_fraud"].status == "not_configured"

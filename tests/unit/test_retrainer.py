@@ -133,6 +133,7 @@ class TestRetrainWeights:
                     "brand_impersonation_score": 0.1,
                     "attachment_risk_score": 0.2,
                     "nlp_intent_score": 0.3,
+                    "rmm_lure_score": 0.05,
                     "sender_reputation_score": 0.25,
                     "payment_fraud_score": 0.15,
                 }
@@ -156,7 +157,7 @@ class TestRetrainWeights:
 
         assert result is not None
         assert isinstance(result, dict)
-        assert len(result) == 9  # 9 analyzers
+        assert len(result) == 10  # 10 analyzers
 
     async def test_retrain_weights_normalize_to_one(self, config):
         """Test retrained weights sum to approximately 1.0."""
@@ -176,6 +177,7 @@ class TestRetrainWeights:
                     "brand_impersonation_score": 0.1,
                     "attachment_risk_score": 0.2,
                     "nlp_intent_score": 0.3,
+                    "rmm_lure_score": 0.05,
                     "sender_reputation_score": 0.25,
                     "payment_fraud_score": 0.15,
                 }
@@ -216,6 +218,7 @@ class TestRetrainWeights:
                     "brand_impersonation_score": 0.1,
                     "attachment_risk_score": 0.2,
                     "nlp_intent_score": 0.3,
+                    "rmm_lure_score": 0.05,
                     "sender_reputation_score": 0.25,
                     "payment_fraud_score": 0.15,
                 }
@@ -259,6 +262,7 @@ class TestRetrainWeights:
                     "brand_impersonation_score": 0.1,
                     "attachment_risk_score": 0.2,
                     "nlp_intent_score": 0.3,
+                    "rmm_lure_score": 0.05,
                     "sender_reputation_score": 0.25,
                     "payment_fraud_score": 0.15,
                 }
@@ -336,6 +340,7 @@ class TestExtractFeatureArray:
             "brand_impersonation_score": 0.1,
             "attachment_risk_score": 0.2,
             "nlp_intent_score": 0.3,
+            "rmm_lure_score": 0.05,
             "sender_reputation_score": 0.25,
             "payment_fraud_score": 0.15,
         }
@@ -343,7 +348,7 @@ class TestExtractFeatureArray:
         array = retainer._extract_feature_array(features)
 
         assert array is not None
-        assert len(array) == 9
+        assert len(array) == 10
         assert all(isinstance(x, float) for x in array)
 
     def test_extract_missing_features(self):
@@ -375,6 +380,7 @@ class TestExtractFeatureArray:
             "brand_impersonation_score": 0.1,
             "attachment_risk_score": 0.2,
             "nlp_intent_score": 0.3,
+            "rmm_lure_score": 0.05,
             "sender_reputation_score": 0.25,
             "payment_fraud_score": 0.15,
         }
@@ -396,16 +402,18 @@ class TestExtractFeatureArray:
             "brand_impersonation_score": 0.5,
             "attachment_risk_score": 0.6,
             "nlp_intent_score": 0.7,
-            "sender_reputation_score": 0.8,
-            "payment_fraud_score": 0.9,
+            "rmm_lure_score": 0.8,
+            "sender_reputation_score": 0.9,
+            "payment_fraud_score": 1.0,
         }
 
         array = retainer._extract_feature_array(features)
 
         assert array[0] == 0.1  # header_risk_score first
         assert array[1] == 0.2  # url_reputation_score second
-        assert array[-2] == 0.8  # sender_reputation_score before payment_fraud_score
-        assert array[-1] == 0.9  # payment_fraud_score last
+        assert array[-3] == 0.8  # rmm_lure_score before sender and payment
+        assert array[-2] == 0.9  # sender_reputation_score before payment_fraud_score
+        assert array[-1] == 1.0  # payment_fraud_score last
 
 
 class TestCoefficientsToWeights:
@@ -416,7 +424,7 @@ class TestCoefficientsToWeights:
         config = PipelineConfig()
         retainer = WeightRetainer(config)
 
-        coefficients = np.array([0.5, 0.3, 0.2, 0.1, 0.4, 0.6, 0.2, 0.3, 0.7])
+        coefficients = np.array([0.5, 0.3, 0.2, 0.1, 0.4, 0.6, 0.2, 0.25, 0.3, 0.7])
         weights = retainer._coefficients_to_weights(coefficients)
 
         weight_sum = sum(weights.values())
@@ -427,18 +435,18 @@ class TestCoefficientsToWeights:
         config = PipelineConfig()
         retainer = WeightRetainer(config)
 
-        coefficients = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+        coefficients = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9])
         weights = retainer._coefficients_to_weights(coefficients)
 
         assert isinstance(weights, dict)
-        assert len(weights) == 9
+        assert len(weights) == 10
 
     def test_coefficients_all_analyzer_names(self):
         """Test all analyzer names are in result."""
         config = PipelineConfig()
         retainer = WeightRetainer(config)
 
-        coefficients = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+        coefficients = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9])
         weights = retainer._coefficients_to_weights(coefficients)
 
         expected_analyzers = [
@@ -449,6 +457,7 @@ class TestCoefficientsToWeights:
             "brand_impersonation",
             "attachment_analysis",
             "nlp_intent",
+            "rmm_lure",
             "sender_profiling",
             "payment_fraud",
         ]
@@ -462,7 +471,7 @@ class TestCoefficientsToWeights:
         retainer = WeightRetainer(config)
 
         # Include negative coefficients
-        coefficients = np.array([-0.5, 0.3, -0.2, 0.1, 0.4, 0.6, 0.2, 0.3, -0.7])
+        coefficients = np.array([-0.5, 0.3, -0.2, 0.1, 0.4, 0.6, 0.2, -0.25, 0.3, -0.7])
         weights = retainer._coefficients_to_weights(coefficients)
 
         # All weights should be positive
@@ -482,7 +491,7 @@ class TestWeightRetainerIntegration:
 
         # Check initial state
         assert retainer.current_weights is not None
-        assert len(retainer.current_weights) == 9
+        assert len(retainer.current_weights) == 10
 
         # Check scaler exists
         assert retainer.scaler is not None

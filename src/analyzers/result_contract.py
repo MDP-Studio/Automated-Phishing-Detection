@@ -43,6 +43,7 @@ ANALYZER_DISPLAY_NAMES = {
     "header_analysis": "Header authentication",
     "nlp_intent": "Intent analysis",
     "payment_fraud": "Business email compromise signals",
+    "rmm_lure": "Remote access lure detection",
     "sender_profiling": "Sender profiling",
     "url_detonation": "Browser URL detonation",
     "url_reputation": "URL reputation",

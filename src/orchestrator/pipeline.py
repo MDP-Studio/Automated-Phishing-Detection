@@ -362,6 +362,7 @@ class PhishingPipeline:
             "url_detonation",
             "attachment_analysis",
             "nlp_intent",
+            "rmm_lure",
             "sender_profiling",
             "payment_fraud",
         ]
@@ -602,6 +603,12 @@ class PhishingPipeline:
                 return await analyzer.analyze(attachments)
             elif name == "nlp_intent":
                 return await analyzer.analyze(email)
+            elif name == "rmm_lure":
+                return await analyzer.analyze(
+                    email=email,
+                    iocs=iocs,
+                    extracted_urls=urls,
+                )
             elif name == "sender_profiling":
                 return await analyzer.analyze(email)
             elif name == "payment_fraud":
@@ -850,6 +857,7 @@ class PhishingPipeline:
                 "nlp_intent": 0.15,           # Heavily dampen — urgent language is expected
                 "brand_impersonation": 0.25,   # Dampen — brand keywords are expected
                 "domain_intelligence": 0.5,    # Moderate dampen
+                "rmm_lure": 0.25,              # Legitimate updaters can mention installers
             }
             self.logger.info(
                 f"Trusted authenticated sender detected ({trust_reason}). "
@@ -861,6 +869,7 @@ class PhishingPipeline:
         weighted_sum = 0.0
         confidence_sum = 0.0
         analyzer_details = []
+        contributing_analyzers = []
 
         for analyzer_name, result in analyzer_results.items():
             weight = weights.get(analyzer_name, 0.0)
@@ -902,6 +911,7 @@ class PhishingPipeline:
                 weighted_sum += effective_score * weight
                 confidence_sum += result.confidence * weight
                 total_weight += weight
+                contributing_analyzers.append(analyzer_name)
 
                 if dampen_factor is not None:
                     analyzer_details.append(
@@ -953,6 +963,24 @@ class PhishingPipeline:
                 verdict = Verdict.SUSPICIOUS
                 analyzer_details.append(
                     "payment_fraud override: VERIFY before payment approval"
+                )
+
+        rmm_result = analyzer_results.get("rmm_lure")
+        if rmm_result and rmm_result.confidence > 0:
+            rmm_details = rmm_result.details or {}
+            only_rmm_contributed = set(contributing_analyzers) == {"rmm_lure"}
+            if rmm_details.get("risky_flow") and rmm_result.risk_score >= 0.72:
+                if verdict == Verdict.CONFIRMED_PHISHING and only_rmm_contributed:
+                    verdict = Verdict.LIKELY_PHISHING
+                elif verdict in (Verdict.CLEAN, Verdict.SUSPICIOUS):
+                    verdict = Verdict.LIKELY_PHISHING
+                analyzer_details.append(
+                    "rmm_lure override: remote access installer lure flow detected"
+                )
+            elif rmm_result.risk_score >= 0.45 and verdict == Verdict.CLEAN:
+                verdict = Verdict.SUSPICIOUS
+                analyzer_details.append(
+                    "rmm_lure override: remote access lure indicators require review"
                 )
 
         # Generate reasoning
@@ -1075,6 +1103,9 @@ class PhishingPipeline:
                         model=api.llm_model or "gpt-5.4-mini",
                     )
                 analyzer = NLPIntentAnalyzer(llm_client=llm_client)
+            elif name == "rmm_lure":
+                from src.analyzers.rmm_lure import RMMLureAnalyzer
+                analyzer = RMMLureAnalyzer()
             elif name == "sender_profiling":
                 from src.analyzers.sender_profiling import SenderProfileAnalyzer
                 analyzer = SenderProfileAnalyzer()

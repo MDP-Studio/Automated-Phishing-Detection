@@ -81,6 +81,10 @@
       name: "LLM social-engineering reasoning",
       description: "LLM-backed phishing, BEC, and intent analysis.",
     },
+    rmm_lure: {
+      name: "Remote access lure detection",
+      description: "Flags fake document/update flows that try to make users install support tools.",
+    },
     url_detonation: {
       name: "Browser link check",
       description: "Opens extracted links in a controlled browser check when available on your plan.",
@@ -854,6 +858,7 @@ ${element.innerHTML}
       header_analysis: "Header authentication",
       nlp_intent: "Intent analysis",
       payment_fraud: "Business email compromise signals",
+      rmm_lure: "Remote access lure detection",
       sender_profiling: "Sender profiling",
       url_detonation: "Browser link check",
       url_reputation: "URL reputation",

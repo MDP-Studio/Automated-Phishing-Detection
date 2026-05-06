@@ -16,6 +16,7 @@ The **Pipeline key** column is the analyzer name as it appears on `PipelineResul
 | `url_detonation`       | `analyzers/url_detonator.py`        | T1566.002, T1204.001, T1027.006 (HTML smuggling)   | T1036.005 (masquerading via redirect)     | Initial Access, User Execution, Defense Evasion |
 | `brand_impersonation`  | `analyzers/brand_impersonation.py`  | T1656, T1036.005                                   | T1566.002                                 | Defense Evasion (Impersonation)                 |
 | `nlp_intent`           | `analyzers/nlp_intent.py`           | T1534 (Internal Spearphishing), T1656              | T1566.003 (Spearphishing via Service)     | Lateral Movement, Initial Access                |
+| `rmm_lure`             | `analyzers/rmm_lure.py`             | T1566.002, T1204.002, T1219                        | T1036.005                                 | Initial Access, Execution, Command and Control  |
 | `sender_profiling`     | `analyzers/sender_profiling.py`     | T1078 (Valid Accounts) — anomaly signal            | T1534                                     | Initial Access, Lateral Movement                |
 | `attachment_analysis`  | `analyzers/attachment_sandbox.py` + `extractors/attachment_handler.py` | T1566.001, T1204.002 | T1027 (Obfuscated Files), T1218 (LOLBins) | Initial Access, User Execution                  |
 | *(extractor, no result key)* | `extractors/qr_decoder.py`    | T1566.002 (quishing)                               | T1204.001                                 | Initial Access, User Execution                  |
@@ -96,6 +97,19 @@ The pipeline is purpose-built for **TA0001 Initial Access via T1566 Phishing**. 
 **What it does not catch**
 - Intent classification is a probabilistic LLM signal. False positives on legitimate urgent business email (legal, finance) are an accepted cost — this is why the BEC override requires confidence > 0.8.
 - Without an LLM key, the sklearn fallback runs at substantially lower accuracy. See `Known Limitations` in README.
+
+### RMM lure detector - `src/analyzers/rmm_lure.py`
+
+**Techniques detected**
+- **T1566.002 - Spearphishing Link**: Detects link-led fake statement, invoice, Teams/Zoom, Adobe, HR, tax, crypto, and protected-document themes that push the user toward a download.
+- **T1204.002 - User Execution: Malicious File**: Extracts `.exe`, `.msi`, `.scr`, script, archive, and disk-image download references from links, body text, and attachments.
+- **T1219 - Remote Access Software**: Flags AnyDesk, TeamViewer, ScreenConnect, Splashtop, LogMeIn, BeyondTrust, RustDesk, Quick Assist, Chrome Remote Desktop, and other remote-support tool language.
+- **T1036.005 - Masquerading: Match Legitimate Name or Location**: Treats fake document viewers and update prompts as masquerading context when they lead to installer-style downloads.
+
+**What it does not catch**
+- A real RMM installer hosted on a trusted vendor site and sent by an authenticated trusted sender may be legitimate. The runtime scorer dampens this signal for trusted authenticated senders.
+- A payload hidden behind CAPTCHA, geo-fencing, or time-of-click switching still needs URL detonation, browser telemetry, or endpoint controls.
+- It detects the lure and guidance before execution. It does not prove post-compromise remote-control activity on the endpoint.
 
 ### Sender profiling — `src/analyzers/sender_profiling.py`
 

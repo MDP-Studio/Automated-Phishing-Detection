@@ -391,7 +391,7 @@ pytest tests/test_thresholds.py -v
 
 ## Performance
 
-- Decision engine: < 1ms for typical email (8 analyzers)
+- Decision engine: < 1ms for a typical configured analyzer set
 - Confidence calculations: < 0.1ms
 - Threshold lookup: O(1) constant time
 - Reasoning generation: < 5ms

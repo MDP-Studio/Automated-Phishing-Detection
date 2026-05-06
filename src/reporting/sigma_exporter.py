@@ -51,6 +51,7 @@ ANALYZER_ATTACK_TAGS: dict[str, list[str]] = {
     "url_detonation":      ["attack.initial_access", "attack.t1566.002", "attack.t1204.001", "attack.t1027.006"],
     "brand_impersonation": ["attack.defense_evasion", "attack.t1656", "attack.t1036.005"],
     "nlp_intent":          ["attack.initial_access", "attack.t1534", "attack.t1656"],
+    "rmm_lure":            ["attack.initial_access", "attack.t1566.002", "attack.t1204.002", "attack.t1219"],
     "attachment_analysis": ["attack.initial_access", "attack.t1566.001", "attack.t1204.002"],
     "sender_profiling":    ["attack.initial_access", "attack.t1078"],
 }

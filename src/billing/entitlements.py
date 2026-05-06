@@ -15,6 +15,7 @@ ANALYZER_FEATURES = {
     "domain_intelligence": "domain_intelligence",
     "url_detonation": "url_detonation",
     "brand_impersonation": "brand_impersonation",
+    "rmm_lure": "rmm_lure",
     "attachment_analysis": "attachment_sandbox",
     "nlp_intent": "llm_intent",
     "sender_profiling": "sender_profiling",

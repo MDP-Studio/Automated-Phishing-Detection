@@ -217,6 +217,7 @@ class WeightRetainer:
                 "brand_impersonation_score",
                 "attachment_risk_score",
                 "nlp_intent_score",
+                "rmm_lure_score",
                 "sender_reputation_score",
                 "payment_fraud_score",
             ]
@@ -255,6 +256,7 @@ class WeightRetainer:
             "brand_impersonation",
             "attachment_analysis",
             "nlp_intent",
+            "rmm_lure",
             "sender_profiling",
             "payment_fraud",
         ]

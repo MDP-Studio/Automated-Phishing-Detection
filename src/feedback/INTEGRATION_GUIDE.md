@@ -103,6 +103,7 @@ curl -X POST http://localhost:8000/api/v1/feedback \
       "brand_impersonation_score": 0.1,
       "attachment_risk_score": 0.0,
       "nlp_intent_score": 0.3,
+      "rmm_lure_score": 0.0,
       "sender_reputation_score": 0.2
     }
   }'
@@ -432,7 +433,7 @@ asyncio.run(main())
 
 ### Feature Vector Mismatch
 **Error**: `Failed to extract feature array`
-**Solution**: Verify feature_vector JSON has all 8 keys (header_risk_score, etc.)
+**Solution**: Verify feature_vector JSON has the expected analyzer score keys (header_risk_score, etc.)
 
 ### Token Rejection
 **Error**: `Invalid token`

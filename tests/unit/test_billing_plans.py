@@ -64,6 +64,7 @@ def test_free_plan_payload_locks_paid_api_features():
     assert features["manual_scan"]["available"] is True
     assert features["header_auth"]["available"] is True
     assert features["payment_rules"]["available"] is True
+    assert features["rmm_lure"]["available"] is True
     assert features["url_reputation"]["available"] is False
     assert features["url_reputation"]["required_plan_name"] == "Starter"
     assert features["attachment_sandbox"]["required_plan_name"] == "Pro"
@@ -82,6 +83,7 @@ def test_pro_plan_payload_unlocks_pro_but_not_business_features():
 
 def test_plan_allows_feature_uses_catalog_order():
     assert plan_allows_feature("free", "payment_rules") is True
+    assert plan_allows_feature("free", "rmm_lure") is True
     assert plan_allows_feature("free", "url_reputation") is False
     assert plan_allows_feature("starter", "url_reputation") is True
     assert plan_allows_feature("pro", "attachment_sandbox") is True

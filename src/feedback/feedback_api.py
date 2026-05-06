@@ -68,6 +68,7 @@ class FeedbackSubmissionRequest(BaseModel):
                 "feature_vector": {
                     "header_risk_score": 0.3,
                     "url_reputation_score": 0.8,
+                    "rmm_lure_score": 0.0,
                 },
             }
         }

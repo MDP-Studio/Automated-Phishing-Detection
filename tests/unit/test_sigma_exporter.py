@@ -115,6 +115,7 @@ class TestAnalyzerKeysAreCanonical:
         "url_detonation",
         "brand_impersonation",
         "nlp_intent",
+        "rmm_lure",
         "attachment_analysis",
         "sender_profiling",
     }
