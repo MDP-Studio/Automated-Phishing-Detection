@@ -5,10 +5,13 @@ tool:
 
 ```text
 analyze_payment_email(email_path) -> SAFE | VERIFY | DO_NOT_PAY + evidence
+mailbox_connection_guide(provider) -> provider setup + privacy notes
 ```
 
 It wraps the existing `payment_fraud` analyzer and returns structured evidence
 without exposing full email bodies, raw headers, or attachment content.
+The companion mailbox guide tool returns setup instructions only. It never
+accepts mailbox passwords or stores credentials.
 
 ## Contract
 
@@ -60,6 +63,12 @@ python scripts/agent_payment_tool.py demo_samples/agent_payment/do_not_pay_bank_
 
 Use `--no-metadata` when an agent only needs the decision payload.
 
+Print mailbox connection guidance:
+
+```bash
+python scripts/mailbox_connection_guide.py --provider gmail --pretty
+```
+
 Safety limits:
 
 - `AGENT_PAYMENT_MAX_EMAIL_BYTES` caps local `.eml` files before parsing.
@@ -88,7 +97,8 @@ python scripts/agent_mcp_live_demo.py
 
 That script starts `scripts/payment_mcp_server.py` over stdio, runs
 `initialize`, discovers `analyze_payment_email` with `tools/list`, and calls it
-with `tools/call`. The captured storyline is in
+with `tools/call`. The same server also exposes `mailbox_connection_guide` for
+safe provider setup guidance. The captured storyline is in
 [`docs/agent-payment-demo-transcript.md`](agent-payment-demo-transcript.md).
 
 ## MCP Server
@@ -99,9 +109,14 @@ Run the stdio MCP server:
 python scripts/payment_mcp_server.py
 ```
 
-It exposes one tool named `analyze_payment_email`. The server implements the
-MCP lifecycle enough for local agent clients: `initialize`, `ping`,
-`tools/list`, and `tools/call`.
+It exposes two tools:
+
+- `analyze_payment_email` for local `.eml` payment email decisions.
+- `mailbox_connection_guide` for provider setup guidance across Gmail,
+  Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic IMAP.
+
+The server implements the MCP lifecycle enough for local agent clients:
+`initialize`, `ping`, `tools/list`, and `tools/call`.
 
 The implementation follows the MCP 2025-06-18 shape:
 
@@ -110,6 +125,8 @@ The implementation follows the MCP 2025-06-18 shape:
 - Tool invocation uses `tools/call`.
 - Structured output is returned in `structuredContent` and mirrored as JSON
   text for compatibility.
+- The mailbox guide tool returns instructions and privacy notes only. It does
+  not accept credentials.
 
 ## Claude Desktop Setup
 

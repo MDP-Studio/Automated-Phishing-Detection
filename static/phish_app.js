@@ -29,6 +29,9 @@
   const mailboxList = document.getElementById("mailboxList");
   const mailboxStatus = document.getElementById("mailboxStatus");
   const mailboxQuota = document.getElementById("mailboxQuota");
+  const mailboxProviderSelect = mailboxForm ? mailboxForm.querySelector("[name='provider']") : null;
+  const mailboxHostInput = mailboxForm ? mailboxForm.querySelector("[name='host']") : null;
+  const mailboxPasswordInput = mailboxForm ? mailboxForm.querySelector("[name='app_password']") : null;
   const forms = {
     login: document.getElementById("loginForm"),
     signup: document.getElementById("signupForm"),
@@ -72,6 +75,23 @@
     llm_intent: {
       name: "LLM social-engineering reasoning",
       description: "LLM-backed phishing, BEC, and intent analysis.",
+    },
+  };
+  const mailboxProviderDefaults = {
+    gmail: {
+      host: "imap.gmail.com",
+      password: "Google app password",
+      title: "Gmail usually needs IMAP enabled and a Google app password.",
+    },
+    outlook: {
+      host: "outlook.office365.com",
+      password: "OAuth or admin-approved mailbox password",
+      title: "Microsoft accounts often require OAuth or admin approval. Manual upload is the fallback.",
+    },
+    imap: {
+      host: "imap.example.com",
+      password: "Provider app password",
+      title: "Use the IMAP host from your email provider or IT admin.",
     },
   };
 
@@ -244,6 +264,19 @@
       return "Billing is not available right now. The server needs a valid Stripe secret key before checkout can start.";
     }
     return message || "Billing is not available right now.";
+  }
+
+  function syncMailboxProviderFields() {
+    if (!mailboxProviderSelect || !mailboxHostInput || !mailboxPasswordInput) return;
+    const provider = mailboxProviderSelect.value || "imap";
+    const defaults = mailboxProviderDefaults[provider] || mailboxProviderDefaults.imap;
+    const knownHosts = Object.values(mailboxProviderDefaults).map((item) => item.host);
+    if (!mailboxHostInput.value || knownHosts.includes(mailboxHostInput.value)) {
+      mailboxHostInput.value = provider === "imap" ? "" : defaults.host;
+    }
+    mailboxHostInput.placeholder = defaults.host;
+    mailboxPasswordInput.placeholder = defaults.password;
+    mailboxProviderSelect.title = defaults.title;
   }
 
   function openPricingPanel(message) {
@@ -1012,6 +1045,11 @@
     loadHistory().catch((error) => notice(historyNotice, error.message));
   });
 
+  if (mailboxProviderSelect) {
+    mailboxProviderSelect.addEventListener("change", syncMailboxProviderFields);
+    syncMailboxProviderFields();
+  }
+
   historyList.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-scan]");
     if (!button) return;
@@ -1044,6 +1082,7 @@
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       event.currentTarget.reset();
+      syncMailboxProviderFields();
       await loadMailboxes();
       mailboxStateReloaded = true;
       notice(mailboxNotice, payload.message || "Mailbox saved.");

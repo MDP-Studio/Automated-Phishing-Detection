@@ -19,6 +19,9 @@
   const mailboxLockText = document.getElementById("mailboxLockText");
   const mailboxStatusText = document.getElementById("mailboxStatusText");
   const mailboxSubmitButton = document.getElementById("mailboxSubmitButton");
+  const mailboxProviderSelect = mailboxForm ? mailboxForm.querySelector("[name='provider']") : null;
+  const mailboxHostInput = mailboxForm ? mailboxForm.querySelector("[name='host']") : null;
+  const mailboxPasswordInput = mailboxForm ? mailboxForm.querySelector("[name='app_password']") : null;
   const decisionStack = document.getElementById("decisionStack");
   const emailFileInput = document.getElementById("emailFile");
   const scanDropZone = document.getElementById("scanDropZone");
@@ -42,6 +45,23 @@
   const planOrder = ["free", "starter", "pro", "business"];
   const defaultScanDropTitle = "Drop your .eml file here, or click to browse";
   const defaultScanDropHint = "Payment-risk scans use .eml files";
+  const mailboxProviderDefaults = {
+    gmail: {
+      host: "imap.gmail.com",
+      password: "Google app password",
+      title: "Gmail usually needs IMAP enabled and a Google app password.",
+    },
+    outlook: {
+      host: "outlook.office365.com",
+      password: "OAuth or admin-approved mailbox password",
+      title: "Microsoft accounts often require OAuth or admin approval. Manual upload is the fallback.",
+    },
+    imap: {
+      host: "imap.example.com",
+      password: "Provider app password",
+      title: "Use the IMAP host from your email provider or IT admin.",
+    },
+  };
 
   function planRank(slug) {
     const rank = planOrder.indexOf(String(slug || "").toLowerCase());
@@ -363,6 +383,21 @@
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
+  }
+
+  function syncMailboxProviderFields() {
+    if (!mailboxProviderSelect || !mailboxHostInput || !mailboxPasswordInput) {
+      return;
+    }
+    const provider = mailboxProviderSelect.value || "imap";
+    const defaults = mailboxProviderDefaults[provider] || mailboxProviderDefaults.imap;
+    const knownHosts = Object.values(mailboxProviderDefaults).map((item) => item.host);
+    if (!mailboxHostInput.value || knownHosts.includes(mailboxHostInput.value)) {
+      mailboxHostInput.value = provider === "imap" ? "" : defaults.host;
+    }
+    mailboxHostInput.placeholder = defaults.host;
+    mailboxPasswordInput.placeholder = defaults.password;
+    mailboxProviderSelect.title = defaults.title;
   }
 
   function formatBytes(bytes) {
@@ -1101,6 +1136,11 @@
     }
   });
 
+  if (mailboxProviderSelect) {
+    mailboxProviderSelect.addEventListener("change", syncMailboxProviderFields);
+    syncMailboxProviderFields();
+  }
+
   mailboxForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     hideNotice(mailboxNotice);
@@ -1117,6 +1157,7 @@
       });
       renderMailboxes(response);
       event.currentTarget.reset();
+      syncMailboxProviderFields();
       showNotice(mailboxNotice, response.message || "Mailbox saved for this workspace.");
     } catch (error) {
       if (error.status === 402) {

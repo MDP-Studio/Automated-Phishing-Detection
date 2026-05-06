@@ -54,3 +54,21 @@ def test_browser_extension_stays_link_only_and_privacy_bounded():
     assert "does not read mailbox contents" in popup_html
     assert "no background scraping" in readme
     assert "no credential storage" in readme
+
+
+def test_mailbox_guide_is_easy_to_find_and_privacy_bounded():
+    guide = (ROOT / "templates" / "mailbox_guide.html").read_text(encoding="utf-8")
+    docs = (ROOT / "docs" / "mailbox-connection-guide.md").read_text(encoding="utf-8")
+    phish = (ROOT / "templates" / "phish_app.html").read_text(encoding="utf-8")
+    payshield = (ROOT / "templates" / "saas_app.html").read_text(encoding="utf-8")
+
+    combined = guide + docs
+    assert "Use an app password, not your normal email password" in guide
+    assert "Microsoft, work, school, and university accounts may need OAuth or admin approval" in guide
+    assert "Gmail" in combined
+    assert "Outlook / Microsoft 365" in combined
+    assert "Zoho Mail" in combined
+    assert "Proton Mail Bridge" in combined
+    assert "It never accepts or stores passwords." in docs
+    assert "/mailbox-guide" in phish
+    assert "/mailbox-guide" in payshield

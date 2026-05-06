@@ -93,6 +93,28 @@ def test_agent_payment_cli_prints_json(tmp_path):
     assert "email" not in payload
 
 
+def test_mailbox_connection_guide_cli_prints_provider_payload():
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/mailbox_connection_guide.py",
+            "--provider",
+            "gmail",
+        ],
+        cwd=Path(__file__).resolve().parents[2],
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["tool"] == "mailbox_connection_guide"
+    assert payload["provider"] == "gmail"
+    assert payload["providers"][0]["host"] == "imap.gmail.com"
+    assert "encrypted mailbox connection material" in payload["privacy"]["stored"]
+
+
 def test_agent_payment_demo_script_prints_three_decisions():
     proc = subprocess.run(
         [sys.executable, "scripts/agent_payment_demo.py"],
@@ -168,8 +190,45 @@ def test_desktop_extension_node_bridge_calls_python_tool():
 
     assert proc.returncode == 0, proc.stderr
     responses = [json.loads(line) for line in proc.stdout.splitlines()]
-    assert responses[1]["result"]["tools"][0]["name"] == "analyze_payment_email"
+    tool_names = [tool["name"] for tool in responses[1]["result"]["tools"]]
+    assert tool_names[0] == "analyze_payment_email"
+    assert "mailbox_connection_guide" in tool_names
     assert responses[2]["result"]["structuredContent"]["decision"] == "DO_NOT_PAY"
+
+
+def test_desktop_extension_node_bridge_returns_mailbox_guide():
+    project_root = Path(__file__).resolve().parents[2]
+    env = {
+        "PAYMENT_FIREWALL_PROJECT_ROOT": str(project_root),
+        "PAYMENT_FIREWALL_PYTHON": sys.executable,
+    }
+    message = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "mailbox_connection_guide",
+            "arguments": {"provider": "zoho"},
+        },
+    }
+
+    proc = subprocess.run(
+        ["node", "desktop_extension/payment-scam-firewall/server/index.js"],
+        cwd=project_root,
+        input=json.dumps(message) + "\n",
+        text=True,
+        capture_output=True,
+        timeout=30,
+        env={**os.environ, **env},
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    response = json.loads(proc.stdout)
+    payload = response["result"]["structuredContent"]
+    assert response["result"]["isError"] is False
+    assert payload["provider"] == "zoho"
+    assert payload["providers"][0]["host"] == "imap.zoho.com"
+    assert "passwords" in payload["summary"].lower()
 
 
 def test_desktop_extension_rejects_non_boolean_metadata_flag():
@@ -285,10 +344,55 @@ def test_agent_payment_mcp_stdio_exposes_and_calls_tool(tmp_path):
     responses = [json.loads(line) for line in proc.stdout.splitlines()]
     assert len(responses) == 3
     assert responses[0]["result"]["capabilities"]["tools"]["listChanged"] is False
-    assert responses[1]["result"]["tools"][0]["name"] == "analyze_payment_email"
+    tool_names = [tool["name"] for tool in responses[1]["result"]["tools"]]
+    assert tool_names[0] == "analyze_payment_email"
+    assert "mailbox_connection_guide" in tool_names
     tool_result = responses[2]["result"]
     assert tool_result["isError"] is False
     assert tool_result["structuredContent"]["decision"] == "DO_NOT_PAY"
+
+
+def test_agent_payment_mcp_stdio_returns_mailbox_guide():
+    messages = [
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "pytest", "version": "1.0"},
+            },
+        },
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "mailbox_connection_guide",
+                "arguments": {"provider": "outlook"},
+            },
+        },
+    ]
+
+    proc = subprocess.run(
+        [sys.executable, "scripts/payment_mcp_server.py"],
+        cwd=Path(__file__).resolve().parents[2],
+        input="\n".join(json.dumps(message) for message in messages) + "\n",
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    responses = [json.loads(line) for line in proc.stdout.splitlines()]
+    tool_names = [tool["name"] for tool in responses[1]["result"]["tools"]]
+    assert tool_names == ["analyze_payment_email", "mailbox_connection_guide"]
+    tool_result = responses[2]["result"]
+    assert tool_result["isError"] is False
+    assert tool_result["structuredContent"]["provider"] == "outlook"
+    assert "OAuth" in tool_result["structuredContent"]["providers"][0]["password_label"]
 
 
 def test_analyze_demo_payment_samples_uses_fixed_dataset(tmp_path):

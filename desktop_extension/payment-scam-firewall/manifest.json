@@ -3,8 +3,8 @@
   "name": "payment-scam-firewall",
   "display_name": "Payment Scam Firewall",
   "version": "0.1.0",
-  "description": "Agent-ready payment email investigation for invoice scams, supplier impersonation, and bank-detail redirection.",
-  "long_description": "Adds one local MCP tool, analyze_payment_email, that inspects a .eml file through the Payment Scam Firewall project and returns SAFE, VERIFY, or DO_NOT_PAY with evidence and human verification steps. The bridge does not return full email bodies, raw headers, or attachment content.",
+  "description": "Agent-ready payment email investigation plus safe mailbox setup guidance.",
+  "long_description": "Adds local MCP tools for Payment Scam Firewall: analyze_payment_email inspects a .eml file and returns SAFE, VERIFY, or DO_NOT_PAY with evidence and human verification steps, while mailbox_connection_guide returns provider setup guidance without accepting credentials. The bridge does not return full email bodies, raw headers, attachment content, or mailbox passwords.",
   "author": {
     "name": "Meidie"
   },
@@ -26,13 +26,17 @@
     {
       "name": "analyze_payment_email",
       "description": "Analyze a local .eml invoice or payment email and return SAFE, VERIFY, or DO_NOT_PAY with evidence and verification steps."
+    },
+    {
+      "name": "mailbox_connection_guide",
+      "description": "Return safe mailbox setup guidance for Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic IMAP."
     }
   ],
   "user_config": {
     "project_root": {
       "type": "directory",
       "title": "Payment Scam Firewall project folder",
-      "description": "Folder containing scripts/agent_payment_tool.py.",
+      "description": "Folder containing scripts/agent_payment_tool.py and scripts/mailbox_connection_guide.py.",
       "required": true,
       "default": "C:\\Users\\meidi\\Documents\\personal project\\Automated Phishing Detection"
     },

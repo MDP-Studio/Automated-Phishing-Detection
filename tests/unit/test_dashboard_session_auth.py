@@ -604,6 +604,34 @@ def test_payshield_trust_page_stays_payment_product_specific(monkeypatch):
     assert 'href="/login">Analyst login</a>' not in response.text
 
 
+def test_mailbox_guide_opens_without_session_and_uses_host_brand(monkeypatch):
+    monkeypatch.setenv("PAYSHIELD_PUBLIC_URL", "https://payshield.example.test")
+    phish_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://phishanalyze.example.test",
+        follow_redirects=False,
+    )
+    pay_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://payshield.example.test",
+        follow_redirects=False,
+    )
+
+    phish = phish_client.get("/mailbox-guide")
+    payshield = pay_client.get("/mailbox-guide")
+
+    assert phish.status_code == 200
+    assert "Mailbox Connection Guide - PhishAnalyze" in phish.text
+    assert 'href="/monitor">Back to monitor</a>' in phish.text
+    assert "Use an app password, not your normal email password." in phish.text
+    assert "Google app password help" in phish.text
+    assert "'unsafe-inline'" not in phish.headers["Content-Security-Policy"]
+
+    assert payshield.status_code == 200
+    assert "Mailbox Connection Guide - PayShield" in payshield.text
+    assert 'href="/app">Back to app</a>' in payshield.text
+
+
 def test_product_shell_links_demo_pages_only_when_demo_is_enabled():
     client = TestClient(
         _build_app_with_token(public_demo_mode=True),

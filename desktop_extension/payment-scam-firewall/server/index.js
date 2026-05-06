@@ -7,6 +7,7 @@ const path = require("node:path");
 const readline = require("node:readline");
 
 const TOOL_NAME = "analyze_payment_email";
+const MAILBOX_GUIDE_TOOL_NAME = "mailbox_connection_guide";
 const PROTOCOL_VERSION = "2025-06-18";
 const DEFAULT_TOOL_TIMEOUT_MS = 60000;
 const DEFAULT_MAX_TOOL_OUTPUT_BYTES = 2 * 1024 * 1024;
@@ -44,6 +45,33 @@ const OUTPUT_SCHEMA = {
   }
 };
 
+const MAILBOX_GUIDE_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    provider: {
+      type: "string",
+      description:
+        "Provider to explain: all, gmail, outlook, yahoo, icloud, zoho, fastmail, proton, aol, or imap.",
+      default: "all"
+    }
+  },
+  additionalProperties: false
+};
+
+const MAILBOX_GUIDE_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    tool: { type: "string" },
+    schema_version: { type: "string" },
+    provider: { type: "string" },
+    summary: { type: "string" },
+    common_rules: { type: "array", items: { type: "string" } },
+    providers: { type: "array", items: { type: "object" } },
+    privacy: { type: "object" }
+  },
+  required: ["tool", "schema_version", "provider", "summary", "providers"]
+};
+
 function writeResponse(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
@@ -71,6 +99,17 @@ function toolDefinition() {
   };
 }
 
+function mailboxGuideToolDefinition() {
+  return {
+    name: MAILBOX_GUIDE_TOOL_NAME,
+    title: "Mailbox Connection Guide",
+    description:
+      "Return simple provider-specific mailbox setup guidance for Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic IMAP. This tool never accepts or stores mailbox passwords.",
+    inputSchema: MAILBOX_GUIDE_INPUT_SCHEMA,
+    outputSchema: MAILBOX_GUIDE_OUTPUT_SCHEMA
+  };
+}
+
 function projectRoot() {
   return process.env.PAYMENT_FIREWALL_PROJECT_ROOT || process.cwd();
 }
@@ -90,6 +129,10 @@ function positiveIntegerFromEnv(name, fallback) {
 
 function resolveToolScript() {
   return path.join(projectRoot(), "scripts", "agent_payment_tool.py");
+}
+
+function resolveMailboxGuideScript() {
+  return path.join(projectRoot(), "scripts", "mailbox_connection_guide.py");
 }
 
 function runPythonTool(args) {
@@ -183,11 +226,120 @@ function runPythonTool(args) {
   });
 }
 
+function runMailboxGuideTool(args) {
+  return new Promise((resolve) => {
+    const script = resolveMailboxGuideScript();
+    if (!fs.existsSync(script)) {
+      resolve({
+        ok: false,
+        message: `mailbox_connection_guide.py not found at ${script}`
+      });
+      return;
+    }
+
+    const timeoutMs = positiveIntegerFromEnv(
+      "PAYMENT_FIREWALL_TOOL_TIMEOUT_MS",
+      DEFAULT_TOOL_TIMEOUT_MS
+    );
+    const maxOutputBytes = positiveIntegerFromEnv(
+      "PAYMENT_FIREWALL_MAX_TOOL_OUTPUT_BYTES",
+      DEFAULT_MAX_TOOL_OUTPUT_BYTES
+    );
+    let settled = false;
+    let timeout = null;
+    const finish = (payload) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      resolve(payload);
+    };
+
+    const provider = args.provider || "all";
+    const child = spawn(
+      pythonExecutable(),
+      [script, "--provider", provider],
+      {
+        cwd: projectRoot(),
+        windowsHide: true
+      }
+    );
+
+    let stdout = "";
+    let stderr = "";
+    timeout = setTimeout(() => {
+      child.kill();
+      finish({
+        ok: false,
+        message: `Mailbox guide tool timed out after ${timeoutMs}ms`
+      });
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString("utf8");
+      if (Buffer.byteLength(stdout, "utf8") > maxOutputBytes) {
+        child.kill();
+        finish({
+          ok: false,
+          message: `Mailbox guide output exceeded ${maxOutputBytes} bytes`
+        });
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString("utf8");
+      if (Buffer.byteLength(stderr, "utf8") > maxOutputBytes) {
+        child.kill();
+        finish({
+          ok: false,
+          message: `Mailbox guide error output exceeded ${maxOutputBytes} bytes`
+        });
+      }
+    });
+    child.on("error", (err) => {
+      finish({ ok: false, message: err.message });
+    });
+    child.on("close", (code) => {
+      if (code !== 0) {
+        finish({ ok: false, message: stderr.trim() || `Mailbox guide exited with ${code}` });
+        return;
+      }
+      try {
+        finish({ ok: true, payload: JSON.parse(stdout) });
+      } catch (err) {
+        finish({ ok: false, message: `Could not parse mailbox guide JSON: ${err.message}` });
+      }
+    });
+  });
+}
+
 async function callTool(params) {
-  if (params.name !== TOOL_NAME) {
+  if (params.name !== TOOL_NAME && params.name !== MAILBOX_GUIDE_TOOL_NAME) {
     throw new Error(`Unknown tool: ${params.name}`);
   }
   const args = params.arguments || {};
+  if (params.name === MAILBOX_GUIDE_TOOL_NAME) {
+    if (
+      Object.prototype.hasOwnProperty.call(args, "provider") &&
+      typeof args.provider !== "string"
+    ) {
+      throw new Error("provider must be a string");
+    }
+    const guide = await runMailboxGuideTool(args);
+    if (!guide.ok) {
+      return {
+        content: [{ type: "text", text: guide.message }],
+        isError: true
+      };
+    }
+    return {
+      content: [{ type: "text", text: JSON.stringify(guide.payload) }],
+      structuredContent: guide.payload,
+      isError: false
+    };
+  }
+
   if (typeof args.email_path !== "string" || args.email_path.length === 0) {
     throw new Error("email_path is required");
   }
@@ -236,12 +388,12 @@ async function handleMessage(message) {
           version: "0.1.0"
         },
         instructions:
-          "Use analyze_payment_email for local .eml payment or invoice emails. Treat VERIFY and DO_NOT_PAY as human-review payment holds."
+          "Use analyze_payment_email for local .eml payment or invoice emails. Treat VERIFY and DO_NOT_PAY as human-review payment holds. Use mailbox_connection_guide for simple provider setup guidance."
       });
     case "ping":
       return result(id, {});
     case "tools/list":
-      return result(id, { tools: [toolDefinition()] });
+      return result(id, { tools: [toolDefinition(), mailboxGuideToolDefinition()] });
     case "tools/call":
       try {
         return result(id, await callTool(params));

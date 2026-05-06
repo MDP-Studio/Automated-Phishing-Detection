@@ -17,6 +17,12 @@ from src.agent_tools.payment_email import (  # noqa: E402
     TOOL_OUTPUT_SCHEMA,
     analyze_payment_email_file,
 )
+from src.support.mailbox_guides import (  # noqa: E402
+    MAILBOX_GUIDE_INPUT_SCHEMA,
+    MAILBOX_GUIDE_OUTPUT_SCHEMA,
+    MAILBOX_GUIDE_TOOL_NAME,
+    mailbox_guide_payload,
+)
 
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -47,7 +53,7 @@ def _error(
     return payload
 
 
-def _tool_definition() -> dict[str, Any]:
+def _payment_tool_definition() -> dict[str, Any]:
     return {
         "name": TOOL_NAME,
         "title": "Payment Email Scam Analyzer",
@@ -60,6 +66,24 @@ def _tool_definition() -> dict[str, Any]:
         "inputSchema": TOOL_INPUT_SCHEMA,
         "outputSchema": TOOL_OUTPUT_SCHEMA,
     }
+
+
+def _mailbox_guide_tool_definition() -> dict[str, Any]:
+    return {
+        "name": MAILBOX_GUIDE_TOOL_NAME,
+        "title": "Mailbox Connection Guide",
+        "description": (
+            "Return simple provider-specific mailbox setup guidance for Gmail, "
+            "Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic "
+            "IMAP. This tool never accepts or stores mailbox passwords."
+        ),
+        "inputSchema": MAILBOX_GUIDE_INPUT_SCHEMA,
+        "outputSchema": MAILBOX_GUIDE_OUTPUT_SCHEMA,
+    }
+
+
+def _tool_definitions() -> list[dict[str, Any]]:
+    return [_payment_tool_definition(), _mailbox_guide_tool_definition()]
 
 
 def _initialize_result(params: dict[str, Any]) -> dict[str, Any]:
@@ -80,17 +104,33 @@ def _initialize_result(params: dict[str, Any]) -> dict[str, Any]:
         "instructions": (
             "Use analyze_payment_email only on local .eml files that the user "
             "intended to inspect. Treat VERIFY and DO_NOT_PAY as human-review "
-            "payment holds, not automatic payment actions."
+            "payment holds, not automatic payment actions. Use "
+            "mailbox_connection_guide when a user needs simple setup guidance "
+            "for mailbox monitoring."
         ),
     }
 
 
 async def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
-    if params.get("name") != TOOL_NAME:
+    tool_name = params.get("name")
+    if tool_name not in {TOOL_NAME, MAILBOX_GUIDE_TOOL_NAME}:
         raise ValueError(f"Unknown tool: {params.get('name')}")
     arguments = params.get("arguments") or {}
     if not isinstance(arguments, dict):
         raise ValueError("Tool arguments must be an object")
+
+    if tool_name == MAILBOX_GUIDE_TOOL_NAME:
+        provider = arguments.get("provider", "all")
+        if provider is not None and not isinstance(provider, str):
+            raise ValueError("provider must be a string")
+        result = mailbox_guide_payload(provider)
+        text = json.dumps(result, sort_keys=True)
+        return {
+            "content": [{"type": "text", "text": text}],
+            "structuredContent": result,
+            "isError": False,
+        }
+
     email_path = arguments.get("email_path")
     if not isinstance(email_path, str) or not email_path:
         raise ValueError("email_path is required")
@@ -143,7 +183,7 @@ async def handle_jsonrpc_message(message: Any) -> Any:
     if method == "ping":
         return _response(message_id, {})
     if method == "tools/list":
-        return _response(message_id, {"tools": [_tool_definition()]})
+        return _response(message_id, {"tools": _tool_definitions()})
     if method == "tools/call":
         try:
             result = await _call_tool(params)

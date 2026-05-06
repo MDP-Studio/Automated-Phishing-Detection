@@ -3,11 +3,18 @@
 This MCPB bundle is a Claude Desktop bridge for the local Payment Scam Firewall
 project.
 
-It starts a small Node MCP server and calls the repo's Python CLI:
+It starts a small Node MCP server and calls the repo's Python CLIs:
 
 ```text
 scripts/agent_payment_tool.py
+scripts/mailbox_connection_guide.py
 ```
+
+Exposed tools:
+
+- `analyze_payment_email`: analyzes a local `.eml` invoice or payment email.
+- `mailbox_connection_guide`: returns safe provider setup guidance for mailbox
+  monitoring. It does not accept or store mailbox passwords.
 
 The bundle asks for two local paths during install:
 
@@ -48,4 +55,8 @@ node desktop_extension\payment-scam-firewall\server\index.js
 ```
 
 Then send newline-delimited JSON-RPC messages for `initialize`, `tools/list`,
-and `tools/call`.
+and `tools/call`. For the guide tool, call:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mailbox_connection_guide","arguments":{"provider":"gmail"}}}
+```

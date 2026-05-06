@@ -2250,6 +2250,16 @@ input[type="file"] {
   line-height: 1.5;
 }
 
+.mailbox-help a {
+  color: var(--accent);
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.mailbox-help a:hover {
+  text-decoration: underline;
+}
+
 .mailbox-form {
   display: grid;
   gap: 12px;

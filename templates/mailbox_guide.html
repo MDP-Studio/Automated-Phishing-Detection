@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mailbox Connection Guide - {{BRAND_NAME}}</title>
+  <link rel="stylesheet" href="/static/phish_app.css">
+</head>
+<body data-page="mailbox-guide">
+  <header class="phish-topbar">
+    <a class="phish-brand" href="{{PRIMARY_LINK}}" aria-label="{{BRAND_NAME}} home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-4-4"></path>
+      </svg>
+      <span>{{BRAND_NAME}}</span>
+    </a>
+    <nav class="phish-nav" aria-label="Mailbox guide navigation">
+      <a href="{{PRIMARY_LINK}}">{{PRIMARY_LABEL}}</a>
+      <a href="/mailbox-guide" class="active" aria-current="page">Mailbox guide</a>
+      <a href="/trust">Trust</a>
+    </nav>
+  </header>
+
+  <main class="phish-shell guide-shell">
+    <section class="guide-hero">
+      <p class="workspace-label">Mailbox setup</p>
+      <h1>Connect a mailbox without guessing the settings.</h1>
+      <p>
+        Manual .eml upload works immediately. Mailbox monitoring is optional and
+        uses IMAP with an app-specific password when your email provider allows it.
+        Microsoft, work, school, and university accounts may need OAuth or admin approval.
+      </p>
+    </section>
+
+    <section class="guide-layout">
+      <article class="guide-card guide-card-strong">
+        <h2>The simple rule</h2>
+        <ol>
+          <li>Use an app password, not your normal email password.</li>
+          <li>Use IMAP over SSL/TLS on port 993.</li>
+          <li>Use your full email address as the username unless your provider says otherwise.</li>
+          <li>If the provider blocks the connection, upload .eml files manually and ask your IT admin.</li>
+        </ol>
+      </article>
+
+      <article class="guide-card">
+        <h2>What the app stores</h2>
+        <p>
+          The app stores encrypted connection material and scan metadata. It does
+          not return your app password, encrypted token material, or full mailbox
+          body in API responses. You can delete a mailbox connection from the app.
+        </p>
+      </article>
+    </section>
+
+    <section class="provider-guide-grid" aria-label="Provider setup cards">
+      <article class="provider-guide-card">
+        <span>Usually works now</span>
+        <h2>Gmail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>Gmail</dd></div>
+          <div><dt>Host</dt><dd>imap.gmail.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>Google app password</dd></div>
+        </dl>
+        <ol>
+          <li>Enable IMAP in Gmail settings.</li>
+          <li>Turn on 2-Step Verification.</li>
+          <li>Create a Google app password for Mail.</li>
+          <li>Paste that app password into the mailbox form.</li>
+        </ol>
+        <p>Google Workspace accounts may block app passwords or IMAP.</p>
+        <a href="https://support.google.com/mail/answer/185833" rel="noopener">Google app password help</a>
+      </article>
+
+      <article class="provider-guide-card warning">
+        <span>OAuth preferred</span>
+        <h2>Outlook / Microsoft 365</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>Outlook</dd></div>
+          <div><dt>Host</dt><dd>outlook.office365.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>Usually OAuth, not normal password</dd></div>
+        </dl>
+        <ol>
+          <li>Use manual .eml upload if you are unsure.</li>
+          <li>Only try IMAP if your Microsoft account or tenant allows it.</li>
+          <li>For work, school, or university accounts, ask IT for approval.</li>
+        </ol>
+        <p>Microsoft commonly requires Modern Auth/OAuth2. A proper OAuth connector should be the next safer path.</p>
+        <a href="https://support.microsoft.com/en-gb/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040" rel="noopener">Microsoft IMAP help</a>
+      </article>
+
+      <article class="provider-guide-card">
+        <span>Usually works now</span>
+        <h2>Yahoo Mail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>imap.mail.yahoo.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>Yahoo app password</dd></div>
+        </dl>
+        <ol>
+          <li>Open Yahoo Account Security.</li>
+          <li>Generate an app password.</li>
+          <li>Use your full Yahoo email address.</li>
+        </ol>
+        <p>If Yahoo cannot create an app password, use manual upload and try again later.</p>
+        <a href="https://my.help.yahoo.com/kb/SLN4075.html" rel="noopener">Yahoo IMAP settings</a>
+      </article>
+
+      <article class="provider-guide-card">
+        <span>Usually works now</span>
+        <h2>iCloud Mail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>imap.mail.me.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>Apple app-specific password</dd></div>
+        </dl>
+        <ol>
+          <li>Enable two-factor authentication on your Apple Account.</li>
+          <li>Create an app-specific password.</li>
+          <li>Use your iCloud email. If that fails, try the username before @icloud.com.</li>
+        </ol>
+        <a href="https://support.apple.com/en-lamr/102525" rel="noopener">Apple iCloud Mail settings</a>
+      </article>
+
+      <article class="provider-guide-card">
+        <span>Usually works now</span>
+        <h2>Zoho Mail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>imap.zoho.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>Zoho app-specific password if 2FA is enabled</dd></div>
+        </dl>
+        <ol>
+          <li>Confirm IMAP is enabled in Zoho Mail settings.</li>
+          <li>If 2FA is enabled, create an app-specific password.</li>
+          <li>Use your full Zoho email address.</li>
+        </ol>
+        <p>Some Zoho plans or organization policies may block IMAP.</p>
+        <a href="https://help.zoho.com/portal/en/kb/mail/access-from-external-mail-clients/articles/what-are-the-incoming-outgoing-server-settings-for-zoho-to-setup-as-imap-account" rel="noopener">Zoho IMAP settings</a>
+      </article>
+
+      <article class="provider-guide-card">
+        <span>Usually works now</span>
+        <h2>Fastmail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>imap.fastmail.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>Fastmail app password</dd></div>
+        </dl>
+        <ol>
+          <li>Create an app password in Fastmail settings.</li>
+          <li>Use your Fastmail username or email address.</li>
+          <li>Use imap.fastmail.com unless Fastmail tells you to use a proxy host.</li>
+        </ol>
+        <a href="https://www.fastmail.help/hc/en-us/articles/360058752834-Set-up-Fastmail-on-your-device" rel="noopener">Fastmail setup help</a>
+      </article>
+
+      <article class="provider-guide-card warning">
+        <span>Advanced</span>
+        <h2>Proton Mail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>From Proton Mail Bridge</dd></div>
+          <div><dt>Port</dt><dd>From Proton Mail Bridge</dd></div>
+          <div><dt>Password</dt><dd>Bridge-generated password</dd></div>
+        </dl>
+        <ol>
+          <li>Install Proton Mail Bridge.</li>
+          <li>Copy the IMAP host, port, username, and password shown by Bridge.</li>
+          <li>Use those exact values in the app.</li>
+        </ol>
+        <p>This is best for private/local setups, not a simple public SaaS path.</p>
+        <a href="https://proton.me/support/support/bridge" rel="noopener">Proton Bridge help</a>
+      </article>
+
+      <article class="provider-guide-card">
+        <span>Custom</span>
+        <h2>Other IMAP / custom domain</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>Ask your provider or IT admin</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>App password if available</dd></div>
+        </dl>
+        <ol>
+          <li>Find the provider's incoming IMAP server.</li>
+          <li>Confirm SSL/TLS is enabled on port 993.</li>
+          <li>Ask IT whether third-party mailbox access is allowed.</li>
+        </ol>
+        <p>If the provider only supports OAuth, use manual .eml upload for now.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

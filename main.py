@@ -1487,6 +1487,22 @@ class PhishingDetectionApp:
                 headers={"Content-Security-Policy": STATIC_PAGE_CSP},
             )
 
+        @app.get("/mailbox-guide", response_class=HTMLResponse)
+        async def mailbox_guide_page(request: Request):
+            """Serve provider-specific mailbox connection guidance."""
+            payshield = _is_payshield_host(request)
+            guide_path = Path("./templates/mailbox_guide.html")
+            html_content = (
+                guide_path.read_text(encoding="utf-8")
+                .replace("{{BRAND_NAME}}", "PayShield" if payshield else "PhishAnalyze")
+                .replace("{{PRIMARY_LINK}}", "/app" if payshield else "/monitor")
+                .replace("{{PRIMARY_LABEL}}", "Back to app" if payshield else "Back to monitor")
+            )
+            return HTMLResponse(
+                content=_inject_shared(html_content),
+                headers={"Content-Security-Policy": STATIC_PAGE_CSP},
+            )
+
         @app.get("/api/saas/session")
         async def api_saas_session(request: Request):
             """Return normal-user session, plan, and signup state."""
