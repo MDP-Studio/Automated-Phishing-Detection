@@ -37,6 +37,9 @@
   const mailboxHostInput = mailboxForm ? mailboxForm.querySelector("[name='host']") : null;
   const mailboxPortInput = mailboxForm ? mailboxForm.querySelector("[name='port']") : null;
   const mailboxPasswordInput = mailboxForm ? mailboxForm.querySelector("[name='app_password']") : null;
+  const settingsPortalButton = document.querySelector("[data-settings-portal]");
+  const settingsTeamList = document.getElementById("settingsTeamList");
+  const settingsTeamSummary = document.getElementById("settingsTeamSummary");
   const forms = {
     login: document.getElementById("loginForm"),
     signup: document.getElementById("signupForm"),
@@ -296,6 +299,19 @@
     return label(normalized);
   }
 
+  function setText(id, value) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  }
+
+  function mailboxWorkflowLabel(workflow) {
+    const status = String(workflow && workflow.status ? workflow.status : "").toLowerCase();
+    if (status === "ready") return "Ready to scan unread mail.";
+    if (status === "credential_error") return "Reconnect required before scanning.";
+    if (status === "needs_verification") return "Reconnect once to verify IMAP access.";
+    return "No verified mailbox connected.";
+  }
+
   function percent(value) {
     const score = Math.max(0, Math.min(Number(value || 0), 1));
     return `${(score * 100).toFixed(score >= 0.1 ? 1 : 2)}%`;
@@ -543,6 +559,36 @@ ${element.innerHTML}
       ...storedFirstRunState(),
       upgrade: account.plan_slug && account.plan_slug !== "free",
     });
+    renderSettingsAccount(account);
+  }
+
+  function renderSettingsAccount(account) {
+    if (!account) return;
+    const quota = Number(account.monthly_scan_quota || 0);
+    const used = Number(account.monthly_scan_used || 0);
+    const pct = quota > 0 ? Math.min((used / quota) * 100, 100) : 0;
+    const role = label(account.role || "viewer");
+    const workspace = account.org_name || "Workspace";
+    const plan = account.plan_name || "Free";
+    setText("settingsWorkspaceName", workspace);
+    setText("settingsWorkspaceDetail", workspace);
+    setText("settingsAccountEmail", account.email || "Signed-in account");
+    setText("settingsAccountRole", `Role: ${role}`);
+    setText("settingsRoleDetail", role);
+    setText("settingsPlanName", plan);
+    setText("settingsUsageText", `${used} / ${quota}`);
+    const settingsUsageBar = document.getElementById("settingsUsageBar");
+    if (settingsUsageBar) settingsUsageBar.style.width = `${pct}%`;
+    const billingStatus = account.stripe_customer_id
+      ? "Stripe billing portal is connected."
+      : account.plan_slug === "free"
+        ? "No card on file. Upgrade creates billing."
+        : "Plan set. Billing portal appears after checkout.";
+    setText("settingsBillingStatus", billingStatus);
+    if (settingsPortalButton) {
+      settingsPortalButton.disabled = !account.stripe_customer_id;
+      settingsPortalButton.textContent = account.stripe_customer_id ? "Manage billing" : "Billing portal locked";
+    }
   }
 
   async function loadSession() {
@@ -562,7 +608,14 @@ ${element.innerHTML}
     updateAccount(session.account);
     renderEmptyResult();
     hideNotice(billingNotice);
-    await Promise.all([loadPlans(), loadHistory(), loadMailboxes()]);
+    await Promise.all([
+      loadPlans(),
+      loadHistory(),
+      loadMailboxes(),
+      loadTeam().catch(() => {
+        if (settingsTeamList) settingsTeamList.innerHTML = "<span>Team settings could not be loaded.</span>";
+      }),
+    ]);
   }
 
   async function loadPlans() {
@@ -1122,6 +1175,7 @@ ${element.innerHTML}
     const quota = payload.quota || { used: 0, limit: 0 };
     const entitlement = payload.entitlement || {};
     const locked = !entitlement.available;
+    renderSettingsMailboxes(payload);
     mailboxQuota.textContent = `${quota.used} / ${quota.limit} mailboxes`;
     mailboxButton.textContent = locked ? `${entitlement.required_plan_name || "Pro"} required` : "Connect mailbox";
     mailboxForm.querySelectorAll("input, select, button[type='submit']").forEach((control) => {
@@ -1151,6 +1205,42 @@ ${element.innerHTML}
       `;
       mailboxList.appendChild(row);
     });
+  }
+
+  function renderSettingsMailboxes(payload) {
+    if (!payload) return;
+    const mailboxes = payload.mailboxes || [];
+    const quota = payload.quota || { used: mailboxes.length, limit: 0 };
+    const workflow = payload.workflow || {};
+    setText("settingsMailboxCount", `${quota.used || 0} / ${quota.limit || 0}`);
+    setText("settingsMailboxStatus", mailboxWorkflowLabel(workflow));
+    setText("settingsMailboxMessage", workflow.message || "Connect an inbox when monitoring is available on your plan.");
+    setText(
+      "settingsMailboxHeading",
+      mailboxes.length
+        ? `${mailboxes.length} connected mailbox${mailboxes.length === 1 ? "" : "es"}`
+        : "Mailbox monitoring"
+    );
+  }
+
+  async function loadTeam() {
+    if (!settingsTeamList) return;
+    const payload = await apiJson("/api/saas/team/members");
+    if (payload.account) updateAccount(payload.account);
+    const members = payload.members || [];
+    if (settingsTeamSummary) {
+      settingsTeamSummary.textContent = `${members.length} workspace member${members.length === 1 ? "" : "s"}`;
+    }
+    if (!members.length) {
+      settingsTeamList.innerHTML = "<span>No team members found.</span>";
+      return;
+    }
+    settingsTeamList.innerHTML = members.map((member) => `
+      <article>
+        <strong>${escapeHtml(member.email || "Member")}</strong>
+        <span>${escapeHtml(label(member.role || "viewer"))}</span>
+      </article>
+    `).join("");
   }
 
   document.querySelectorAll("[data-auth-mode]").forEach((button) => {
@@ -1266,6 +1356,12 @@ ${element.innerHTML}
     event.preventDefault();
     openPricingPanel();
   });
+
+  if (settingsPortalButton) {
+    settingsPortalButton.addEventListener("click", () => {
+      document.getElementById("portalButton").click();
+    });
+  }
 
   billingCycle.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-billing-interval]");

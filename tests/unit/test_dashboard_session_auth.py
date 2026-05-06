@@ -106,6 +106,10 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     assert 'id="planGrid"' in phish_analyze.text
     assert "API Status" not in phish_analyze.text
     assert phish_settings.status_code == 200
+    assert "Manage this PhishAnalyze workspace, billing, mailbox access, and data controls" in phish_settings.text
+    assert 'id="settingsWorkspaceName"' in phish_settings.text
+    assert 'id="settingsTeamList"' in phish_settings.text
+    assert 'data-settings-portal' in phish_settings.text
     assert "Advanced API keys" in phish_settings.text
     assert "External reputation checks are included on paid plans" in phish_settings.text
     assert pay_root.status_code == 200

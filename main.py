@@ -1032,7 +1032,7 @@ class PhishingDetectionApp:
                 },
                 "entitlement": entitlement_payload,
                 "workflow": {
-                    "customer_product": "PayShield",
+                    "customer_product": "workspace",
                     "status": workflow_status,
                     "message": workflow_message,
                 },

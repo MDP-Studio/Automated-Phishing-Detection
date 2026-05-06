@@ -315,19 +315,86 @@
           <div class="card-heading">
             <div>
               <h2>Settings</h2>
-              <p>Keep normal setup simple. External reputation checks are included on paid plans.</p>
+              <p>Manage this PhishAnalyze workspace, billing, mailbox access, and data controls from one place.</p>
             </div>
+          </div>
+          <div class="settings-summary-grid" aria-label="Workspace settings summary">
+            <article>
+              <span>Workspace</span>
+              <strong id="settingsWorkspaceName">Workspace</strong>
+              <small id="settingsAccountRole">Role: -</small>
+            </article>
+            <article>
+              <span>Plan</span>
+              <strong id="settingsPlanName">Free</strong>
+              <small id="settingsBillingStatus">Billing state loading.</small>
+            </article>
+            <article>
+              <span>Monthly scans</span>
+              <strong id="settingsUsageText">0 / 0</strong>
+              <div class="meter" aria-hidden="true"><span id="settingsUsageBar"></span></div>
+            </article>
+            <article>
+              <span>Mailboxes</span>
+              <strong id="settingsMailboxCount">0 connected</strong>
+              <small id="settingsMailboxStatus">Mailbox state loading.</small>
+            </article>
           </div>
           <div class="settings-grid">
             <article class="settings-card">
-              <span>Included checks</span>
+              <span>Account</span>
+              <h3 id="settingsAccountEmail">Signed-in account</h3>
+              <p>Workspace access is private to signed-in users. Scan history, connected mailboxes, and billing are scoped to this workspace.</p>
+              <dl class="settings-detail-list">
+                <div>
+                  <dt>Current role</dt>
+                  <dd id="settingsRoleDetail">-</dd>
+                </div>
+                <div>
+                  <dt>Workspace</dt>
+                  <dd id="settingsWorkspaceDetail">-</dd>
+                </div>
+              </dl>
+            </article>
+            <article class="settings-card">
+              <span>Plan and billing</span>
               <h3>External reputation checks are included on paid plans</h3>
-              <p>Free scans stay useful with local checks. Paid plans can unlock link and domain reputation checks without asking users to paste API keys.</p>
+              <p>Free scans stay useful with local checks. Paid plans unlock link reputation, domain intelligence, mailbox monitoring, and deeper analysis without asking users to paste API keys.</p>
+              <div class="settings-actions">
+                <button type="button" data-upgrade-trigger>View plan coverage</button>
+                <button class="secondary-button" type="button" data-settings-portal>Manage billing</button>
+              </div>
+            </article>
+            <article class="settings-card">
+              <span>Mailbox</span>
+              <h3 id="settingsMailboxHeading">Mailbox monitoring</h3>
+              <p id="settingsMailboxMessage">Connect an inbox when monitoring is available on your plan. Mailbox credentials are encrypted and never returned to the browser.</p>
+              <div class="settings-actions">
+                <a class="secondary-button" href="/monitor">Open monitor</a>
+                <a class="secondary-button" href="/mailbox-guide" target="_blank" rel="noopener noreferrer">Connection guide</a>
+              </div>
+            </article>
+            <article class="settings-card">
+              <span>Privacy</span>
+              <h3>Stored scan data</h3>
+              <p>Uploaded email results stay in workspace history until you delete them. Reports escape email content before rendering and do not expose mailbox passwords.</p>
+              <div class="settings-actions">
+                <a class="secondary-button" href="/dashboard">Delete scans</a>
+                <a class="secondary-button" href="/trust">Trust page</a>
+              </div>
+            </article>
+            <article class="settings-card">
+              <span>Team</span>
+              <h3 id="settingsTeamSummary">Workspace members</h3>
+              <p>Owner and admin users can manage access. Analysts can scan and review results. Viewers can review history without changing settings.</p>
+              <div class="settings-team-list" id="settingsTeamList">
+                <span>Loading members.</span>
+              </div>
             </article>
             <article class="settings-card advanced">
               <span>Advanced API keys</span>
-              <h3>Bring-your-own keys belongs here, not onboarding</h3>
-              <p>This app does not ask normal users for provider keys during signup or first scan. Private deployments can manage provider keys from server settings.</p>
+              <h3>Bring-your-own keys belong here, not onboarding</h3>
+              <p>Normal users do not need provider keys. Private deployments can manage provider keys from server settings, while public plans use server-side, plan-gated analyzers.</p>
             </article>
           </div>
         </article>

@@ -66,6 +66,9 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   API clients load.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, and webhook sync.
 - Encrypted mailbox credential storage and gated on-demand mailbox scan now.
+- A PhishAnalyze settings page with workspace summary, billing entry points,
+  mailbox status, privacy links, team member visibility, and advanced API-key
+  guidance for private deployments.
 - `/mailbox-guide` with provider-specific setup steps and direct settings links
   for Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic
   IMAP.
