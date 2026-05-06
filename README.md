@@ -7,7 +7,7 @@ product faces:
   malicious URLs, sender/domain risk, attachments, social engineering, and scan
   history.
 - **PayShield** is the payment-scam workflow for invoice fraud, supplier
-  impersonation, bank-detail changes, and payment-release decision support.
+  impersonation, bank-detail changes, and payment-risk decision support.
 
 The platform is designed to show a clear verdict, the evidence behind it, which
 checks were locked or skipped, and what the user should do next. It is decision
@@ -17,7 +17,7 @@ support, not a payment authorization system.
 
 | Area | Routes | Purpose |
 | --- | --- | --- |
-| PhishAnalyze | `/analyze`, `/dashboard`, `/monitor`, `/trust` | Upload suspicious `.eml` files, review private scan history, connect monitored mailboxes, and read the PhishAnalyze trust page. |
+| PhishAnalyze | `/product`, `/analyze`, `/dashboard`, `/monitor`, `/trust` | Introduce the scanner, upload suspicious `.eml` files, review private scan history, connect monitored mailboxes, and read the PhishAnalyze trust page. |
 | PayShield | `/product`, `/app`, `/trust` | Analyze invoice and payment-related emails, see payment-risk evidence, and use PayShield-specific trust copy. |
 | Admin | `/admin/*` | Private owner console for aggregate system health, API status, billing status, and operational checks. |
 
@@ -110,10 +110,13 @@ cd "C:\Users\meidi\Documents\personal project\Automated Phishing Detection"
 Then open:
 
 ```text
-http://127.0.0.1:8766/analyze
 http://127.0.0.1:8766/product
+http://127.0.0.1:8766/analyze
 http://127.0.0.1:8766/app
 ```
+
+Local `/product` shows the PhishAnalyze product intro by default. On the
+configured PayShield hostname, `/product` shows the PayShield product page.
 
 Run the compact PayShield sample demo:
 

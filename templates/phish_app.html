@@ -8,7 +8,7 @@
 </head>
 <body data-page="{{PAGE}}">
   <header class="phish-topbar">
-    <a class="phish-brand" href="/analyze" aria-label="PhishAnalyze home">
+    <a class="phish-brand" href="/product" aria-label="PhishAnalyze home">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <circle cx="11" cy="11" r="7"></circle>
         <path d="m20 20-4-4"></path>
@@ -16,6 +16,7 @@
       <span>PhishAnalyze</span>
     </a>
     <nav class="phish-nav" aria-label="PhishAnalyze navigation">
+      <a href="/product">Product</a>
       <a href="/analyze" data-nav="analyze">Analyze</a>
       <a href="/dashboard" data-nav="dashboard">Dashboard</a>
       <a href="/monitor" data-nav="monitor">Monitor</a>
@@ -124,6 +125,23 @@
           <article class="scan-card">
             <h2>Analyze an email</h2>
             <p>Upload one suspicious .eml file. The result is saved only to this workspace.</p>
+            <div class="scan-helper-grid" aria-label="First scan checklist">
+              <article>
+                <span>1</span>
+                <strong>Save the original email</strong>
+                <p>In Gmail, Outlook, or Apple Mail, use Download message, Save as, or Export as .eml.</p>
+              </article>
+              <article>
+                <span>2</span>
+                <strong>Upload a copy here</strong>
+                <p>Keep the original email untouched until you finish reviewing the verdict and evidence.</p>
+              </article>
+              <article>
+                <span>3</span>
+                <strong>Check the skipped rows</strong>
+                <p>Locked, failed, cached, and not configured checks are shown in the final report.</p>
+              </article>
+            </div>
             <form id="scanForm" class="scan-form">
               <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-labelledby="dropTitle" aria-describedby="dropHint">
                 <input id="emailFile" name="file" type="file" accept=".eml,message/rfc822">
@@ -135,15 +153,25 @@
               </div>
               <div class="scan-actions">
                 <button id="analyzeButton" type="submit" disabled>Analyze email</button>
+                <button id="sampleEmailButton" class="secondary-button" type="button">Try sample</button>
                 <button id="clearButton" class="secondary-button" type="button" hidden>Clear</button>
               </div>
             </form>
+            <div class="scan-privacy-note">
+              <strong>Private scan boundary</strong>
+              <p>Manual uploads are tied to this workspace, protected by session and CSRF checks, and removable from history.</p>
+            </div>
             <div class="notice" id="scanNotice" hidden></div>
           </article>
 
           <article class="result-card">
-            <h2 id="resultTitle">No scan selected</h2>
-            <p id="resultNote">Choose a file to start a fresh analysis.</p>
+            <div class="result-card-heading">
+              <div>
+                <h2 id="resultTitle">No scan selected</h2>
+                <p id="resultNote">Choose a file to start a fresh analysis.</p>
+              </div>
+              <button id="printResultButton" class="secondary-button" type="button" hidden>Print report</button>
+            </div>
             <div id="resultBody" class="result-body"></div>
           </article>
         </div>

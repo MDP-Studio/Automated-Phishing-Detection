@@ -29,7 +29,9 @@
   const scanDropTitle = document.getElementById("scanDropTitle");
   const scanDropHint = document.getElementById("scanDropHint");
   const scanSubmitButton = document.getElementById("scanSubmitButton");
+  const samplePaymentEmailButton = document.getElementById("samplePaymentEmailButton");
   const scanClearButton = document.getElementById("scanClearButton");
+  const printResultButton = document.getElementById("printResultButton");
   const authForms = {
     login: document.getElementById("loginForm"),
     signup: document.getElementById("signupForm"),
@@ -46,6 +48,23 @@
   const planOrder = ["free", "starter", "pro", "business"];
   const defaultScanDropTitle = "Drop your .eml file here, or click to browse";
   const defaultScanDropHint = "Payment-risk scans use .eml files";
+  const samplePaymentEmail = [
+    "From: Accounts Team <accounts@supp1ier-update.example>",
+    "Reply-To: payments@supp1ier-update.example",
+    "To: Finance Team <finance@example.com>",
+    "Subject: Updated bank details for invoice 1048",
+    "Date: Tue, 05 May 2026 11:42:00 +1000",
+    "Message-ID: <sample-payment-risk-001@supp1ier-update.example>",
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "",
+    "Please use these new bank details for invoice 1048 today.",
+    "Our usual account is unavailable, so do not call the old number.",
+    "BSB: 000-000",
+    "Account: 12345678",
+    "",
+    "This is urgent because the shipment will be delayed if the transfer is not completed today.",
+  ].join("\r\n");
   const mailboxProviderDefaults = {
     gmail: {
       host: "imap.gmail.com",
@@ -459,6 +478,19 @@
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  function setPrintAvailable(available) {
+    if (printResultButton) {
+      printResultButton.hidden = !available;
+    }
+  }
+
+  function samplePaymentFile() {
+    return new File([samplePaymentEmail], "sample-payment-risk-email.eml", {
+      type: "message/rfc822",
+      lastModified: Date.now(),
+    });
+  }
+
   function setScanFile(file) {
     if (!file) {
       return;
@@ -590,6 +622,7 @@
   }
 
   function renderEmptyResult() {
+    setPrintAvailable(false);
     setResultPanel(
       "No scan selected",
       "Choose an .eml file to start a fresh analysis.",
@@ -603,6 +636,7 @@
   }
 
   function renderSelectedFile(file) {
+    setPrintAvailable(false);
     setResultPanel(
       "Ready to analyze",
       "The previous result is hidden so the next decision is clearly tied to this file.",
@@ -617,6 +651,7 @@
   }
 
   function renderAnalyzingResult(file) {
+    setPrintAvailable(false);
     setResultPanel(
       "Analyzing email",
       "Running payment-risk, phishing, and plan-aware checks for the selected file.",
@@ -634,6 +669,7 @@
 
   function renderResult(payload) {
     const sourceName = payload.upload_filename || payload.email_id || "uploaded email";
+    setPrintAvailable(true);
     document.getElementById("resultTitle").textContent = "Latest analysis";
     const panelNote = document.querySelector("#resultPanel .panel-note");
     if (panelNote) {
@@ -721,6 +757,16 @@
           <span>Verification checklist</span>
           <ol>${stepRows}</ol>
         </article>
+      </section>
+      ${renderVerificationCallScript()}
+    `;
+  }
+
+  function renderVerificationCallScript() {
+    return `
+      <section class="call-script-card" aria-label="Out-of-band verification call script">
+        <span>Out-of-band call script</span>
+        <p>Hi, I am checking a request we received. Can you confirm the invoice number, expected bank account ending digits, and whether this change came from your usual finance contact?</p>
       </section>
     `;
   }
@@ -1334,6 +1380,17 @@
     clearScanFile();
     hideNotice(scanNotice);
   });
+
+  if (samplePaymentEmailButton) {
+    samplePaymentEmailButton.addEventListener("click", () => {
+      setScanFile(samplePaymentFile());
+      showNotice(scanNotice, "Sample payment-risk email loaded. Click Analyze email to see the report.");
+    });
+  }
+
+  if (printResultButton) {
+    printResultButton.addEventListener("click", () => window.print());
+  }
 
   ["dragenter", "dragover"].forEach((eventName) => {
     scanDropZone.addEventListener(eventName, (event) => {

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishAnalyze - Email Threat Scanner</title>
+  <link rel="stylesheet" href="/static/product.css">
+</head>
+<body>
+  <header class="product-topbar">
+    <a class="brand" href="/product">
+      <span class="brand-main">PhishAnalyze</span>
+      <span class="brand-sub">Email threat scanner</span>
+    </a>
+    <nav class="product-nav" aria-label="PhishAnalyze product navigation">
+      <a href="/product" aria-current="page">Product</a>
+      <a href="/analyze">Analyze</a>
+      <a href="/trust">Trust</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="product-hero phish-product-hero">
+      <div class="hero-copy">
+        <h1>PhishAnalyze email threat scanner.</h1>
+        <p>
+          Upload a suspicious .eml file and get a clear phishing verdict,
+          risk score, evidence, analyzer status, locked checks, and next
+          steps in one private workspace.
+        </p>
+        <div class="hero-actions">
+          <a class="primary-action" href="/analyze">Open scanner</a>
+          <a class="secondary-action" href="/trust">Trust and privacy</a>
+        </div>
+      </div>
+      <figure class="hero-media report-preview" aria-label="PhishAnalyze report preview">
+        <div class="report-window">
+          <div class="report-window-bar">
+            <span></span><span></span><span></span>
+          </div>
+          <section class="preview-verdict">
+            <span>Phishing verdict</span>
+            <strong>Likely phishing</strong>
+            <p>Sender mismatch, risky link wording, and unusual urgency were found.</p>
+          </section>
+          <div class="preview-metrics">
+            <article><span>Risk</span><strong>82%</strong></article>
+            <article><span>Checks</span><strong>6 run</strong></article>
+            <article><span>Locked</span><strong>2 shown</strong></article>
+          </div>
+          <div class="preview-evidence">
+            <article><strong>Header authentication</strong><span class="preview-pill done">Completed</span></article>
+            <article><strong>URL reputation</strong><span class="preview-pill cached">Cached</span></article>
+            <article><strong>Browser detonation</strong><span class="preview-pill locked">Locked</span></article>
+            <article><strong>Attachment sandbox</strong><span class="preview-pill quiet">Not configured</span></article>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="workflow-band" aria-label="Email analysis workflow">
+      <div class="workflow-item">
+        <span>1</span>
+        <strong>Upload the original email</strong>
+        <p>Use the saved .eml file so headers, sender data, body text, URLs, and attachments stay intact.</p>
+      </div>
+      <div class="workflow-item">
+        <span>2</span>
+        <strong>Run local and plan-aware checks</strong>
+        <p>Free checks run first. Paid or unavailable checks are recorded clearly instead of silently disappearing.</p>
+      </div>
+      <div class="workflow-item">
+        <span>3</span>
+        <strong>Review evidence and next steps</strong>
+        <p>The report explains why the email is clean, suspicious, likely phishing, or confirmed phishing.</p>
+      </div>
+    </section>
+
+    <section class="agent-proof-band phish-proof-band" aria-label="Scanner output">
+      <div class="agent-proof-copy">
+        <span>Clear result layer</span>
+        <h2>Designed for people who just need to know what to do next.</h2>
+        <p>
+          PhishAnalyze separates raw analyzer output from the customer-facing
+          report. Users see plain-English evidence, failed or skipped checks,
+          and a practical action list without reading JSON or API logs.
+        </p>
+        <div class="sample-outcomes" aria-label="Phishing verdict coverage">
+          <span>Clean</span>
+          <span>Suspicious</span>
+          <span>Likely phishing</span>
+          <span>Confirmed phishing</span>
+        </div>
+      </div>
+      <div class="scan-proof-list">
+        <article>
+          <span>Private by default</span>
+          <strong>Workspace-owned history</strong>
+          <p>Signed-in users only see their own workspace scans, with delete controls for stored results.</p>
+        </article>
+        <article>
+          <span>Plan transparent</span>
+          <strong>Locked checks stay visible</strong>
+          <p>The report shows when a check was locked, skipped, cached, failed, or not configured.</p>
+        </article>
+        <article>
+          <span>Non-technical reports</span>
+          <strong>Readable evidence first</strong>
+          <p>The scanner explains sender risk, links, attachment signals, and social-engineering language.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="proof-grid" aria-label="PhishAnalyze proof points">
+      <article>
+        <span>Manual-first workflow</span>
+        <h2>Useful before mailbox setup</h2>
+        <p>Anyone can start with a saved .eml upload, then add monitoring later when credentials and controls are ready.</p>
+      </article>
+      <article>
+        <span>Evidence contract</span>
+        <h2>Status-aware analyzer rows</h2>
+        <p>Each analyzer reports status, cost tier, plan gate, evidence, risk contribution, timing, and safe details.</p>
+      </article>
+      <article>
+        <span>Trust boundary</span>
+        <h2>No raw unsafe rendering</h2>
+        <p>Reports keep dangerous email content behind safe rendering, CSRF checks, file limits, and account ownership checks.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

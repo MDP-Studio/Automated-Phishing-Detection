@@ -1456,16 +1456,17 @@ class PhishingDetectionApp:
 
         @app.get("/product", response_class=HTMLResponse)
         async def product_page(request: Request):
-            """Serve the public product shell for the payment scam firewall."""
-            redirect = _redirect_pay_app_to_payshield(request, "/product")
-            if redirect:
-                return redirect
-            product_path = Path("./templates/product.html")
-            html_content = (
-                product_path.read_text(encoding="utf-8")
-                .replace("{{DEMO_NAV_LINKS}}", _product_demo_nav_links())
-                .replace("{{HERO_ACTIONS}}", _product_hero_actions())
-            )
+            """Serve the host-aware public product shell."""
+            if _is_payshield_host(request):
+                product_path = Path("./templates/product.html")
+                html_content = (
+                    product_path.read_text(encoding="utf-8")
+                    .replace("{{DEMO_NAV_LINKS}}", _product_demo_nav_links())
+                    .replace("{{HERO_ACTIONS}}", _product_hero_actions())
+                )
+            else:
+                product_path = Path("./templates/phish_product.html")
+                html_content = product_path.read_text(encoding="utf-8")
             return HTMLResponse(
                 content=_inject_shared(html_content),
                 headers={"Content-Security-Policy": STATIC_PAGE_CSP},
@@ -2329,9 +2330,7 @@ class PhishingDetectionApp:
         @app.get("/", response_class=HTMLResponse)
         async def public_home(request: Request):
             """Route brand hostnames to the right public product."""
-            if _is_payshield_host(request):
-                return await product_page(request)
-            return RedirectResponse(url="/analyze", status_code=303)
+            return await product_page(request)
 
         @app.get("/analyze", response_class=HTMLResponse)
         async def public_analyze_page(request: Request):

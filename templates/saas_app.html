@@ -164,6 +164,23 @@
         <article class="scan-panel">
           <h2>Upload a suspicious .eml</h2>
           <p>Start with one payment email. The result stays in this workspace history.</p>
+          <div class="scan-helper-grid" aria-label="First scan checklist">
+            <article>
+              <span>1</span>
+              <strong>Use the original email</strong>
+              <p>Export the invoice, supplier update, or bank-detail request as .eml so headers are preserved.</p>
+            </article>
+            <article>
+              <span>2</span>
+              <strong>Pause risky requests</strong>
+              <p>If the report says verify or hold, confirm through a known phone number or supplier portal.</p>
+            </article>
+            <article>
+              <span>3</span>
+              <strong>Keep the evidence</strong>
+              <p>Print the report or keep it in workspace history for the finance review trail.</p>
+            </article>
+          </div>
           <form id="scanForm" class="scan-form">
             <div class="scan-drop-zone" id="scanDropZone" role="button" tabindex="0" aria-labelledby="scanDropTitle" aria-describedby="scanDropHint">
               <input id="emailFile" class="scan-file-input" name="file" type="file" accept=".eml,message/rfc822">
@@ -175,15 +192,25 @@
             </div>
             <div class="scan-actions">
               <button id="scanSubmitButton" type="submit" disabled>Analyze email</button>
+              <button id="samplePaymentEmailButton" class="subtle-button" type="button">Try sample</button>
               <button id="scanClearButton" class="subtle-button" type="button" hidden>Clear</button>
             </div>
           </form>
+          <div class="scan-privacy-note">
+            <strong>Workspace-only evidence</strong>
+            <p>Uploads are session-bound, CSRF-protected, stored with this workspace, and removable from history.</p>
+          </div>
           <div class="notice" id="scanNotice" hidden></div>
         </article>
 
         <article class="result-panel" id="resultPanel">
-          <h2 id="resultTitle">No scan selected</h2>
-          <p class="panel-note">Choose an .eml file to start a fresh analysis.</p>
+          <div class="result-panel-heading">
+            <div>
+              <h2 id="resultTitle">No scan selected</h2>
+              <p class="panel-note">Choose an .eml file to start a fresh analysis.</p>
+            </div>
+            <button id="printResultButton" class="subtle-button" type="button" hidden>Print report</button>
+          </div>
           <div class="decision-stack" id="decisionStack"></div>
         </article>
       </section>

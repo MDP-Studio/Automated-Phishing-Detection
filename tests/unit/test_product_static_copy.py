@@ -9,9 +9,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_phishanalyze_static_copy_has_no_payment_decision_language():
-    source = (ROOT / "static" / "phish_app.js").read_text(encoding="utf-8")
+    source = (
+        (ROOT / "static" / "phish_app.js").read_text(encoding="utf-8")
+        + (ROOT / "templates" / "phish_product.html").read_text(encoding="utf-8")
+        + (ROOT / "templates" / "phish_app.html").read_text(encoding="utf-8")
+    )
 
     forbidden = [
+        "PayShield",
         "Payment decision",
         "Payment-risk decision",
         "DO_NOT_PAY",
@@ -23,11 +28,16 @@ def test_phishanalyze_static_copy_has_no_payment_decision_language():
 
 
 def test_payshield_static_copy_uses_safe_decision_support_wording():
-    source = (ROOT / "static" / "saas.js").read_text(encoding="utf-8")
+    source = (
+        (ROOT / "static" / "saas.js").read_text(encoding="utf-8")
+        + (ROOT / "templates" / "saas_app.html").read_text(encoding="utf-8")
+    )
 
     assert "DO_NOT_PAY_UNTIL_VERIFIED" in source
     assert "Do not pay until independently confirmed" in source
     assert "Payment-risk decision support" in source
+    assert "Out-of-band call script" in source
+    assert "Print report" in source
     forbidden = [
         "legal approval",
         "approve payment",

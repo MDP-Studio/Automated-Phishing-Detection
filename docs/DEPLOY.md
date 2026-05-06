@@ -113,7 +113,7 @@ docker exec phishing-orchestrator python -c \
   "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/api/health').read())"
 ```
 
-Visit `https://phishanalyze.mdpstudio.com.au`. You should see the public PhishAnalyze app.
+Visit `https://phishanalyze.mdpstudio.com.au`. You should see the PhishAnalyze product intro, with `/analyze` as the scanner app.
 Visit `https://payshield.mdpstudio.com.au`. You should see the PayShield product page.
 Use `/admin/login` with `ANALYST_API_TOKEN` for owner browser access.
 If `PUBLIC_DEMO_MODE=true`, `/demo` is the only public sample page.

@@ -299,7 +299,8 @@ feedback labels.
 
 ## Product Shell
 
-The public product shell is available at:
+The PayShield public product shell is available at `/product` on the PayShield
+hostname:
 
 ```text
 /product

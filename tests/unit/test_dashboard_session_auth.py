@@ -55,7 +55,7 @@ def test_admin_dashboard_redirects_to_admin_login_without_session():
     assert response.headers["location"].startswith("/admin/login?next=")
 
 
-def test_public_root_redirects_to_phishanalyze_app_not_admin_login():
+def test_public_root_opens_phishanalyze_product_intro_not_admin_login():
     client = TestClient(
         _build_app_with_token(),
         base_url="https://testserver",
@@ -64,8 +64,10 @@ def test_public_root_redirects_to_phishanalyze_app_not_admin_login():
 
     response = client.get("/")
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/analyze"
+    assert response.status_code == 200
+    assert "PhishAnalyze email threat scanner" in response.text
+    assert 'href="/analyze">Open scanner</a>' in response.text
+    assert "Analyst login" not in response.text
 
 
 def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
@@ -88,10 +90,12 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     pay_root = pay_client.get("/")
     pay_analyze = pay_client.get("/analyze")
 
-    assert phish_root.status_code == 303
-    assert phish_root.headers["location"] == "/analyze"
-    assert phish_product.status_code == 303
-    assert phish_product.headers["location"] == "https://payshield.example.test/product"
+    assert phish_root.status_code == 200
+    assert "PhishAnalyze email threat scanner" in phish_root.text
+    assert "PayShield for invoice-heavy SMEs" not in phish_root.text
+    assert phish_product.status_code == 200
+    assert "PhishAnalyze email threat scanner" in phish_product.text
+    assert "PayShield for invoice-heavy SMEs" not in phish_product.text
     assert phish_analyze.status_code == 200
     assert 'href="https://payshield.example.test/product">PayShield</a>' not in phish_analyze.text
     assert 'id="upgradeLink"' not in phish_analyze.text
@@ -545,22 +549,36 @@ def test_product_shell_opens_without_analyst_session():
         base_url="https://testserver",
         follow_redirects=False,
     )
+    payshield_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://payshield.example.test",
+        follow_redirects=False,
+    )
 
     response = client.get("/product")
+    payshield_response = payshield_client.get("/product")
 
     assert response.status_code == 200
-    assert "PayShield for invoice-heavy SMEs" in response.text
-    assert "by PhishAnalyze" not in response.text
-    assert "PhishAnalyze remains" not in response.text
-    assert 'href="/agent-demo"' not in response.text
-    assert 'href="/demo"' not in response.text
-    assert 'href="/login">Analyst login</a>' not in response.text
-    assert 'href="/trust">Trust</a>' in response.text
-    assert 'href="/app">Open PayShield</a>' in response.text
+    assert "PhishAnalyze email threat scanner" in response.text
+    assert "PayShield for invoice-heavy SMEs" not in response.text
+    assert 'href="/analyze">Open scanner</a>' in response.text
     assert 'href="/trust">Trust and privacy</a>' in response.text
     assert "/static/product.css" in response.text
-    assert "/static/product-dashboard.png" in response.text
-    csp = response.headers["Content-Security-Policy"]
+    assert "/static/product-dashboard.png" not in response.text
+
+    assert payshield_response.status_code == 200
+    assert "PayShield for invoice-heavy SMEs" in payshield_response.text
+    assert "by PhishAnalyze" not in payshield_response.text
+    assert "PhishAnalyze remains" not in payshield_response.text
+    assert 'href="/agent-demo"' not in response.text
+    assert 'href="/demo"' not in response.text
+    assert 'href="/login">Analyst login</a>' not in payshield_response.text
+    assert 'href="/trust">Trust</a>' in payshield_response.text
+    assert 'href="/app">Open PayShield</a>' in payshield_response.text
+    assert 'href="/trust">Trust and privacy</a>' in payshield_response.text
+    assert "/static/product.css" in payshield_response.text
+    assert "/static/product-dashboard.png" in payshield_response.text
+    csp = payshield_response.headers["Content-Security-Policy"]
     assert "script-src 'self'" in csp
     assert "style-src 'self'" in csp
     assert "'unsafe-inline'" not in csp
@@ -642,7 +660,7 @@ def test_mailbox_guide_opens_without_session_and_uses_host_brand(monkeypatch):
 def test_product_shell_links_demo_pages_only_when_demo_is_enabled():
     client = TestClient(
         _build_app_with_token(public_demo_mode=True),
-        base_url="https://testserver",
+        base_url="https://payshield.example.test",
         follow_redirects=False,
     )
 

@@ -21,7 +21,9 @@
   const dropHint = document.getElementById("dropHint");
   const emailFile = document.getElementById("emailFile");
   const analyzeButton = document.getElementById("analyzeButton");
+  const sampleEmailButton = document.getElementById("sampleEmailButton");
   const clearButton = document.getElementById("clearButton");
+  const printResultButton = document.getElementById("printResultButton");
   const historyList = document.getElementById("historyList");
   const statsRow = document.getElementById("statsRow");
   const mailboxForm = document.getElementById("mailboxForm");
@@ -153,6 +155,22 @@
     },
   };
 
+  const samplePhishEmail = [
+    "From: Security Team <security-alert@example-login.net>",
+    "Reply-To: helpdesk@example-login.net",
+    "To: Alex Example <alex@example.com>",
+    "Subject: Urgent password reset required",
+    "Date: Tue, 05 May 2026 09:24:00 +1000",
+    "Message-ID: <sample-phish-001@example-login.net>",
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "",
+    "Your account will be suspended today unless you verify it immediately.",
+    "Open https://example-login.net/verify and enter your email password to keep access.",
+    "",
+    "If you did not request this, ignore normal support channels and use the link above.",
+  ].join("\r\n");
+
   function cookieValue(name) {
     const parts = document.cookie.split(";").map((item) => item.trim());
     const match = parts.find((item) => item.startsWith(`${name}=`));
@@ -259,6 +277,19 @@
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function setPrintAvailable(available) {
+    if (printResultButton) {
+      printResultButton.hidden = !available;
+    }
+  }
+
+  function sampleEmailFile() {
+    return new File([samplePhishEmail], "sample-suspicious-email.eml", {
+      type: "message/rfc822",
+      lastModified: Date.now(),
+    });
   }
 
   function planRank(slug) {
@@ -560,6 +591,7 @@
   }
 
   function renderEmptyResult() {
+    setPrintAvailable(false);
     resultTitle.textContent = "No scan selected";
     resultNote.textContent = "Choose a file to start a fresh analysis.";
     resultBody.innerHTML = `
@@ -571,6 +603,7 @@
   }
 
   function renderSelectedFile(file) {
+    setPrintAvailable(false);
     resultTitle.textContent = "Ready to analyze";
     resultNote.textContent = "The next result will be tied to this selected file.";
     resultBody.innerHTML = `
@@ -583,6 +616,7 @@
   }
 
   function renderLoading(file) {
+    setPrintAvailable(false);
     resultTitle.textContent = "Analyzing email";
     resultNote.textContent = "Running available checks for this workspace plan.";
     resultBody.innerHTML = `
@@ -616,8 +650,45 @@
     return ["Completed", "done"];
   }
 
+  function analyzerRawStatus(result) {
+    const item = result || {};
+    const details = item.details || {};
+    const status = String(item.status || "").toLowerCase();
+    if (status) return status;
+    if (details.message === "feature_locked") return "feature_locked";
+    if (details.status === "error" || details.error) return "failed";
+    return "success";
+  }
+
+  function analyzerRisk(result) {
+    const item = result || {};
+    const value = item.risk_contribution != null ? item.risk_contribution : item.risk_score;
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+  }
+
   function analyzerSummary(name, result) {
+    const item = result || {};
     const details = (result && result.details) || {};
+    const rawStatus = analyzerRawStatus(item);
+    if (rawStatus === "feature_locked" || details.message === "feature_locked") {
+      const feature = featureCatalog.get(details.feature_slug || name) || {};
+      return `${feature.description || "This paid check was not run on this plan."} Required plan: ${details.required_plan_name || feature.required_plan_name || "a higher plan"}.`;
+    }
+    if (rawStatus === "quota_exceeded") {
+      return "This check was skipped because the current quota is already used for this billing period.";
+    }
+    if (rawStatus === "not_configured") {
+      return "This check is available, but the provider key or integration is not configured on this deployment.";
+    }
+    if (rawStatus === "timeout") {
+      return "This check took too long and was left out of the final score. Other evidence is still shown.";
+    }
+    if (rawStatus === "failed") {
+      return truncate(item.failure_reason || details.reason || details.error || "This analyzer did not return a usable result. Retry or check API status.", 170);
+    }
+    if (rawStatus === "skipped") {
+      return truncate(item.failure_reason || details.reason || "This check was not needed for this email or was skipped by the pipeline.", 170);
+    }
     const evidence = Array.isArray(result && result.evidence) ? result.evidence : [];
     if (evidence.length) {
       const text = evidence
@@ -630,16 +701,29 @@
     if (result && result.failure_reason) {
       return truncate(result.failure_reason, 170);
     }
-    if (details.message === "feature_locked") {
-      const feature = featureCatalog.get(details.feature_slug || name) || {};
-      return `${feature.description || "This analyzer did not run."} Required plan: ${details.required_plan_name || feature.required_plan_name || "a higher plan"}.`;
-    }
     if (details.decision) {
       return `BEC signal: ${signalText(details.decision)}.`;
     }
     if (details.summary) return details.summary;
     if (details.reason) return details.reason;
     return "Analyzer returned a result for this scan.";
+  }
+
+  function summarizeAnalyzerStatuses(analyzers) {
+    const counts = {
+      completed: 0,
+      cached: 0,
+      locked: 0,
+      attention: 0,
+    };
+    analyzers.forEach(([, result]) => {
+      const status = analyzerRawStatus(result);
+      if (status === "cached") counts.cached += 1;
+      else if (status === "feature_locked" || status === "quota_exceeded") counts.locked += 1;
+      else if (status === "failed" || status === "timeout" || status === "not_configured") counts.attention += 1;
+      else counts.completed += 1;
+    });
+    return counts;
   }
 
   function truncate(value, maxLength) {
@@ -709,9 +793,11 @@
       : null;
     const decision = (productVerdict && productVerdict.verdict) || payload.verdict || "REVIEW";
     const source = payload.upload_filename || payload.email_id || "uploaded email";
+    const analyzers = Object.entries(payload.analyzer_results || {});
+    const statusCounts = summarizeAnalyzerStatuses(analyzers);
+    setPrintAvailable(true);
     resultTitle.textContent = "Latest analysis";
     resultNote.textContent = `Fresh result for ${source}.`;
-    const analyzers = Object.entries(payload.analyzer_results || {});
     const rows = analyzers.map(([name, result]) => {
       const status = analyzerStatus(result);
       return `
@@ -719,7 +805,7 @@
           <strong>${escapeHtml((result && result.display_name) || analyzerLabel(name))}</strong>
           <span class="status-pill ${escapeHtml(status[1])}">${escapeHtml(status[0])}</span>
           <span>${escapeHtml(analyzerSummary(name, result))}</span>
-          <span>${escapeHtml(percent(result && result.risk_score))} risk</span>
+          <span>${escapeHtml(percent(analyzerRisk(result)))} risk</span>
         </div>
       `;
     }).join("");
@@ -727,6 +813,12 @@
       ? productVerdict.next_steps
       : ["Review the evidence before opening links, attachments, or replying."];
     resultBody.innerHTML = `
+      <section class="result-source-strip" aria-label="Analyzed file">
+        <div>
+          <span>Analyzed file</span>
+          <strong>${escapeHtml(source)}</strong>
+        </div>
+      </section>
       <section class="result-summary ${escapeHtml(decisionClass(payload.verdict))}">
         <div>
           <span class="result-kicker">Phishing verdict</span>
@@ -737,6 +829,12 @@
           <span class="result-kicker">Risk score</span>
           <strong>${escapeHtml(percent(payload.overall_score))}</strong>
         </div>
+      </section>
+      <section class="result-status-overview" aria-label="Analyzer status summary">
+        <article><span>Completed</span><strong>${escapeHtml(String(statusCounts.completed))}</strong></article>
+        <article><span>Cached</span><strong>${escapeHtml(String(statusCounts.cached))}</strong></article>
+        <article><span>Locked</span><strong>${escapeHtml(String(statusCounts.locked))}</strong></article>
+        <article><span>Needs review</span><strong>${escapeHtml(String(statusCounts.attention))}</strong></article>
       </section>
       <section class="evidence-table" aria-label="Analyzer evidence">
         <div class="evidence-row header">
@@ -1057,6 +1155,15 @@
     setFile(event.dataTransfer.files[0]);
   });
   clearButton.addEventListener("click", clearFile);
+  if (sampleEmailButton) {
+    sampleEmailButton.addEventListener("click", () => {
+      setFile(sampleEmailFile());
+      notice(scanNotice, "Sample email loaded. Click Analyze email to see a full report.");
+    });
+  }
+  if (printResultButton) {
+    printResultButton.addEventListener("click", () => window.print());
+  }
 
   document.getElementById("scanForm").addEventListener("submit", async (event) => {
     event.preventDefault();
