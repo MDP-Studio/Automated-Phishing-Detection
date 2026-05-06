@@ -94,6 +94,21 @@
       </section>
       <div class="notice" id="billingNotice" hidden></div>
 
+      <section class="first-run-panel" id="firstRunPanel" aria-label="Getting started checklist">
+        <div>
+          <span class="eyebrow">Getting started</span>
+          <h2>Five small steps to trust your first result</h2>
+          <p>Use this when you first try PayShield with a payment-related email.</p>
+        </div>
+        <ol class="first-run-list">
+          <li data-first-run-step="upload"><span></span>Upload your first email</li>
+          <li data-first-run-step="review"><span></span>Review a result</li>
+          <li data-first-run-step="delete"><span></span>Delete a scan</li>
+          <li data-first-run-step="upgrade"><span></span>Upgrade to unlock external checks</li>
+          <li data-first-run-step="mailbox"><span></span>Connect mailbox later</li>
+        </ol>
+      </section>
+
       <section class="mailbox-section" id="mailboxSection" aria-label="Mailbox monitoring">
         <div class="section-heading">
           <div>
@@ -147,7 +162,7 @@
         <div class="section-heading pricing-heading">
           <div>
             <h2 id="pricingTitle">Plan options</h2>
-            <p id="pricingDescription">Open this when you need more scans, mailbox monitoring, or paid API-backed checks.</p>
+            <p id="pricingDescription">Open this when you need more scans, mailbox monitoring, or external reputation checks.</p>
           </div>
           <div class="pricing-actions">
             <div class="billing-cycle" id="billingCycle" aria-label="Billing cadence">
@@ -181,6 +196,54 @@
               <p>Print the report or keep it in workspace history for the finance review trail.</p>
             </article>
           </div>
+          <section class="save-email-guide" aria-label="How to save an email as .eml">
+            <div class="save-guide-heading">
+              <h3>How to save an email</h3>
+              <p>Save the original message before forwarding or replying, then upload that file here.</p>
+            </div>
+            <div class="save-guide-list">
+              <details open>
+                <summary>Gmail</summary>
+                <ol>
+                  <li>Open the email.</li>
+                  <li>Select More, then Download message.</li>
+                  <li>Upload the downloaded .eml file.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>Outlook desktop</summary>
+                <ol>
+                  <li>Open the email in its own window.</li>
+                  <li>Choose File, then Save As.</li>
+                  <li>Save as Outlook Message Format or .eml if available.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>Outlook web</summary>
+                <ol>
+                  <li>Open the email.</li>
+                  <li>Select More actions, then Download.</li>
+                  <li>Upload the downloaded message file.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>Apple Mail</summary>
+                <ol>
+                  <li>Select the email.</li>
+                  <li>Choose File, then Save As.</li>
+                  <li>Use Raw Message Source or .eml when available.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>Zoho Mail</summary>
+                <ol>
+                  <li>Open the email.</li>
+                  <li>Select More actions, then Export or Download.</li>
+                  <li>Upload the saved .eml file.</li>
+                </ol>
+              </details>
+            </div>
+          </section>
           <form id="scanForm" class="scan-form">
             <div class="scan-drop-zone" id="scanDropZone" role="button" tabindex="0" aria-labelledby="scanDropTitle" aria-describedby="scanDropHint">
               <input id="emailFile" class="scan-file-input" name="file" type="file" accept=".eml,message/rfc822">
@@ -192,13 +255,17 @@
             </div>
             <div class="scan-actions">
               <button id="scanSubmitButton" type="submit" disabled>Analyze email</button>
-              <button id="samplePaymentEmailButton" class="subtle-button" type="button">Try sample</button>
+              <button id="samplePaymentEmailButton" class="subtle-button" type="button">Sample email</button>
               <button id="scanClearButton" class="subtle-button" type="button" hidden>Clear</button>
             </div>
           </form>
           <div class="scan-privacy-note">
-            <strong>Workspace-only evidence</strong>
-            <p>Uploads are session-bound, CSRF-protected, stored with this workspace, and removable from history.</p>
+            <strong>Your email stays private to this workspace.</strong>
+            <ul>
+              <li>You can delete scan history.</li>
+              <li>Mailbox passwords are encrypted and never returned.</li>
+              <li>LLM summaries use structured evidence, not raw inbox access.</li>
+            </ul>
           </div>
           <div class="notice" id="scanNotice" hidden></div>
         </article>
@@ -209,7 +276,10 @@
               <h2 id="resultTitle">No scan selected</h2>
               <p class="panel-note">Choose an .eml file to start a fresh analysis.</p>
             </div>
-            <button id="printResultButton" class="subtle-button" type="button" hidden>Print report</button>
+            <div class="result-action-buttons">
+              <button id="downloadResultButton" class="subtle-button" type="button" hidden>Download report</button>
+              <button id="printResultButton" class="subtle-button" type="button" hidden>Print report</button>
+            </div>
           </div>
           <div class="decision-stack" id="decisionStack"></div>
         </article>
@@ -218,11 +288,21 @@
       <section class="feature-section">
         <div class="section-heading">
           <div>
-            <h2>Analyzer access</h2>
-            <p>The product never silently runs paid checks. It shows what is included now and what unlocks with a higher plan.</p>
+            <h2>Check access</h2>
+            <p>External reputation checks are included on paid plans. The product shows what ran and what needs a higher plan.</p>
           </div>
         </div>
         <div class="feature-grid" id="featureGrid"></div>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Settings</span>
+            <h2>Advanced API keys</h2>
+            <p>Normal users do not need provider keys. Bring-your-own keys belong in advanced settings for private deployments.</p>
+          </div>
+        </div>
       </section>
 
       <section class="history-section">

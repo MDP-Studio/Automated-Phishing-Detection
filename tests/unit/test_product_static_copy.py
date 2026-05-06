@@ -26,6 +26,35 @@ def test_phishanalyze_static_copy_has_no_payment_decision_language():
     for phrase in forbidden:
         assert phrase not in source
 
+    expected = [
+        "How to save an email",
+        "Gmail",
+        "Outlook desktop",
+        "Outlook web",
+        "Apple Mail",
+        "Zoho Mail",
+        "Sample email",
+        "What did we find?",
+        "Why?",
+        "What should I do now?",
+        "Not included in your plan",
+        "Not needed for this email",
+        "Could not run",
+        "No API key configured",
+        "Reused cached result",
+        "Download report",
+        "Your email stays private to this workspace.",
+        "LLM summaries use structured evidence, not raw inbox access.",
+        "Advanced API keys",
+        "External reputation checks are included on paid plans",
+        "Parsing email",
+        "Checking links",
+        "Reviewing sender",
+        "Preparing evidence",
+    ]
+    for phrase in expected:
+        assert phrase in source
+
 
 def test_payshield_static_copy_uses_safe_decision_support_wording():
     source = (
@@ -36,8 +65,39 @@ def test_payshield_static_copy_uses_safe_decision_support_wording():
     assert "DO_NOT_PAY_UNTIL_VERIFIED" in source
     assert "Do not pay until independently confirmed" in source
     assert "Payment-risk decision support" in source
-    assert "Out-of-band call script" in source
+    assert "Suggested call or email script" in source
     assert "Print report" in source
+    expected = [
+        "How to save an email",
+        "Gmail",
+        "Outlook desktop",
+        "Outlook web",
+        "Apple Mail",
+        "Zoho Mail",
+        "Sample email",
+        "What did we find?",
+        "Why?",
+        "What should I do now?",
+        "Payment indicators found",
+        "Who to contact",
+        "What to verify",
+        "Not included in your plan",
+        "Not needed for this email",
+        "Could not run",
+        "No API key configured",
+        "Reused cached result",
+        "Download report",
+        "Your email stays private to this workspace.",
+        "LLM summaries use structured evidence, not raw inbox access.",
+        "Advanced API keys",
+        "External reputation checks are included on paid plans",
+        "Parsing email",
+        "Checking links",
+        "Reviewing sender",
+        "Preparing evidence",
+    ]
+    for phrase in expected:
+        assert phrase in source
     forbidden = [
         "legal approval",
         "approve payment",

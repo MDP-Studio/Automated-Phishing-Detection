@@ -31,7 +31,9 @@
   const scanSubmitButton = document.getElementById("scanSubmitButton");
   const samplePaymentEmailButton = document.getElementById("samplePaymentEmailButton");
   const scanClearButton = document.getElementById("scanClearButton");
+  const downloadResultButton = document.getElementById("downloadResultButton");
   const printResultButton = document.getElementById("printResultButton");
+  const firstRunPanel = document.getElementById("firstRunPanel");
   const authForms = {
     login: document.getElementById("loginForm"),
     signup: document.getElementById("signupForm"),
@@ -48,6 +50,8 @@
   const planOrder = ["free", "starter", "pro", "business"];
   const defaultScanDropTitle = "Drop your .eml file here, or click to browse";
   const defaultScanDropHint = "Payment-risk scans use .eml files";
+  const firstRunStateKey = "payshield_first_run_state";
+  const reportBrandName = "PayShield";
   const samplePaymentEmail = [
     "From: Accounts Team <accounts@supp1ier-update.example>",
     "Reply-To: payments@supp1ier-update.example",
@@ -65,6 +69,24 @@
     "",
     "This is urgent because the shipment will be delayed if the transfer is not completed today.",
   ].join("\r\n");
+  const customerFeatureCopy = {
+    payment_rules: {
+      name: "Payment scam checks",
+      description: "Supplier impersonation, bank-detail changes, urgency, and payment-redirection wording.",
+    },
+    llm_intent: {
+      name: "Plain-English reasoning",
+      description: "Explains structured evidence without deciding the verdict from scratch.",
+    },
+    url_detonation: {
+      name: "Browser link check",
+      description: "Opens extracted links in a controlled browser check when available on your plan.",
+    },
+    attachment_sandbox: {
+      name: "Attachment safety check",
+      description: "Checks suspicious attachments when this capability is configured and included.",
+    },
+  };
   const mailboxProviderDefaults = {
     gmail: {
       host: "imap.gmail.com",
@@ -287,6 +309,10 @@
       : isHighestPlan
         ? "You are already on the highest plan. Billing portal appears after first checkout."
         : "Use Upgrade when you need more scans or paid checks.";
+    updateFirstRunChecklist({
+      ...storedFirstRunState(),
+      upgrade: account.plan_slug && account.plan_slug !== "free",
+    });
     const pct = account.monthly_scan_quota > 0
       ? Math.min((account.monthly_scan_used / account.monthly_scan_quota) * 100, 100)
       : 0;
@@ -321,7 +347,7 @@
       pricingTitle.textContent = isHighestPlan ? "Plan coverage" : "Upgrade options";
       pricingDescription.textContent = isHighestPlan
         ? "You are already on the highest plan. Lower tiers are included here for comparison."
-        : "Open this when you need more scans, mailbox monitoring, or paid API-backed checks.";
+        : "Open this when you need more scans, mailbox monitoring, or external reputation checks.";
     }
     lastPlansPayload = payload;
     planGrid.innerHTML = "";
@@ -360,7 +386,7 @@
         : `Everything in ${previousPlan ? previousPlan.name : "the previous plan"}, plus:`;
       const featureItems = directFeatures
         .slice(0, 3)
-        .map((feature) => `<li>${escapeHtml(feature.name)}</li>`)
+        .map((feature) => `<li>${escapeHtml(featureCopy(feature).name)}</li>`)
         .join("");
       card.innerHTML = `
         <div class="plan-card-head">
@@ -404,7 +430,7 @@
         <ul>${featureRows(included, "included")}</ul>
       </article>
       <article class="access-card locked">
-        <h3>Locked until upgrade</h3>
+        <h3>Not included yet</h3>
         <ul>${featureRows(locked, "locked")}</ul>
       </article>
     `;
@@ -415,16 +441,26 @@
       return "<li><span>All available</span><small>No locked checks on this plan.</small></li>";
     }
     return features.map((feature) => {
+      const item = featureCopy(feature);
       const meta = mode === "locked"
-        ? `${feature.category} - ${feature.required_plan_name}`
-        : feature.category;
+        ? `${item.required_plan_name || "Higher plan"} required`
+        : "Included now";
       return `
         <li>
-          <span>${escapeHtml(feature.name)}</span>
+          <span>${escapeHtml(item.name)}</span>
           <small>${escapeHtml(meta)}</small>
         </li>
       `;
     }).join("");
+  }
+
+  function featureCopy(feature) {
+    const override = customerFeatureCopy[feature.slug] || {};
+    return {
+      ...feature,
+      name: override.name || feature.name,
+      description: override.description || feature.description,
+    };
   }
 
   function formatCount(value, label) {
@@ -482,6 +518,9 @@
     if (printResultButton) {
       printResultButton.hidden = !available;
     }
+    if (downloadResultButton) {
+      downloadResultButton.hidden = !available;
+    }
   }
 
   function samplePaymentFile() {
@@ -489,6 +528,60 @@
       type: "message/rfc822",
       lastModified: Date.now(),
     });
+  }
+
+  function storedFirstRunState() {
+    try {
+      return JSON.parse(localStorage.getItem(firstRunStateKey) || "{}") || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveFirstRunState(update) {
+    const next = { ...storedFirstRunState(), ...update };
+    localStorage.setItem(firstRunStateKey, JSON.stringify(next));
+    updateFirstRunChecklist(next);
+  }
+
+  function updateFirstRunChecklist(state = {}) {
+    if (!firstRunPanel) return;
+    firstRunPanel.querySelectorAll("[data-first-run-step]").forEach((item) => {
+      const key = item.getAttribute("data-first-run-step");
+      item.classList.toggle("complete", Boolean(state[key]));
+    });
+  }
+
+  function downloadReportFrom(element, filenamePrefix) {
+    if (!element) return;
+    const title = `${reportBrandName} report`;
+    const reportHtml = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;color:#111827;margin:32px;max-width:920px}
+h1{font-size:26px;margin:0 0 16px}
+section,article{border:1px solid #d1d5db;border-radius:8px;padding:14px;margin:12px 0}
+span{color:#4b5563;font-size:12px;font-weight:700;text-transform:uppercase}
+strong{display:block;margin-top:6px;font-size:18px}
+</style>
+</head>
+<body>
+<h1>${escapeHtml(title)}</h1>
+${element.innerHTML}
+</body>
+</html>`;
+    const blob = new Blob([reportHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   function setScanFile(file) {
@@ -531,16 +624,22 @@
 
   async function loadHistory() {
     const payload = await apiJson("/api/saas/scans?limit=8");
+    const results = payload.results || [];
     historyList.innerHTML = "";
     hideNotice(historyNotice);
-    if (!payload.results.length) {
+    if (results.length) {
+      saveFirstRunState({ upload: true, review: true });
+    } else {
+      updateFirstRunChecklist(storedFirstRunState());
+    }
+    if (!results.length) {
       const empty = document.createElement("article");
       empty.className = "history-card";
       empty.innerHTML = "<p>No account scans yet.</p>";
       historyList.appendChild(empty);
       return;
     }
-    payload.results.forEach((item) => {
+    results.forEach((item) => {
       const subject = item.result && item.result.iocs && item.result.iocs.headers
         ? item.result.iocs.headers.subject || item.email_id
         : item.email_id;
@@ -567,6 +666,11 @@
 
   function renderMailboxes(payload) {
     const mailboxes = payload.mailboxes || [];
+    if (mailboxes.length) {
+      saveFirstRunState({ mailbox: true });
+    } else {
+      updateFirstRunChecklist(storedFirstRunState());
+    }
     const quota = payload.quota || { used: 0, limit: 0, remaining: 0 };
     const entitlement = payload.entitlement || {};
     const locked = !entitlement.available;
@@ -602,7 +706,7 @@
           <strong>${escapeHtml(item.external_account_id || "Mailbox")}</strong>
           <span>${escapeHtml(formatLabel(item.provider))} - ${escapeHtml(item.credential_saved ? "encrypted credential saved" : "credential missing")}</span>
         </div>
-        <div class="history-card-actions">
+        <div class="mailbox-actions">
           <span class="mailbox-status ${escapeHtml(item.status || "pending")}">${escapeHtml(formatLabel(item.status || "pending"))}</span>
           <button class="subtle-button mailbox-scan" type="button" data-scan-mailbox="${escapeHtml(item.id)}">Scan now</button>
           <button class="subtle-button mailbox-delete" type="button" data-delete-mailbox="${escapeHtml(item.id)}">Delete</button>
@@ -660,8 +764,34 @@
           <span class="loading-spinner" aria-hidden="true"></span>
           <div>
             <h3>${escapeHtml(file.name)}</h3>
-            <p>Analyzing this email now. The result below will update only after this scan finishes.</p>
+            <p>Working through the scan. The result below will update only after this scan finishes.</p>
+            <ul class="loading-steps">
+              <li>Parsing email</li>
+              <li>Checking links</li>
+              <li>Reviewing sender</li>
+              <li>Preparing evidence</li>
+            </ul>
           </div>
+        </section>
+      `,
+    );
+  }
+
+  function renderErrorResult(error) {
+    setPrintAvailable(false);
+    const message = error && error.message ? error.message : "The scan could not finish.";
+    setResultPanel(
+      "Scan could not finish",
+      "No old result is shown here, so you do not confuse it with this attempt.",
+      `
+        <section class="result-error" aria-live="polite">
+          <strong>${escapeHtml(message)}</strong>
+          <p>Try these next steps:</p>
+          <ul>
+            <li>Upload the original saved .eml file, not a screenshot or forwarded text.</li>
+            <li>Try the sample email button to confirm the scanner is working.</li>
+            <li>If the message mentions billing or scan limits, open the plan options.</li>
+          </ul>
         </section>
       `,
     );
@@ -687,10 +817,27 @@
     const analyzerResults = payload.analyzer_results || {};
     const score = normalizedScore(payload.overall_score);
     const decisionClass = decisionStyle(decision);
+    const reasons = paymentReasons(payment, productDecision);
+    const nextActions = paymentNextActions(decision, productDecision, payment);
     decisionStack.innerHTML = `
       <section class="result-source" aria-label="Analyzed file">
         <span>Analyzed file</span>
         <strong>${escapeHtml(sourceName)}</strong>
+      </section>
+      <section class="plain-answer-grid" aria-label="Plain English result summary">
+        <article>
+          <span>What did we find?</span>
+          <strong>${escapeHtml((productDecision && productDecision.label) || payment.display_label || formatDecision(decision))}</strong>
+          <p>${escapeHtml((productDecision && productDecision.summary) || decisionGuidance(decision, payload.verdict))}</p>
+        </article>
+        <article>
+          <span>Why?</span>
+          <ul>${reasons.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </article>
+        <article>
+          <span>What should I do now?</span>
+          <ul>${nextActions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </article>
       </section>
       <section class="result-verdict ${decisionClass}" aria-label="Payment-risk decision support">
         <div>
@@ -706,18 +853,19 @@
       </section>
       <section class="result-summary-grid" aria-label="Analysis summary">
         <article>
-          <span>Pipeline verdict</span>
+          <span>Email threat verdict</span>
           <strong>${escapeHtml(formatLabel(payload.verdict || "Unknown"))}</strong>
         </article>
         <article>
-          <span>Checks available now</span>
+          <span>Checks run now</span>
           <strong>${escapeHtml(String(Math.max(Object.keys(analyzerResults).length - lockedChecks.length, 0)))}</strong>
         </article>
         <article>
-          <span>Plan-gated checks</span>
+          <span>Not included checks</span>
           <strong>${escapeHtml(String(lockedChecks.length))}</strong>
         </article>
       </section>
+      ${renderPaymentActionFlow(decision, payment, productDecision)}
       ${renderPaymentIndicators(payment, productDecision)}
       ${renderAnalyzerEvidence(analyzerResults)}
       ${renderLockedChecks(lockedChecks)}
@@ -729,6 +877,58 @@
     if (payload.account) {
       updateAccount(payload.account);
     }
+  }
+
+  function paymentReasons(payment, productDecision) {
+    const signals = Array.isArray(payment.signals) ? payment.signals : [];
+    const reasons = signals
+      .map((signal) => signal && (signal.evidence || signal.recommendation || signal.name))
+      .filter(Boolean)
+      .slice(0, 3);
+    if (reasons.length) return reasons;
+    if (productDecision && productDecision.summary) return [productDecision.summary];
+    return ["No strong payment-redirection signal was returned by the payment checks."];
+  }
+
+  function paymentNextActions(decision, productDecision, payment) {
+    const steps = productDecision && Array.isArray(productDecision.next_steps)
+      ? productDecision.next_steps
+      : (Array.isArray(payment.verification_steps) ? payment.verification_steps : []);
+    if (steps.length) return steps.slice(0, 3);
+    const normalized = String(decision || "").toUpperCase();
+    if (normalized === "SAFE") {
+      return ["Continue your normal internal payment checks.", "Keep the report with the invoice record."];
+    }
+    if (normalized === "VERIFY") {
+      return ["Pause the request.", "Verify the sender, invoice, and bank details outside email."];
+    }
+    return ["Do not pay until independently confirmed.", "Call a known contact or use the supplier portal before acting."];
+  }
+
+  function renderPaymentActionFlow(decision, payment, productDecision) {
+    const displayDecision = (productDecision && productDecision.label) || payment.display_label || formatDecision(decision);
+    const verifyItems = paymentNextActions(decision, productDecision, payment);
+    return `
+      <section class="payment-action-flow" aria-label="Finance action flow">
+        <article>
+          <span>Decision</span>
+          <strong>${escapeHtml(displayDecision)}</strong>
+          <p>${escapeHtml(decisionGuidance(decision, ""))}</p>
+        </article>
+        <article>
+          <span>Who to contact</span>
+          <ul>
+            <li>Known supplier finance contact</li>
+            <li>Internal requester or account owner</li>
+            <li>Supplier portal or phone number already on file</li>
+          </ul>
+        </article>
+        <article>
+          <span>What to verify</span>
+          <ul>${verifyItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </article>
+      </section>
+    `;
   }
 
   function renderPaymentIndicators(payment, productDecision) {
@@ -750,11 +950,11 @@
     return `
       <section class="result-summary-grid payment-indicators" aria-label="Payment indicators">
         <article>
-          <span>Payment indicators</span>
+          <span>Payment indicators found</span>
           <ul>${signalRows}</ul>
         </article>
         <article>
-          <span>Verification checklist</span>
+          <span>What to verify</span>
           <ol>${stepRows}</ol>
         </article>
       </section>
@@ -764,8 +964,8 @@
 
   function renderVerificationCallScript() {
     return `
-      <section class="call-script-card" aria-label="Out-of-band verification call script">
-        <span>Out-of-band call script</span>
+      <section class="call-script-card" aria-label="Suggested call or email script">
+        <span>Suggested call or email script</span>
         <p>Hi, I am checking a request we received. Can you confirm the invoice number, expected bank account ending digits, and whether this change came from your usual finance contact?</p>
       </section>
     `;
@@ -778,8 +978,8 @@
         <section class="analyzer-evidence">
           <div class="result-locks-heading">
             <div>
-              <h3>Analyzer evidence</h3>
-              <p>No analyzer details were returned for this scan.</p>
+              <h3>Checks and evidence</h3>
+              <p>No check details were returned for this scan.</p>
             </div>
           </div>
         </section>
@@ -804,11 +1004,11 @@
       `;
     }).join("");
     return `
-      <section class="analyzer-evidence" aria-label="Analyzer evidence">
+      <section class="analyzer-evidence" aria-label="Checks and evidence">
         <div class="result-locks-heading">
           <div>
-            <h3>Analyzer evidence</h3>
-            <p>Every returned analyzer is listed here so skipped, failed, and completed checks are visible.</p>
+            <h3>Checks and evidence</h3>
+            <p>Every check is listed here so completed, skipped, and unavailable checks are visible.</p>
           </div>
         </div>
         <div class="analyzer-list">${rows}</div>
@@ -825,7 +1025,7 @@
       nlp_intent: "Intent analysis",
       payment_fraud: "Payment scam rules",
       sender_profiling: "Sender profiling",
-      url_detonation: "Browser URL detonation",
+      url_detonation: "Browser link check",
       url_reputation: "URL reputation",
     };
     const feature = featureCatalog.get(name);
@@ -841,19 +1041,19 @@
     const normalizedStatus = String(item.status || "").toLowerCase();
     const statusCopy = {
       success: { label: "Completed", className: "done" },
-      cached: { label: "Cached", className: "cached" },
-      failed: { label: "Failed", className: "error" },
-      timeout: { label: "Timed out", className: "error" },
-      skipped: { label: "Skipped", className: "quiet" },
-      feature_locked: { label: "Locked", className: "locked" },
-      not_configured: { label: "Not configured", className: "quiet" },
-      quota_exceeded: { label: "Quota exceeded", className: "locked" },
+      cached: { label: "Reused cached result", className: "cached" },
+      failed: { label: "Could not run", className: "error" },
+      timeout: { label: "Could not run", className: "error" },
+      skipped: { label: "Not needed for this email", className: "quiet" },
+      feature_locked: { label: "Not included in your plan", className: "locked" },
+      not_configured: { label: "No API key configured", className: "quiet" },
+      quota_exceeded: { label: "Monthly scan limit reached", className: "locked" },
     };
     if (statusCopy[normalizedStatus]) {
       return statusCopy[normalizedStatus];
     }
     if (details.message === "feature_locked") {
-      return { label: "Locked", className: "locked" };
+      return { label: "Not included in your plan", className: "locked" };
     }
     if (errors.length || details.error || details.status === "error") {
       return { label: "Needs attention", className: "error" };
@@ -885,10 +1085,10 @@
       const slug = details.feature_slug || name;
       const feature = featureCatalog.get(slug) || {};
       const requiredPlan = details.required_plan_name || feature.required_plan_name || "a higher plan";
-      return `${feature.description || "This analyzer did not run."} Required plan: ${requiredPlan}.`;
+      return `${feature.description || "This check did not run."} Required plan: ${requiredPlan}.`;
     }
     if (status.className === "error") {
-      return "This analyzer did not return a usable result. Check API status or retry the scan.";
+      return "This check did not return a usable result. Try again or contact support.";
     }
     if (details.decision) {
       return `Payment-risk signal: ${formatDecision(details.display_decision || details.decision)}.`;
@@ -903,9 +1103,9 @@
       return truncate(details.message, 150);
     }
     if (name === "url_detonation") {
-      return "Sandboxed browser detonation returned a plan-visible result for extracted URLs.";
+      return "Browser link check returned a result for extracted URLs.";
     }
-    return "Analyzer returned a result for this scan.";
+    return "This check returned a result for this scan.";
   }
 
   function truncate(value, maxLength) {
@@ -921,7 +1121,7 @@
       return `
         <section class="result-locks clear">
           <h3>All checks on your plan completed</h3>
-          <p>No paid API-backed analyzer was skipped for this scan.</p>
+          <p>No paid external check was skipped for this scan.</p>
         </section>
       `;
     }
@@ -933,8 +1133,8 @@
       return `
         <article class="locked-check-card">
           <div>
-            <strong>${escapeHtml(feature.name || formatLabel(slug || "Locked check"))}</strong>
-            <p>${escapeHtml(feature.description || "This analyzer is available on a higher plan.")}</p>
+            <strong>${escapeHtml(feature.name || formatLabel(slug || "Paid check"))}</strong>
+            <p>${escapeHtml(feature.description || "This check is available on a higher plan.")}</p>
           </div>
           <span>${escapeHtml(requiredPlan)}</span>
         </article>
@@ -944,7 +1144,7 @@
       <section class="result-locks">
         <div class="result-locks-heading">
           <div>
-            <h3>Skipped until upgrade</h3>
+            <h3>Not included in your plan</h3>
             <p>These paid checks were not run on the current plan.</p>
           </div>
           <button class="subtle-button" type="button" data-upgrade-trigger>Upgrade</button>
@@ -1014,7 +1214,7 @@
     if (normalized === "SAFE") {
       return "Continue normal internal checks, while keeping the scan result in the workspace history.";
     }
-    return `Pipeline verdict: ${formatLabel(verdict || "Unknown")}. Review the evidence before acting.`;
+    return `Email threat verdict: ${formatLabel(verdict || "Unknown")}. Review the evidence before acting.`;
   }
 
   function escapeHtml(value) {
@@ -1350,6 +1550,7 @@
         method: "DELETE",
         body: "{}",
       });
+      saveFirstRunState({ delete: true });
       renderEmptyResult();
       await loadHistory();
       showNotice(historyNotice, "Scan result deleted from workspace history.");
@@ -1391,6 +1592,9 @@
   if (printResultButton) {
     printResultButton.addEventListener("click", () => window.print());
   }
+  if (downloadResultButton) {
+    downloadResultButton.addEventListener("click", () => downloadReportFrom(decisionStack, "payshield-report"));
+  }
 
   ["dragenter", "dragover"].forEach((eventName) => {
     scanDropZone.addEventListener(eventName, (event) => {
@@ -1428,14 +1632,15 @@
     try {
       const payload = await apiForm("/api/saas/analyze/upload", form);
       renderResult(payload);
+      saveFirstRunState({ upload: true, review: true });
       await Promise.all([loadPlans(), loadHistory()]);
     } catch (error) {
-      renderSelectedFile(file);
       if (error.status === 402) {
         showUpgradeNotice(scanNotice, `${error.message} Upgrade to keep scanning.`);
       } else {
         showNotice(scanNotice, error.message);
       }
+      renderErrorResult(error);
     } finally {
       scanDropZone.classList.remove("is-analyzing");
       scanSubmitButton.disabled = false;

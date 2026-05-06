@@ -23,9 +23,11 @@
   const analyzeButton = document.getElementById("analyzeButton");
   const sampleEmailButton = document.getElementById("sampleEmailButton");
   const clearButton = document.getElementById("clearButton");
+  const downloadResultButton = document.getElementById("downloadResultButton");
   const printResultButton = document.getElementById("printResultButton");
   const historyList = document.getElementById("historyList");
   const statsRow = document.getElementById("statsRow");
+  const firstRunPanel = document.getElementById("firstRunPanel");
   const mailboxForm = document.getElementById("mailboxForm");
   const mailboxButton = document.getElementById("mailboxButton");
   const mailboxList = document.getElementById("mailboxList");
@@ -78,6 +80,14 @@
     llm_intent: {
       name: "LLM social-engineering reasoning",
       description: "LLM-backed phishing, BEC, and intent analysis.",
+    },
+    url_detonation: {
+      name: "Browser link check",
+      description: "Opens extracted links in a controlled browser check when available on your plan.",
+    },
+    attachment_sandbox: {
+      name: "Attachment safety check",
+      description: "Checks suspicious attachments when this capability is configured and included.",
     },
   };
   const mailboxProviderDefaults = {
@@ -142,7 +152,7 @@
 
   const pageCopy = {
     analyze: {
-      title: "Email risk analyzer",
+      title: "Email risk scanner",
       sub: "Upload an .eml file to analyze phishing indicators, malicious URLs, sender signals, and attachments.",
     },
     dashboard: {
@@ -153,7 +163,14 @@
       title: "Mailbox monitor",
       sub: "Connect user-owned mailboxes for account-scoped monitoring and future automated scanning.",
     },
+    settings: {
+      title: "Settings",
+      sub: "Keep normal setup simple. Advanced API keys stay out of first-run onboarding.",
+    },
   };
+
+  const firstRunStateKey = "phishanalyze_first_run_state";
+  const reportBrandName = "PhishAnalyze";
 
   const samplePhishEmail = [
     "From: Security Team <security-alert@example-login.net>",
@@ -283,6 +300,9 @@
     if (printResultButton) {
       printResultButton.hidden = !available;
     }
+    if (downloadResultButton) {
+      downloadResultButton.hidden = !available;
+    }
   }
 
   function sampleEmailFile() {
@@ -290,6 +310,60 @@
       type: "message/rfc822",
       lastModified: Date.now(),
     });
+  }
+
+  function storedFirstRunState() {
+    try {
+      return JSON.parse(localStorage.getItem(firstRunStateKey) || "{}") || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveFirstRunState(update) {
+    const next = { ...storedFirstRunState(), ...update };
+    localStorage.setItem(firstRunStateKey, JSON.stringify(next));
+    updateFirstRunChecklist(next);
+  }
+
+  function updateFirstRunChecklist(state = {}) {
+    if (!firstRunPanel) return;
+    firstRunPanel.querySelectorAll("[data-first-run-step]").forEach((item) => {
+      const key = item.getAttribute("data-first-run-step");
+      item.classList.toggle("complete", Boolean(state[key]));
+    });
+  }
+
+  function downloadReportFrom(element, filenamePrefix) {
+    if (!element) return;
+    const title = `${reportBrandName} report`;
+    const reportHtml = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;line-height:1.5;color:#111827;margin:32px;max-width:920px}
+h1{font-size:26px;margin:0 0 16px}
+section,article{border:1px solid #d1d5db;border-radius:8px;padding:14px;margin:12px 0}
+span{color:#4b5563;font-size:12px;font-weight:700;text-transform:uppercase}
+strong{display:block;margin-top:6px;font-size:18px}
+</style>
+</head>
+<body>
+<h1>${escapeHtml(title)}</h1>
+${element.innerHTML}
+</body>
+</html>`;
+    const blob = new Blob([reportHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   function planRank(slug) {
@@ -453,6 +527,10 @@
       : isHighestPlan
         ? "You are already on the highest plan. Billing portal appears after first checkout."
         : "Use Upgrade when you need more scans or paid checks.";
+    updateFirstRunChecklist({
+      ...storedFirstRunState(),
+      upgrade: account.plan_slug && account.plan_slug !== "free",
+    });
   }
 
   async function loadSession() {
@@ -496,7 +574,7 @@
       pricingTitle.textContent = isHighestPlan ? "Plan coverage" : "Upgrade options";
       pricingDescription.textContent = isHighestPlan
         ? "You are already on the highest plan. The lower tiers are shown for comparison."
-        : "Open this when you need more scans, mailbox monitoring, or paid API-backed checks.";
+        : "Open this when you need more scans, mailbox monitoring, or external reputation checks.";
     }
     planGrid.innerHTML = "";
     (payload.plans || []).forEach((plan) => {
@@ -624,7 +702,13 @@
         <span class="spinner" aria-hidden="true"></span>
         <div>
           <strong>${escapeHtml(file.name)}</strong>
-          <p>Analyzing this email now. Results will replace this loading state.</p>
+          <p>Working through the scan. The result will replace this loading state.</p>
+          <ul class="loading-steps">
+            <li>Parsing email</li>
+            <li>Checking links</li>
+            <li>Reviewing sender</li>
+            <li>Preparing evidence</li>
+          </ul>
         </div>
       </section>
     `;
@@ -634,18 +718,18 @@
     const status = String((result && result.status) || "").toLowerCase();
     const statusCopy = {
       success: ["Completed", "done"],
-      cached: ["Cached", "cached"],
-      failed: ["Failed", "error"],
-      timeout: ["Timed out", "error"],
-      skipped: ["Skipped", "quiet"],
-      feature_locked: ["Locked", "locked"],
-      not_configured: ["Not configured", "quiet"],
-      quota_exceeded: ["Quota exceeded", "locked"],
+      cached: ["Reused cached result", "cached"],
+      failed: ["Could not run", "error"],
+      timeout: ["Could not run", "error"],
+      skipped: ["Not needed for this email", "quiet"],
+      feature_locked: ["Not included in your plan", "locked"],
+      not_configured: ["No API key configured", "quiet"],
+      quota_exceeded: ["Monthly scan limit reached", "locked"],
     };
     if (statusCopy[status]) return statusCopy[status];
     const details = (result && result.details) || {};
     const errors = result && result.errors ? result.errors : [];
-    if (details.message === "feature_locked") return ["Locked", "locked"];
+    if (details.message === "feature_locked") return ["Not included in your plan", "locked"];
     if ((Array.isArray(errors) && errors.length) || details.error || details.status === "error") return ["Needs attention", "error"];
     return ["Completed", "done"];
   }
@@ -675,16 +759,16 @@
       return `${feature.description || "This paid check was not run on this plan."} Required plan: ${details.required_plan_name || feature.required_plan_name || "a higher plan"}.`;
     }
     if (rawStatus === "quota_exceeded") {
-      return "This check was skipped because the current quota is already used for this billing period.";
+      return "This check was not run because the monthly scan limit has been reached.";
     }
     if (rawStatus === "not_configured") {
-      return "This check is available, but the provider key or integration is not configured on this deployment.";
+      return "This external check needs a provider key on the server before it can run.";
     }
     if (rawStatus === "timeout") {
       return "This check took too long and was left out of the final score. Other evidence is still shown.";
     }
     if (rawStatus === "failed") {
-      return truncate(item.failure_reason || details.reason || details.error || "This analyzer did not return a usable result. Retry or check API status.", 170);
+      return truncate(item.failure_reason || details.reason || details.error || "This check did not return a usable result. Try again or contact support.", 170);
     }
     if (rawStatus === "skipped") {
       return truncate(item.failure_reason || details.reason || "This check was not needed for this email or was skipped by the pipeline.", 170);
@@ -706,7 +790,7 @@
     }
     if (details.summary) return details.summary;
     if (details.reason) return details.reason;
-    return "Analyzer returned a result for this scan.";
+    return "This check returned a result for this scan.";
   }
 
   function summarizeAnalyzerStatuses(analyzers) {
@@ -726,6 +810,35 @@
     return counts;
   }
 
+  function evidenceReasons(analyzers, fallback) {
+    const reasons = [];
+    analyzers.forEach(([name, result]) => {
+      const status = analyzerRawStatus(result);
+      if (status !== "success" && status !== "cached") return;
+      const evidence = Array.isArray(result && result.evidence) ? result.evidence : [];
+      const evidenceText = evidence
+        .map((item) => item && (item.text || item.value || item))
+        .filter(Boolean)
+        .slice(0, 1)
+        .join(" ");
+      const summary = evidenceText || ((result && result.details && (result.details.summary || result.details.reason)) || "");
+      if (summary) {
+        reasons.push(`${analyzerLabel(name)}: ${truncate(summary, 100)}`);
+      }
+    });
+    if (!reasons.length && fallback) {
+      reasons.push(fallback);
+    }
+    return reasons.slice(0, 3);
+  }
+
+  function plainActionSteps(nextSteps) {
+    const steps = Array.isArray(nextSteps) && nextSteps.length
+      ? nextSteps.slice(0, 3)
+      : ["Do not open links or attachments until you trust the sender.", "Confirm the sender through a separate trusted channel."];
+    return steps;
+  }
+
   function truncate(value, maxLength) {
     const text = String(value || "").replace(/\s+/g, " ").trim();
     if (text.length <= maxLength) return text;
@@ -735,14 +848,14 @@
   function analyzerLabel(name) {
     const labels = {
       attachment_analysis: "Attachment analysis",
-      attachment_sandbox: "Attachment sandbox",
+      attachment_sandbox: "Attachment safety check",
       brand_impersonation: "Brand impersonation",
       domain_intelligence: "Domain intelligence",
       header_analysis: "Header authentication",
       nlp_intent: "Intent analysis",
       payment_fraud: "Business email compromise signals",
       sender_profiling: "Sender profiling",
-      url_detonation: "Browser URL detonation",
+      url_detonation: "Browser link check",
       url_reputation: "URL reputation",
     };
     const feature = featureCatalog.get(name);
@@ -754,7 +867,7 @@
       return `
         <section class="locked-checks clear">
           <h3>All checks on your plan completed</h3>
-          <p>No paid API-backed analyzer was skipped for this scan.</p>
+          <p>No paid external check was skipped for this scan.</p>
         </section>
       `;
     }
@@ -767,7 +880,7 @@
         <article class="locked-check-card">
           <div>
             <strong>${escapeHtml(feature.name || analyzerLabel(slug || "locked_check"))}</strong>
-            <p>${escapeHtml(feature.description || "This analyzer is available on a higher plan.")}</p>
+            <p>${escapeHtml(feature.description || "This check is available on a higher plan.")}</p>
           </div>
           <span>${escapeHtml(requiredPlan)}</span>
         </article>
@@ -777,7 +890,7 @@
       <section class="locked-checks">
         <div class="locked-check-heading">
           <div>
-            <h3>Skipped until upgrade</h3>
+            <h3>Not included in your plan</h3>
             <p>These paid checks were not run on the current plan.</p>
           </div>
           <button class="secondary-button" type="button" data-upgrade-trigger>Upgrade</button>
@@ -812,12 +925,29 @@
     const nextSteps = productVerdict && Array.isArray(productVerdict.next_steps)
       ? productVerdict.next_steps
       : ["Review the evidence before opening links, attachments, or replying."];
+    const why = evidenceReasons(analyzers, productVerdict && productVerdict.summary);
+    const actions = plainActionSteps(nextSteps);
     resultBody.innerHTML = `
       <section class="result-source-strip" aria-label="Analyzed file">
         <div>
           <span>Analyzed file</span>
           <strong>${escapeHtml(source)}</strong>
         </div>
+      </section>
+      <section class="plain-answer-grid" aria-label="Plain English result summary">
+        <article>
+          <span>What did we find?</span>
+          <strong>${escapeHtml((productVerdict && productVerdict.label) || decisionText(decision))}</strong>
+          <p>${escapeHtml((productVerdict && productVerdict.summary) || "We reviewed the email and prepared the evidence below.")}</p>
+        </article>
+        <article>
+          <span>Why?</span>
+          <ul>${why.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </article>
+        <article>
+          <span>What should I do now?</span>
+          <ul>${actions.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ul>
+        </article>
       </section>
       <section class="result-summary ${escapeHtml(decisionClass(payload.verdict))}">
         <div>
@@ -830,20 +960,20 @@
           <strong>${escapeHtml(percent(payload.overall_score))}</strong>
         </div>
       </section>
-      <section class="result-status-overview" aria-label="Analyzer status summary">
+      <section class="result-status-overview" aria-label="Check status summary">
         <article><span>Completed</span><strong>${escapeHtml(String(statusCounts.completed))}</strong></article>
-        <article><span>Cached</span><strong>${escapeHtml(String(statusCounts.cached))}</strong></article>
-        <article><span>Locked</span><strong>${escapeHtml(String(statusCounts.locked))}</strong></article>
+        <article><span>Reused</span><strong>${escapeHtml(String(statusCounts.cached))}</strong></article>
+        <article><span>Not included</span><strong>${escapeHtml(String(statusCounts.locked))}</strong></article>
         <article><span>Needs review</span><strong>${escapeHtml(String(statusCounts.attention))}</strong></article>
       </section>
-      <section class="evidence-table" aria-label="Analyzer evidence">
+      <section class="evidence-table" aria-label="Checks and evidence">
         <div class="evidence-row header">
-          <span>Analyzer</span>
+          <span>Check</span>
           <span>Status</span>
           <span>Evidence</span>
           <span>Score</span>
         </div>
-        ${rows || '<div class="evidence-row"><span>No analyzer evidence returned.</span></div>'}
+        ${rows || '<div class="evidence-row"><span>No check evidence returned.</span></div>'}
       </section>
       <section class="locked-checks clear">
         <h3>Next steps</h3>
@@ -852,6 +982,24 @@
       ${renderLockedChecks(payload.feature_locks || [])}
     `;
     if (payload.account) updateAccount(payload.account);
+  }
+
+  function renderErrorResult(error) {
+    setPrintAvailable(false);
+    const message = error && error.message ? error.message : "The scan could not finish.";
+    resultTitle.textContent = "Scan could not finish";
+    resultNote.textContent = "No old result is shown here, so you do not confuse it with this attempt.";
+    resultBody.innerHTML = `
+      <section class="result-error" aria-live="polite">
+        <strong>${escapeHtml(message)}</strong>
+        <p>Try these next steps:</p>
+        <ul>
+          <li>Upload the original saved .eml file, not a screenshot or forwarded text.</li>
+          <li>Try the sample email button to confirm the scanner is working.</li>
+          <li>If the message mentions billing or scan limits, open the plan options.</li>
+        </ul>
+      </section>
+    `;
   }
 
   function setFile(file) {
@@ -887,6 +1035,11 @@
     const payload = await apiJson("/api/saas/scans?limit=50");
     if (payload.account) updateAccount(payload.account);
     const results = payload.results || [];
+    if (results.length) {
+      saveFirstRunState({ upload: true, review: true });
+    } else {
+      updateFirstRunChecklist(storedFirstRunState());
+    }
     renderStats(results);
     historyList.innerHTML = "";
     notice(historyNotice, "");
@@ -948,6 +1101,11 @@
     const payload = await apiJson("/api/saas/mailboxes");
     if (payload.account) updateAccount(payload.account);
     const mailboxes = payload.mailboxes || [];
+    if (mailboxes.length) {
+      saveFirstRunState({ mailbox: true });
+    } else {
+      updateFirstRunChecklist(storedFirstRunState());
+    }
     const quota = payload.quota || { used: 0, limit: 0 };
     const entitlement = payload.entitlement || {};
     const locked = !entitlement.available;
@@ -1164,6 +1322,9 @@
   if (printResultButton) {
     printResultButton.addEventListener("click", () => window.print());
   }
+  if (downloadResultButton) {
+    downloadResultButton.addEventListener("click", () => downloadReportFrom(resultBody, "phishanalyze-report"));
+  }
 
   document.getElementById("scanForm").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1178,6 +1339,7 @@
       form.append("file", selectedFile);
       const payload = await apiForm("/api/saas/analyze/upload", form);
       renderResult(payload);
+      saveFirstRunState({ upload: true, review: true });
       await loadHistory();
     } catch (error) {
       if (error.status === 402) {
@@ -1186,9 +1348,7 @@
       } else {
         notice(scanNotice, error.message);
       }
-      resultTitle.textContent = "Analysis failed";
-      resultNote.textContent = "The previous result stays cleared. Try again after fixing the issue.";
-      resultBody.innerHTML = `<section class="empty-result"><strong>${escapeHtml(error.message)}</strong></section>`;
+      renderErrorResult(error);
     } finally {
       analyzeButton.disabled = false;
       clearButton.disabled = false;
@@ -1216,6 +1376,7 @@
         method: "DELETE",
         body: "{}",
       });
+      saveFirstRunState({ delete: true });
       await loadHistory();
     } catch (error) {
       button.disabled = false;

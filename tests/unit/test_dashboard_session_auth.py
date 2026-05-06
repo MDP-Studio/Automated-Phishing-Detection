@@ -87,8 +87,10 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     phish_root = phish_client.get("/")
     phish_product = phish_client.get("/product")
     phish_analyze = phish_client.get("/analyze")
+    phish_settings = phish_client.get("/settings")
     pay_root = pay_client.get("/")
     pay_analyze = pay_client.get("/analyze")
+    pay_settings = pay_client.get("/settings")
 
     assert phish_root.status_code == 200
     assert "PhishAnalyze email threat scanner" in phish_root.text
@@ -103,10 +105,15 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     assert 'id="pricingPanel"' in phish_analyze.text
     assert 'id="planGrid"' in phish_analyze.text
     assert "API Status" not in phish_analyze.text
+    assert phish_settings.status_code == 200
+    assert "Advanced API keys" in phish_settings.text
+    assert "External reputation checks are included on paid plans" in phish_settings.text
     assert pay_root.status_code == 200
     assert "PayShield for invoice-heavy SMEs" in pay_root.text
     assert pay_analyze.status_code == 303
     assert pay_analyze.headers["location"] == "https://phishanalyze.example.test/analyze"
+    assert pay_settings.status_code == 303
+    assert pay_settings.headers["location"] == "https://phishanalyze.example.test/settings"
 
 
 def test_saas_app_login_shell_uses_link_based_auth_navigation():
@@ -203,7 +210,9 @@ def test_saas_app_manual_upload_uses_drop_zone():
     assert "function renderSelectedFile" in js
     assert "function renderAnalyzingResult" in js
     assert "function renderAnalyzerEvidence" in js
-    assert "Analyzer evidence" in js
+    assert "Checks and evidence" in js
+    assert "How to save an email" in response.text
+    assert "Download report" in response.text
     assert "data-delete-scan" in js
     assert "DELETE" in js
     assert "function resetTransientWorkspace" in js
@@ -259,6 +268,7 @@ def test_public_phishanalyze_routes_open_without_analyst_session():
         ("/analyze", 'data-page="analyze"'),
         ("/dashboard", 'data-page="dashboard"'),
         ("/monitor", 'data-page="monitor"'),
+        ("/settings", 'data-page="settings"'),
     ]:
         response = client.get(path)
 

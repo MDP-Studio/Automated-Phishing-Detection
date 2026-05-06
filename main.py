@@ -2315,6 +2315,7 @@ class PhishingDetectionApp:
                 "analyze": "Analyze - PhishAnalyze",
                 "dashboard": "Dashboard - PhishAnalyze",
                 "monitor": "Monitor - PhishAnalyze",
+                "settings": "Settings - PhishAnalyze",
             }.get(page, "PhishAnalyze")
             page_path = Path("./templates/phish_app.html")
             html_content = (
@@ -2346,6 +2347,11 @@ class PhishingDetectionApp:
         async def public_monitor_page(request: Request):
             """Serve tenant-scoped public PhishAnalyze mailbox monitoring."""
             return _render_phish_user_page(request, "monitor")
+
+        @app.get("/settings", response_class=HTMLResponse)
+        async def public_settings_page(request: Request):
+            """Serve customer-facing PhishAnalyze settings."""
+            return _render_phish_user_page(request, "settings")
 
         @app.get("/admin", response_class=HTMLResponse)
         async def admin_overview_page():

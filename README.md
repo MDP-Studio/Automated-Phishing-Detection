@@ -17,7 +17,7 @@ support, not a payment authorization system.
 
 | Area | Routes | Purpose |
 | --- | --- | --- |
-| PhishAnalyze | `/product`, `/analyze`, `/dashboard`, `/monitor`, `/trust` | Introduce the scanner, upload suspicious `.eml` files, review private scan history, connect monitored mailboxes, and read the PhishAnalyze trust page. |
+| PhishAnalyze | `/product`, `/analyze`, `/dashboard`, `/monitor`, `/settings`, `/trust` | Introduce the scanner, upload suspicious `.eml` files, review private scan history, connect monitored mailboxes, manage simple settings, and read the PhishAnalyze trust page. |
 | PayShield | `/product`, `/app`, `/trust` | Analyze invoice and payment-related emails, see payment-risk evidence, and use PayShield-specific trust copy. |
 | Admin | `/admin/*` | Private owner console for aggregate system health, API status, billing status, and operational checks. |
 
@@ -40,6 +40,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 ## What Works Now
 
 - `.eml` upload through the SaaS app.
+- Upload help for saving emails from Gmail, Outlook desktop, Outlook web, Apple
+  Mail, and Zoho Mail, plus a sample email button for first-time users.
 - Email parsing for sender, reply-to, subject, body, URLs, attachments, and
   headers.
 - Local analyzers that work without paid APIs.
@@ -49,6 +51,11 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Product-specific verdict mapping for PhishAnalyze and PayShield.
 - Result UI with verdicts, score, evidence, locked checks, failures, skipped
   checks, and next steps.
+- Plain-language result summaries that answer what was found, why, and what to
+  do next before showing the detailed check table.
+- Print-friendly and downloadable HTML reports for sharing scan outcomes.
+- First-run checklist for upload, result review, scan deletion, upgrade, and
+  later mailbox connection.
 - Signed user accounts, workspaces, CSRF-protected sessions, and tenant-scoped
   scan history.
 - Delete controls for stored scan results.
@@ -69,8 +76,10 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 
 - OAuth mailbox connection is not the public default yet. Current mailbox
   connection uses app-password/IMAP style credentials and encrypted storage.
-- Bring-your-own API keys for customers is not implemented yet. It is a good
-  future advanced setting, but not part of the current onboarding path.
+- Customer bring-your-own API keys are not part of normal onboarding. Public
+  users see a simple message that external reputation checks are included on
+  paid plans. The settings page keeps advanced API-key wording separate for
+  private deployments or a future encrypted customer-key flow.
 - External sandbox providers require provider keys and strict timeout/cost
   controls. The product should remain useful without them.
 - LLMs are explanation helpers, not final verdict authorities.
@@ -112,6 +121,7 @@ Then open:
 ```text
 http://127.0.0.1:8766/product
 http://127.0.0.1:8766/analyze
+http://127.0.0.1:8766/settings
 http://127.0.0.1:8766/app
 ```
 
@@ -209,7 +219,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1259 tests across 66 test modules
+1260 tests across 66 test modules
 ```
 
 Run all tests:

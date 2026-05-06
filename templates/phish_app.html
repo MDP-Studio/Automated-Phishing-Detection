@@ -20,6 +20,7 @@
       <a href="/analyze" data-nav="analyze">Analyze</a>
       <a href="/dashboard" data-nav="dashboard">Dashboard</a>
       <a href="/monitor" data-nav="monitor">Monitor</a>
+      <a href="/settings" data-nav="settings">Settings</a>
       <a href="/trust">Trust</a>
     </nav>
   </header>
@@ -69,7 +70,7 @@
       <header class="workspace-header">
         <div>
           <p class="workspace-label" id="workspaceLabel">Workspace</p>
-          <h1 id="pageHeading">Email risk analyzer</h1>
+          <h1 id="pageHeading">Email risk scanner</h1>
           <p id="pageSubheading">Upload an .eml file to analyze phishing indicators, malicious URLs, sender signals, and attachments.</p>
         </div>
         <button type="button" id="logoutButton">Logout</button>
@@ -100,12 +101,27 @@
       </section>
       <div class="notice" id="billingNotice" hidden></div>
 
+      <section class="first-run-panel" id="firstRunPanel" aria-label="Getting started checklist">
+        <div>
+          <span class="workspace-label">Getting started</span>
+          <h2>Five small steps to trust your first result</h2>
+          <p>Use this as a quick checklist the first time you try PhishAnalyze.</p>
+        </div>
+        <ol class="first-run-list">
+          <li data-first-run-step="upload"><span></span>Upload your first email</li>
+          <li data-first-run-step="review"><span></span>Review a result</li>
+          <li data-first-run-step="delete"><span></span>Delete a scan</li>
+          <li data-first-run-step="upgrade"><span></span>Upgrade to unlock external checks</li>
+          <li data-first-run-step="mailbox"><span></span>Connect mailbox later</li>
+        </ol>
+      </section>
+
       <section class="page-panel pricing-panel" id="pricingPanel" hidden aria-label="Plan options">
         <article class="wide-card">
           <div class="card-heading pricing-heading">
             <div>
               <h2 id="pricingTitle">Upgrade options</h2>
-              <p id="pricingDescription">Open this when you need more scans, mailbox monitoring, or paid API-backed checks.</p>
+              <p id="pricingDescription">Open this when you need more scans, mailbox monitoring, or external reputation checks.</p>
             </div>
             <div class="pricing-actions">
               <div class="billing-cycle" id="billingCycle" aria-label="Billing cadence">
@@ -129,7 +145,7 @@
               <article>
                 <span>1</span>
                 <strong>Save the original email</strong>
-                <p>In Gmail, Outlook, or Apple Mail, use Download message, Save as, or Export as .eml.</p>
+                <p>Use the guide below so headers, links, and sender details stay intact.</p>
               </article>
               <article>
                 <span>2</span>
@@ -138,10 +154,58 @@
               </article>
               <article>
                 <span>3</span>
-                <strong>Check the skipped rows</strong>
-                <p>Locked, failed, cached, and not configured checks are shown in the final report.</p>
+                <strong>Check what ran</strong>
+                <p>The report explains completed, skipped, locked, cached, and unavailable checks in plain language.</p>
               </article>
             </div>
+            <section class="save-email-guide" aria-label="How to save an email as .eml">
+              <div class="save-guide-heading">
+                <h3>How to save an email</h3>
+                <p>Choose your mail app, save the message, then upload that file here.</p>
+              </div>
+              <div class="save-guide-list">
+                <details open>
+                  <summary>Gmail</summary>
+                  <ol>
+                    <li>Open the email.</li>
+                    <li>Select More, then Download message.</li>
+                    <li>Upload the downloaded .eml file.</li>
+                  </ol>
+                </details>
+                <details>
+                  <summary>Outlook desktop</summary>
+                  <ol>
+                    <li>Open the email in its own window.</li>
+                    <li>Choose File, then Save As.</li>
+                    <li>Save as Outlook Message Format or .eml if available.</li>
+                  </ol>
+                </details>
+                <details>
+                  <summary>Outlook web</summary>
+                  <ol>
+                    <li>Open the email.</li>
+                    <li>Select More actions, then Download.</li>
+                    <li>Upload the downloaded message file.</li>
+                  </ol>
+                </details>
+                <details>
+                  <summary>Apple Mail</summary>
+                  <ol>
+                    <li>Select the email.</li>
+                    <li>Choose File, then Save As.</li>
+                    <li>Use Raw Message Source or .eml when available.</li>
+                  </ol>
+                </details>
+                <details>
+                  <summary>Zoho Mail</summary>
+                  <ol>
+                    <li>Open the email.</li>
+                    <li>Select More actions, then Export or Download.</li>
+                    <li>Upload the saved .eml file.</li>
+                  </ol>
+                </details>
+              </div>
+            </section>
             <form id="scanForm" class="scan-form">
               <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-labelledby="dropTitle" aria-describedby="dropHint">
                 <input id="emailFile" name="file" type="file" accept=".eml,message/rfc822">
@@ -153,13 +217,17 @@
               </div>
               <div class="scan-actions">
                 <button id="analyzeButton" type="submit" disabled>Analyze email</button>
-                <button id="sampleEmailButton" class="secondary-button" type="button">Try sample</button>
+                <button id="sampleEmailButton" class="secondary-button" type="button">Sample email</button>
                 <button id="clearButton" class="secondary-button" type="button" hidden>Clear</button>
               </div>
             </form>
             <div class="scan-privacy-note">
-              <strong>Private scan boundary</strong>
-              <p>Manual uploads are tied to this workspace, protected by session and CSRF checks, and removable from history.</p>
+              <strong>Your email stays private to this workspace.</strong>
+              <ul>
+                <li>You can delete scan history.</li>
+                <li>Mailbox passwords are encrypted and never returned.</li>
+                <li>LLM summaries use structured evidence, not raw inbox access.</li>
+              </ul>
             </div>
             <div class="notice" id="scanNotice" hidden></div>
           </article>
@@ -170,7 +238,10 @@
                 <h2 id="resultTitle">No scan selected</h2>
                 <p id="resultNote">Choose a file to start a fresh analysis.</p>
               </div>
-              <button id="printResultButton" class="secondary-button" type="button" hidden>Print report</button>
+              <div class="result-action-buttons">
+                <button id="downloadResultButton" class="secondary-button" type="button" hidden>Download report</button>
+                <button id="printResultButton" class="secondary-button" type="button" hidden>Print report</button>
+              </div>
             </div>
             <div id="resultBody" class="result-body"></div>
           </article>
@@ -202,37 +273,63 @@
             <span class="quota-pill" id="mailboxQuota">0 / 0 mailboxes</span>
           </div>
           <div class="monitor-grid">
-            <form class="mailbox-form" id="mailboxForm">
-              <label>Provider
-                <select name="provider">
-                  <option value="gmail">Gmail</option>
-                  <option value="outlook">Outlook / Microsoft 365</option>
-                  <option value="yahoo">Yahoo Mail</option>
-                  <option value="icloud">iCloud Mail</option>
-                  <option value="zoho">Zoho Mail</option>
-                  <option value="fastmail">Fastmail</option>
-                  <option value="proton">Proton Mail Bridge</option>
-                  <option value="aol">AOL Mail</option>
-                  <option value="imap">Other IMAP / custom domain</option>
-                </select>
-              </label>
-              <label>Email address <input name="email" type="email" autocomplete="email" required></label>
-              <label>IMAP host <input name="host" type="text" autocomplete="off" placeholder="imap.gmail.com"></label>
-              <label>IMAP port <input name="port" type="number" min="1" max="65535" inputmode="numeric" placeholder="993"></label>
-              <label>App password <input name="app_password" type="password" autocomplete="new-password" required></label>
-              <button id="mailboxButton" type="submit">Connect mailbox</button>
-            </form>
-            <p class="mailbox-help">
-              Start with manual .eml upload if you are unsure. Mailbox monitoring needs an app-specific password, not your normal mailbox password.
-              <a href="/mailbox-guide">Open the provider setup guide</a>.
-            </p>
-            <div>
+            <article class="monitor-card">
+              <h3>Mailbox connection</h3>
+              <form class="mailbox-form" id="mailboxForm">
+                <label>Provider
+                  <select name="provider">
+                    <option value="gmail">Gmail</option>
+                    <option value="outlook">Outlook / Microsoft 365</option>
+                    <option value="yahoo">Yahoo Mail</option>
+                    <option value="icloud">iCloud Mail</option>
+                    <option value="zoho">Zoho Mail</option>
+                    <option value="fastmail">Fastmail</option>
+                    <option value="proton">Proton Mail Bridge</option>
+                    <option value="aol">AOL Mail</option>
+                    <option value="imap">Other IMAP / custom domain</option>
+                  </select>
+                </label>
+                <label>Email address <input name="email" type="email" autocomplete="email" required></label>
+                <label>IMAP host <input name="host" type="text" autocomplete="off" placeholder="imap.gmail.com"></label>
+                <label>IMAP port <input name="port" type="number" min="1" max="65535" inputmode="numeric" placeholder="993"></label>
+                <label>App password <input name="app_password" type="password" autocomplete="new-password" required></label>
+                <button id="mailboxButton" type="submit">Connect mailbox</button>
+              </form>
+              <p class="mailbox-help">
+                Start with manual .eml upload if you are unsure. Mailbox monitoring needs an app-specific password, not your normal mailbox password.
+                <a href="/mailbox-guide">Open the provider setup guide</a>.
+              </p>
+            </article>
+            <article class="monitor-card">
               <h3>Connected accounts</h3>
               <p id="mailboxStatus">Loading mailbox state.</p>
               <div class="mailbox-list" id="mailboxList"></div>
-            </div>
+            </article>
           </div>
           <div class="notice" id="mailboxNotice" hidden></div>
+        </article>
+      </section>
+
+      <section class="page-panel" id="settingsPanel" data-panel="settings" hidden>
+        <article class="wide-card">
+          <div class="card-heading">
+            <div>
+              <h2>Settings</h2>
+              <p>Keep normal setup simple. External reputation checks are included on paid plans.</p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <article class="settings-card">
+              <span>Included checks</span>
+              <h3>External reputation checks are included on paid plans</h3>
+              <p>Free scans stay useful with local checks. Paid plans can unlock link and domain reputation checks without asking users to paste API keys.</p>
+            </article>
+            <article class="settings-card advanced">
+              <span>Advanced API keys</span>
+              <h3>Bring-your-own keys belongs here, not onboarding</h3>
+              <p>This app does not ask normal users for provider keys during signup or first scan. Private deployments can manage provider keys from server settings.</p>
+            </article>
+          </div>
         </article>
       </section>
     </section>
