@@ -231,8 +231,13 @@ def test_saas_app_mailbox_workflow_is_first_class_and_plan_gated():
     assert 'id="mailboxForm"' in response.text
     assert 'id="mailboxList"' in response.text
     assert 'id="mailboxNotice" hidden' in response.text
+    assert '<option value="zoho">Zoho Mail</option>' in response.text
+    assert '<option value="proton">Proton Mail Bridge</option>' in response.text
+    assert 'name="port"' in response.text
     assert "/api/saas/mailboxes" in js
     assert "function loadMailboxes" in js
+    assert "imap.zoho.com" in js
+    assert "Proton Bridge password" in js
     assert "data-delete-mailbox" in js
     assert "Mailbox monitoring unlocks on Pro" in response.text
     assert ".mailbox-grid" in css

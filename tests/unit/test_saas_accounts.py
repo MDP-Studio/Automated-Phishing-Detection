@@ -290,3 +290,19 @@ def test_admin_overview_is_aggregate_and_redacted(tmp_path):
     assert "cus_secret" not in serialized
     assert "secret provider token missing" not in serialized
     assert "private sandbox failure details" not in serialized
+
+
+def test_mail_account_store_accepts_supported_provider_catalog(tmp_path):
+    store = SaaSStore(tmp_path / "saas.db")
+    context = store.create_user_with_org(email="alice@example.com", password="long-password-1")
+
+    mailbox = store.register_mail_account(
+        org_id=context.org_id,
+        user_id=context.user_id,
+        provider="fastmail",
+        external_account_id="alice@fastmail.example",
+        encrypted_token_ref="enc:v2:secret",
+        status="pending",
+    )
+
+    assert mailbox.provider == "fastmail"

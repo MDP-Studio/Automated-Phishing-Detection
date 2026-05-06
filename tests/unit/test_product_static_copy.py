@@ -70,5 +70,10 @@ def test_mailbox_guide_is_easy_to_find_and_privacy_bounded():
     assert "Zoho Mail" in combined
     assert "Proton Mail Bridge" in combined
     assert "It never accepts or stores passwords." in docs
+    assert '<option value="yahoo">Yahoo Mail</option>' in phish
+    assert '<option value="icloud">iCloud Mail</option>' in payshield
+    assert '<option value="fastmail">Fastmail</option>' in phish
+    assert 'name="port"' in phish
+    assert 'name="port"' in payshield
     assert "/mailbox-guide" in phish
     assert "/mailbox-guide" in payshield

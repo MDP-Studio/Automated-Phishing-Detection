@@ -178,12 +178,19 @@
               <label>Provider
                 <select name="provider">
                   <option value="gmail">Gmail</option>
-                  <option value="outlook">Outlook</option>
-                  <option value="imap">IMAP</option>
+                  <option value="outlook">Outlook / Microsoft 365</option>
+                  <option value="yahoo">Yahoo Mail</option>
+                  <option value="icloud">iCloud Mail</option>
+                  <option value="zoho">Zoho Mail</option>
+                  <option value="fastmail">Fastmail</option>
+                  <option value="proton">Proton Mail Bridge</option>
+                  <option value="aol">AOL Mail</option>
+                  <option value="imap">Other IMAP / custom domain</option>
                 </select>
               </label>
               <label>Email address <input name="email" type="email" autocomplete="email" required></label>
               <label>IMAP host <input name="host" type="text" autocomplete="off" placeholder="imap.gmail.com"></label>
+              <label>IMAP port <input name="port" type="number" min="1" max="65535" inputmode="numeric" placeholder="993"></label>
               <label>App password <input name="app_password" type="password" autocomplete="new-password" required></label>
               <button id="mailboxButton" type="submit">Connect mailbox</button>
             </form>

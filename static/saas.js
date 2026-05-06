@@ -21,6 +21,7 @@
   const mailboxSubmitButton = document.getElementById("mailboxSubmitButton");
   const mailboxProviderSelect = mailboxForm ? mailboxForm.querySelector("[name='provider']") : null;
   const mailboxHostInput = mailboxForm ? mailboxForm.querySelector("[name='host']") : null;
+  const mailboxPortInput = mailboxForm ? mailboxForm.querySelector("[name='port']") : null;
   const mailboxPasswordInput = mailboxForm ? mailboxForm.querySelector("[name='app_password']") : null;
   const decisionStack = document.getElementById("decisionStack");
   const emailFileInput = document.getElementById("emailFile");
@@ -48,18 +49,60 @@
   const mailboxProviderDefaults = {
     gmail: {
       host: "imap.gmail.com",
+      port: "993",
       password: "Google app password",
       title: "Gmail usually needs IMAP enabled and a Google app password.",
     },
     outlook: {
       host: "outlook.office365.com",
+      port: "993",
       password: "OAuth or admin-approved mailbox password",
       title: "Microsoft accounts often require OAuth or admin approval. Manual upload is the fallback.",
     },
+    yahoo: {
+      host: "imap.mail.yahoo.com",
+      port: "993",
+      password: "Yahoo app password",
+      title: "Yahoo Mail usually needs an app password from Account Security.",
+    },
+    icloud: {
+      host: "imap.mail.me.com",
+      port: "993",
+      password: "Apple app-specific password",
+      title: "iCloud Mail needs two-factor authentication and an app-specific password.",
+    },
+    zoho: {
+      host: "imap.zoho.com",
+      port: "993",
+      password: "Zoho app-specific password",
+      title: "Zoho Mail needs IMAP enabled. Use an app-specific password when 2FA is enabled.",
+    },
+    fastmail: {
+      host: "imap.fastmail.com",
+      port: "993",
+      password: "Fastmail app password",
+      title: "Fastmail uses app passwords for third-party mail clients.",
+    },
+    proton: {
+      host: "Bridge host shown by Proton",
+      port: "1143",
+      password: "Proton Bridge password",
+      title: "Use the host, port, username, and password shown in Proton Mail Bridge.",
+      autofillHost: false,
+      autofillPort: false,
+    },
+    aol: {
+      host: "imap.aol.com",
+      port: "993",
+      password: "AOL app password",
+      title: "AOL Mail may need an app password. Use export.imap.aol.com if the main host fails.",
+    },
     imap: {
       host: "imap.example.com",
+      port: "993",
       password: "Provider app password",
       title: "Use the IMAP host from your email provider or IT admin.",
+      autofillHost: false,
     },
   };
 
@@ -386,16 +429,21 @@
   }
 
   function syncMailboxProviderFields() {
-    if (!mailboxProviderSelect || !mailboxHostInput || !mailboxPasswordInput) {
+    if (!mailboxProviderSelect || !mailboxHostInput || !mailboxPortInput || !mailboxPasswordInput) {
       return;
     }
     const provider = mailboxProviderSelect.value || "imap";
     const defaults = mailboxProviderDefaults[provider] || mailboxProviderDefaults.imap;
     const knownHosts = Object.values(mailboxProviderDefaults).map((item) => item.host);
     if (!mailboxHostInput.value || knownHosts.includes(mailboxHostInput.value)) {
-      mailboxHostInput.value = provider === "imap" ? "" : defaults.host;
+      mailboxHostInput.value = defaults.autofillHost === false ? "" : defaults.host;
+    }
+    const knownPorts = Object.values(mailboxProviderDefaults).map((item) => item.port);
+    if (!mailboxPortInput.value || knownPorts.includes(mailboxPortInput.value)) {
+      mailboxPortInput.value = defaults.autofillPort === false ? "" : defaults.port;
     }
     mailboxHostInput.placeholder = defaults.host;
+    mailboxPortInput.placeholder = defaults.port;
     mailboxPasswordInput.placeholder = defaults.password;
     mailboxProviderSelect.title = defaults.title;
   }

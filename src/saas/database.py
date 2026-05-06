@@ -16,6 +16,7 @@ from typing import Iterator
 
 from src.billing.entitlements import EntitlementDecision, feature_entitlement
 from src.billing.plans import get_plan
+from src.support.mailbox_guides import CONNECTABLE_MAILBOX_PROVIDERS, MAILBOX_PROVIDER_ERROR
 
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 WORKSPACE_ROLES = {"owner", "admin", "analyst", "viewer"}
@@ -739,8 +740,8 @@ class SaaSStore:
         status: str = "pending",
     ) -> MailAccountRecord:
         provider = (provider or "").strip().lower()
-        if provider not in {"gmail", "outlook", "imap"}:
-            raise ValueError("provider must be gmail, outlook, or imap")
+        if provider not in CONNECTABLE_MAILBOX_PROVIDERS:
+            raise ValueError(MAILBOX_PROVIDER_ERROR)
         if status not in {"pending", "active", "error", "disabled"}:
             raise ValueError("status must be pending, active, error, or disabled")
 

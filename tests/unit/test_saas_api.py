@@ -407,9 +407,8 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
         client,
         "/api/saas/mailboxes",
         {
-            "provider": "imap",
+            "provider": "zoho",
             "email": "owner@example.com",
-            "host": "imap.example.com",
             "app_password": "secret app password",
         },
     )
@@ -428,7 +427,8 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
     assert response.json()["results"][0]["subject"] == "Mailbox scan test"
     assert response.json()["mailbox"]["credential_saved"] is True
     assert history.json()["results"][0]["email_id"]
-    assert FakeIMAPProvider.config_seen.host == "imap.example.com"
+    assert FakeIMAPProvider.config_seen.host == "imap.zoho.com"
+    assert FakeIMAPProvider.config_seen.port == 993
     assert FakeIMAPProvider.config_seen.user == "owner@example.com"
     assert FakeIMAPProvider.disconnected is True
     assert "Private mailbox body" not in serialized
@@ -500,6 +500,25 @@ def test_saas_mailbox_connection_is_plan_gated_and_csrf_protected(tmp_path, monk
             "app_password": "app-specific-password",
         },
     )
+    missing_proton_port = _post_json_with_csrf(
+        client,
+        "/api/saas/mailboxes",
+        {
+            "provider": "proton",
+            "email": "owner@example.com",
+            "host": "bridge-host.example",
+            "app_password": "app-specific-password",
+        },
+    )
+    invalid_provider = _post_json_with_csrf(
+        client,
+        "/api/saas/mailboxes",
+        {
+            "provider": "unknownmail",
+            "email": "owner@example.com",
+            "app_password": "app-specific-password",
+        },
+    )
 
     assert listing.status_code == 200
     assert listing.json()["mailboxes"] == []
@@ -508,6 +527,10 @@ def test_saas_mailbox_connection_is_plan_gated_and_csrf_protected(tmp_path, monk
     assert missing_csrf.status_code == 403
     assert invalid_port.status_code == 400
     assert invalid_port.json()["detail"] == "IMAP port is invalid"
+    assert missing_proton_port.status_code == 400
+    assert missing_proton_port.json()["detail"] == "IMAP port is required for Proton Mail Bridge"
+    assert invalid_provider.status_code == 400
+    assert "Yahoo" in invalid_provider.json()["detail"]
     assert locked.status_code == 402
     assert locked.json()["locked"]["feature_slug"] == "mailbox_monitoring"
     assert "app-specific-password" not in json.dumps(locked.json())

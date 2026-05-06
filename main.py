@@ -1074,12 +1074,9 @@ class PhishingDetectionApp:
                 raise HTTPException(status_code=409, detail="Mailbox credential is invalid") from exc
 
             provider = str(bundle.get("provider") or mailbox.provider or "").lower()
-            host_defaults = {
-                "gmail": "imap.gmail.com",
-                "outlook": "outlook.office365.com",
-                "imap": "",
-            }
-            host = str(bundle.get("host") or host_defaults.get(provider, "")).strip()
+            from src.support.mailbox_guides import mailbox_provider_host_default
+
+            host = str(bundle.get("host") or mailbox_provider_host_default(provider)).strip()
             user = str(bundle.get("email") or mailbox.external_account_id or "").strip()
             password = str(bundle.get("app_password") or "").strip()
             try:
@@ -1798,9 +1795,17 @@ class PhishingDetectionApp:
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
             payload = await _json_object_body(request)
-            provider = str(payload.get("provider", "")).strip().lower()
-            if provider not in {"gmail", "outlook", "imap"}:
-                raise HTTPException(status_code=400, detail="Provider must be Gmail, Outlook, or IMAP")
+            from src.support.mailbox_guides import (
+                CONNECTABLE_MAILBOX_PROVIDERS,
+                MAILBOX_PROVIDER_ERROR,
+                mailbox_provider_host_default,
+                mailbox_provider_port_default,
+                normalize_mailbox_provider,
+            )
+
+            provider = normalize_mailbox_provider(str(payload.get("provider", "")).strip())
+            if provider == "all" or provider not in CONNECTABLE_MAILBOX_PROVIDERS:
+                raise HTTPException(status_code=400, detail=MAILBOX_PROVIDER_ERROR)
 
             mailbox_email = str(payload.get("email", "")).strip().lower()
             if "@" not in mailbox_email or len(mailbox_email) > 254:
@@ -1808,13 +1813,16 @@ class PhishingDetectionApp:
             app_password = str(payload.get("app_password", "")).strip()
             if not app_password:
                 raise HTTPException(status_code=400, detail="App password is required")
-            host = str(payload.get("host", "")).strip().lower()
+            host = str(payload.get("host", "")).strip().lower() or mailbox_provider_host_default(provider)
+            raw_port = payload.get("port")
+            if provider == "proton" and (raw_port is None or not str(raw_port).strip()):
+                raise HTTPException(status_code=400, detail="IMAP port is required for Proton Mail Bridge")
             try:
-                port = int(payload.get("port") or 993)
+                port = int(raw_port or mailbox_provider_port_default(provider))
             except (TypeError, ValueError) as exc:
                 raise HTTPException(status_code=400, detail="IMAP port is invalid") from exc
-            if provider == "imap" and not host:
-                raise HTTPException(status_code=400, detail="IMAP host is required")
+            if not host:
+                raise HTTPException(status_code=400, detail="IMAP host is required for this provider")
             if port < 1 or port > 65535:
                 raise HTTPException(status_code=400, detail="IMAP port is invalid")
 

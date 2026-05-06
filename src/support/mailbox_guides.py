@@ -306,6 +306,42 @@ def normalize_mailbox_provider(provider: str | None) -> str:
     return ALIASES.get(raw, raw if raw in PROVIDER_GUIDES else "all")
 
 
+CONNECTABLE_MAILBOX_PROVIDERS = frozenset(PROVIDER_GUIDES)
+CONNECTABLE_MAILBOX_PROVIDER_LABELS = {
+    "gmail": "Gmail",
+    "outlook": "Outlook / Microsoft 365",
+    "yahoo": "Yahoo Mail",
+    "icloud": "iCloud Mail",
+    "zoho": "Zoho Mail",
+    "fastmail": "Fastmail",
+    "proton": "Proton Mail Bridge",
+    "aol": "AOL Mail",
+    "imap": "Other IMAP / custom domain",
+}
+MAILBOX_PROVIDER_ERROR = (
+    "Provider must be Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, "
+    "Proton, AOL, or IMAP"
+)
+
+
+def mailbox_provider_host_default(provider: str | None) -> str:
+    """Return the standard IMAP host when the provider has one."""
+    normalized = normalize_mailbox_provider(provider)
+    if normalized == "all":
+        return ""
+    host = PROVIDER_GUIDES[normalized].get("host")
+    return host if isinstance(host, str) and not host.startswith("Ask ") and "Bridge" not in host else ""
+
+
+def mailbox_provider_port_default(provider: str | None) -> int:
+    """Return the standard IMAP port when the provider has one."""
+    normalized = normalize_mailbox_provider(provider)
+    if normalized == "all":
+        return 993
+    port = PROVIDER_GUIDES[normalized].get("port")
+    return port if isinstance(port, int) else 993
+
+
 def mailbox_guide_payload(provider: str | None = "all") -> dict[str, Any]:
     """Return sanitized provider guidance for UI, docs, or MCP output."""
     normalized = normalize_mailbox_provider(provider)
@@ -328,4 +364,3 @@ def mailbox_guide_payload(provider: str | None = "all") -> dict[str, Any]:
         "providers": providers,
         "privacy": dict(PRIVACY_NOTICE),
     }
-
