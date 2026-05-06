@@ -707,7 +707,7 @@ ${element.innerHTML}
           <span>${escapeHtml(formatLabel(item.provider))} - ${escapeHtml(item.credential_saved ? "encrypted credential saved" : "credential missing")}</span>
         </div>
         <div class="mailbox-actions">
-          <span class="mailbox-status ${escapeHtml(item.status || "pending")}">${escapeHtml(formatLabel(item.status || "pending"))}</span>
+          <span class="mailbox-status ${escapeHtml(item.status || "pending")}">${escapeHtml(mailboxStatusLabel(item.status))}</span>
           <button class="subtle-button mailbox-scan" type="button" data-scan-mailbox="${escapeHtml(item.id)}">Scan now</button>
           <button class="subtle-button mailbox-delete" type="button" data-delete-mailbox="${escapeHtml(item.id)}">Delete</button>
         </div>
@@ -1176,6 +1176,14 @@ ${element.innerHTML}
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
+  function mailboxStatusLabel(status) {
+    const normalized = String(status || "pending").toLowerCase();
+    if (normalized === "active") return "Ready";
+    if (normalized === "error") return "Reconnect needed";
+    if (normalized === "pending") return "Reconnect to verify";
+    return formatLabel(normalized);
+  }
+
   function formatDecision(value) {
     const decision = String(value || "").toUpperCase();
     if (decision === "DO_NOT_PAY" || decision === "DO_NOT_PAY_UNTIL_VERIFIED") {
@@ -1444,7 +1452,7 @@ ${element.innerHTML}
     mailboxSubmitButton.disabled = true;
     const originalText = mailboxSubmitButton.textContent;
     let restoreSubmitButton = true;
-    mailboxSubmitButton.textContent = "Saving";
+    mailboxSubmitButton.textContent = "Testing";
     try {
       const response = await apiJson("/api/saas/mailboxes", {
         method: "POST",

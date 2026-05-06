@@ -288,6 +288,14 @@
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
+  function mailboxStatusLabel(status) {
+    const normalized = String(status || "pending").toLowerCase();
+    if (normalized === "active") return "Ready";
+    if (normalized === "error") return "Reconnect needed";
+    if (normalized === "pending") return "Reconnect to verify";
+    return label(normalized);
+  }
+
   function percent(value) {
     const score = Math.max(0, Math.min(Number(value || 0), 1));
     return `${(score * 100).toFixed(score >= 0.1 ? 1 : 2)}%`;
@@ -1136,7 +1144,7 @@ ${element.innerHTML}
           <span>${escapeHtml(label(item.provider))} &middot; ${escapeHtml(item.credential_saved ? "credential encrypted" : "credential missing")}</span>
         </div>
         <div class="row-actions">
-          <span class="status-pill ${escapeHtml(item.status || "locked")}">${escapeHtml(label(item.status || "pending"))}</span>
+          <span class="status-pill ${escapeHtml(item.status || "locked")}">${escapeHtml(mailboxStatusLabel(item.status))}</span>
           <button class="secondary-button" type="button" data-scan-mailbox="${escapeHtml(item.id)}">Scan now</button>
           <button class="secondary-button" type="button" data-delete-mailbox="${escapeHtml(item.id)}">Delete</button>
         </div>
@@ -1394,7 +1402,7 @@ ${element.innerHTML}
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     mailboxButton.disabled = true;
-    mailboxButton.textContent = "Saving";
+    mailboxButton.textContent = "Testing";
     let mailboxStateReloaded = false;
     notice(mailboxNotice, "");
     try {

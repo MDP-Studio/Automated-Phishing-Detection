@@ -49,8 +49,8 @@ Implemented foundation:
   from history while keeping usage events for quota and billing integrity.
 - `/api/saas/mailboxes` lists, registers, reconnects, and deletes
   organization-scoped mailbox records. Connection is Pro+ gated, quota checked,
-  CSRF protected, and stores submitted app passwords only as encrypted credential
-  bundles.
+  CSRF protected, verifies IMAP access before storing, and stores submitted app
+  passwords only as encrypted credential bundles.
 - `/trust` documents the customer-facing privacy boundary, analyzer visibility,
   deletion controls, and the separation between normal accounts and private
   admin pages. The route is hostname-aware: PhishAnalyze renders email-analysis
@@ -166,8 +166,8 @@ Safe implementation order:
 5. Add usage tracking and feature gates. **Done for manual scans and analyzers.**
 6. Add Stripe Checkout and webhook subscription sync. **Done for the SaaS path.**
 7. Add customer deletion and trust/privacy controls. **Done for scan history.**
-8. Add per-user mailbox connection. **Done for encrypted mailbox metadata and
-   customer onboarding.**
+8. Add per-user mailbox connection. **Done for encrypted mailbox metadata,
+   immediate IMAP verification, and customer onboarding.**
 9. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
 10. Add tenant isolation tests before enabling live customer mailbox polling.
 

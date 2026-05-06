@@ -78,7 +78,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 ## What Is Not Claimed Yet
 
 - OAuth mailbox connection is not the public default yet. Current mailbox
-  connection uses app-password/IMAP style credentials and encrypted storage.
+  connection uses app-password/IMAP style credentials, verifies IMAP access
+  before saving, and stores credentials encrypted.
 - Customer bring-your-own API keys are not part of normal onboarding. Public
   users see a simple message that external reputation checks are included on
   paid plans. The settings page keeps advanced API-key wording separate for
@@ -223,7 +224,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1264 tests across 67 test modules
+1265 tests across 67 test modules
 ```
 
 Run all tests:

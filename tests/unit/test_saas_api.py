@@ -125,6 +125,27 @@ def _post_json_with_csrf(
     )
 
 
+def _allow_mailbox_auth(monkeypatch, *, authenticated: bool = True):
+    import src.ingestion.imap_provider as imap_provider_module
+
+    class FakeIMAPProvider:
+        config_seen = None
+        disconnected = False
+
+        def __init__(self, config):
+            self.config = config
+            FakeIMAPProvider.config_seen = config
+
+        def authenticate(self):
+            return authenticated
+
+        def disconnect(self):
+            FakeIMAPProvider.disconnected = True
+
+    monkeypatch.setattr(imap_provider_module, "IMAPProvider", FakeIMAPProvider)
+    return FakeIMAPProvider
+
+
 def _delete_with_csrf(
     client: TestClient,
     path: str,
@@ -538,6 +559,7 @@ def test_saas_mailbox_connection_is_plan_gated_and_csrf_protected(tmp_path, monk
 
 def test_saas_mailbox_connection_encrypts_and_lists_masked_metadata(tmp_path, monkeypatch):
     monkeypatch.setenv("ACCOUNTS_ENCRYPTION_KEY", "test-mailbox-encryption-key-for-unit-tests")
+    fake_provider = _allow_mailbox_auth(monkeypatch)
     client = TestClient(
         _build_saas_app(tmp_path, signup_enabled=True),
         base_url="https://testserver",
@@ -566,9 +588,13 @@ def test_saas_mailbox_connection_encrypts_and_lists_masked_metadata(tmp_path, mo
     assert connect.status_code == 200
     assert connect.json()["mailbox"]["external_account_id"] == "owner@example.com"
     assert connect.json()["mailbox"]["credential_saved"] is True
-    assert connect.json()["mailbox"]["status"] == "pending"
+    assert connect.json()["mailbox"]["status"] == "active"
+    assert fake_provider.config_seen.host == "imap.example.com"
+    assert fake_provider.config_seen.user == "owner@example.com"
+    assert fake_provider.disconnected is True
     assert listing.json()["quota"] == {"used": 1, "limit": 3, "remaining": 2}
     assert listing.json()["mailboxes"][0]["credential_saved"] is True
+    assert listing.json()["mailboxes"][0]["status"] == "active"
     assert "encrypted_token_ref" not in json.dumps(listing.json())
     assert "secret app password" not in json.dumps(listing.json())
     assert stored.encrypted_token_ref.startswith("enc:v2:")
@@ -578,8 +604,40 @@ def test_saas_mailbox_connection_encrypts_and_lists_masked_metadata(tmp_path, mo
     assert after_delete.json()["mailboxes"] == []
 
 
+def test_saas_mailbox_connection_rejects_bad_credentials_without_storing(tmp_path, monkeypatch):
+    monkeypatch.setenv("ACCOUNTS_ENCRYPTION_KEY", "test-mailbox-encryption-key-for-unit-tests")
+    _allow_mailbox_auth(monkeypatch, authenticated=False)
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+
+    signup = _signup(client)
+    context = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=context["org_id"], plan_slug="pro")
+    connect = _post_json_with_csrf(
+        client,
+        "/api/saas/mailboxes",
+        {
+            "provider": "imap",
+            "email": "owner@example.com",
+            "host": "imap.example.com",
+            "app_password": "wrong app password",
+        },
+    )
+    listing = client.get("/api/saas/mailboxes")
+
+    assert connect.status_code == 502
+    assert connect.json()["detail"].startswith("Mailbox authentication failed")
+    assert listing.json()["mailboxes"] == []
+    assert "wrong app password" not in json.dumps(connect.json())
+
+
 def test_saas_mailbox_listing_marks_full_quota_locked(tmp_path, monkeypatch):
     monkeypatch.setenv("ACCOUNTS_ENCRYPTION_KEY", "test-mailbox-encryption-key-for-unit-tests")
+    _allow_mailbox_auth(monkeypatch)
     client = TestClient(
         _build_saas_app(tmp_path, signup_enabled=True),
         base_url="https://testserver",

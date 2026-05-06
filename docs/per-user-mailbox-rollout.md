@@ -53,7 +53,8 @@ must point to a vault/secret record, not hold plaintext credentials.
 
 4. **User interface**
    - Show connected mailboxes under the account shell.
-   - Show status: `pending`, `active`, `error`, or `disabled`.
+   - Show status: `active`, `error`, `disabled`, or legacy `pending` records
+     that need one reconnect to verify.
    - Provide disconnect/disable actions with confirmation.
 
 5. **Abuse and privacy controls**

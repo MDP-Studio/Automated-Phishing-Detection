@@ -1000,6 +1000,28 @@ class PhishingDetectionApp:
             entitlement_payload = entitlement.to_dict()
             if entitlement.available and active_count >= plan.mailbox_quota:
                 entitlement_payload = _mailbox_quota_lock(context, active_count)
+            statuses = {item.status for item in accounts}
+            if "error" in statuses:
+                workflow_status = "credential_error"
+                workflow_message = (
+                    "One mailbox could not authenticate. Reconnect it with a fresh "
+                    "app password before scanning."
+                )
+            elif "pending" in statuses:
+                workflow_status = "needs_verification"
+                workflow_message = (
+                    "A saved mailbox has not been verified yet. Reconnect it once "
+                    "so the app can test IMAP access immediately."
+                )
+            elif "active" in statuses:
+                workflow_status = "ready"
+                workflow_message = (
+                    "Mailbox access has been verified. Use Scan now to analyze "
+                    "new unread messages."
+                )
+            else:
+                workflow_status = "not_connected"
+                workflow_message = "No workspace mailbox is connected yet."
             return {
                 "account": context.to_dict(),
                 "mailboxes": [item.to_public_dict() for item in accounts],
@@ -1011,11 +1033,8 @@ class PhishingDetectionApp:
                 "entitlement": entitlement_payload,
                 "workflow": {
                     "customer_product": "PayShield",
-                    "status": "credential_saved_pending_worker",
-                    "message": (
-                        "Mailbox credentials are stored per workspace. Customer "
-                        "mailbox polling is kept separate from owner admin tools."
-                    ),
+                    "status": workflow_status,
+                    "message": workflow_message,
                 },
             }
 
@@ -1865,6 +1884,29 @@ class PhishingDetectionApp:
                     ),
                 )
             from src.security.credentials import encrypt_password
+            from src.config import IMAPConfig
+            from src.ingestion.imap_provider import IMAPProvider
+
+            test_config = IMAPConfig(
+                host=host,
+                port=port,
+                user=mailbox_email,
+                password=app_password,
+            )
+            test_provider = IMAPProvider(test_config)
+            authenticated = await asyncio.to_thread(test_provider.authenticate)
+            try:
+                await asyncio.to_thread(test_provider.disconnect)
+            except Exception:
+                logger.debug("Mailbox IMAP test disconnect failed", exc_info=True)
+            if not authenticated:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "Mailbox authentication failed. Check that IMAP is enabled "
+                        "and use an app-specific password, not your normal email password."
+                    ),
+                )
 
             credential_bundle = {
                 "provider": provider,
@@ -1886,7 +1928,7 @@ class PhishingDetectionApp:
                 provider=provider,
                 external_account_id=mailbox_email,
                 encrypted_token_ref=encrypted_ref,
-                status="pending",
+                status="active",
             )
             updated_context = store.get_account_context(context.user_id) or context
             response = _mailbox_payload(store, updated_context)
@@ -1895,8 +1937,8 @@ class PhishingDetectionApp:
                     "status": "ok",
                     "mailbox": mailbox.to_public_dict(),
                     "message": (
-                        "Mailbox credential saved. Customer polling is queued for "
-                        "the workspace mailbox worker, separate from owner admin tools."
+                        "Mailbox connected and verified. Use Scan now to analyze "
+                        "new unread messages."
                     ),
                 }
             )
