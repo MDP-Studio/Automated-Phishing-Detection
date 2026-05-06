@@ -238,9 +238,9 @@ def test_saas_app_mailbox_workflow_is_first_class_and_plan_gated():
 
     assert response.status_code == 200
     assert 'id="mailboxSection"' in response.text
-    assert "Connect payment inboxes" in response.text
+    assert "Connect payment inboxes later" in response.text
     assert "Customer monitoring separate from the internal PhishAnalyze analyst console" not in response.text
-    assert "keeps customer monitoring separate from owner admin tools" in response.text
+    assert "Manual scanning comes first" in response.text
     assert 'id="mailboxForm"' in response.text
     assert 'id="mailboxList"' in response.text
     assert 'id="mailboxNotice" hidden' in response.text
