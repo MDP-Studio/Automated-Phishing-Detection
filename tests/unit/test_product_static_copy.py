@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -85,3 +86,18 @@ def test_mailbox_guide_is_easy_to_find_and_privacy_bounded():
     assert 'name="port"' in payshield
     assert "/mailbox-guide" in phish
     assert "/mailbox-guide" in payshield
+
+
+def test_external_template_links_open_in_new_tab_safely():
+    templates = [
+        ROOT / "templates" / "mailbox_guide.html",
+        ROOT / "templates" / "accounts.html",
+        ROOT / "templates" / "monitor.html",
+    ]
+
+    external_anchor = re.compile(r"<a\b[^>]*href=\"https?://[^>]+>", re.IGNORECASE)
+    for template in templates:
+        source = template.read_text(encoding="utf-8")
+        for match in external_anchor.findall(source):
+            assert 'target="_blank"' in match, f"{template.name}: {match}"
+            assert 'rel="noopener noreferrer"' in match, f"{template.name}: {match}"

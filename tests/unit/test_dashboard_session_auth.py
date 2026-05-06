@@ -659,6 +659,9 @@ def test_shared_controls_use_icon_theme_and_page_scoped_logout():
     script = Path("static/shared.js").read_text(encoding="utf-8")
 
     assert "function themeIcon(nextTheme)" in script
+    assert "window.hardenExternalLinks = function(root)" in script
+    assert "link.setAttribute('target', '_blank')" in script
+    assert "noreferrer" in script
     assert "aria-label', label" in script
     assert "if (isAnalystPage()) installAnalystLogout(nav);" in script
     assert "var isSaasApi = path.startsWith('/api/saas/');" in script
