@@ -69,6 +69,14 @@ def test_mailbox_guide_is_easy_to_find_and_privacy_bounded():
     assert "Outlook / Microsoft 365" in combined
     assert "Zoho Mail" in combined
     assert "Proton Mail Bridge" in combined
+    assert "AOL Mail" in guide
+    assert "https://myaccount.google.com/apppasswords" in combined
+    assert "https://outlook.live.com/mail/0/options/mail/accounts/popImap" in combined
+    assert "https://login.yahoo.com/account/security" in combined
+    assert "https://account.apple.com/account/manage" in combined
+    assert "https://mail.zoho.com/zm/#settings/mailaccounts" in combined
+    assert "https://app.fastmail.com/settings/security" in combined
+    assert "https://login.aol.com/account/security" in combined
     assert "It never accepts or stores passwords." in docs
     assert '<option value="yahoo">Yahoo Mail</option>' in phish
     assert '<option value="icloud">iCloud Mail</option>' in payshield

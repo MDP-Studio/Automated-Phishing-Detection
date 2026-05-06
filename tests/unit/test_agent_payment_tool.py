@@ -112,6 +112,7 @@ def test_mailbox_connection_guide_cli_prints_provider_payload():
     assert payload["tool"] == "mailbox_connection_guide"
     assert payload["provider"] == "gmail"
     assert payload["providers"][0]["host"] == "imap.gmail.com"
+    assert payload["providers"][0]["settings_links"][1]["url"] == "https://myaccount.google.com/apppasswords"
     assert "encrypted mailbox connection material" in payload["privacy"]["stored"]
 
 
@@ -228,6 +229,7 @@ def test_desktop_extension_node_bridge_returns_mailbox_guide():
     assert response["result"]["isError"] is False
     assert payload["provider"] == "zoho"
     assert payload["providers"][0]["host"] == "imap.zoho.com"
+    assert payload["providers"][0]["settings_links"][0]["url"] == "https://mail.zoho.com/zm/#settings/mailaccounts"
     assert "passwords" in payload["summary"].lower()
 
 

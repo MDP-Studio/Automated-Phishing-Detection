@@ -33,6 +33,23 @@ also revoke the app password inside the email provider account settings.
 | AOL Mail | Usually works now | `imap.aol.com` or `export.imap.aol.com` | AOL app password when required | Try the official alternate host if one host fails. |
 | Other IMAP / custom domain | Depends on provider | Ask provider or IT admin | Provider app password if available | Corporate and university accounts may block IMAP or require OAuth. |
 
+## Direct Settings Links
+
+These links open the closest provider setting directly after sign-in. Some
+providers redirect to login first, and work, school, or organization accounts
+may hide the setting if an administrator disabled it.
+
+| Provider | Direct setting/action |
+|---|---|
+| Gmail | [Open Gmail IMAP settings](https://mail.google.com/mail/u/0/#settings/fwdandpop) and [open Google app passwords](https://myaccount.google.com/apppasswords) |
+| Outlook.com | [Open Outlook POP/IMAP settings](https://outlook.live.com/mail/0/options/mail/accounts/popImap) |
+| Yahoo Mail | [Open Yahoo Account Security](https://login.yahoo.com/account/security) |
+| iCloud Mail | [Open Apple Account security](https://account.apple.com/account/manage) |
+| Zoho Mail | [Open Zoho Mail settings](https://mail.zoho.com/zm/#settings/mailaccounts) and [open Zoho app passwords](https://accounts.zoho.com/home#security/security_pwd) |
+| Fastmail | [Open Fastmail security settings](https://app.fastmail.com/settings/security) |
+| Proton Mail | [Open Proton Mail Bridge](https://proton.me/mail/bridge) |
+| AOL Mail | [Open AOL Account Security](https://login.aol.com/account/security) |
+
 ## User-Friendly Wording
 
 Use this in the product:
@@ -64,15 +81,15 @@ It never accepts or stores passwords.
 
 ## Official Provider References
 
-- [Google app passwords](https://support.google.com/mail/answer/185833)
-- [Gmail IMAP server settings](https://developers.google.com/workspace/gmail/imap/imap-smtp)
+- [Google app passwords](https://support.google.com/accounts/answer/185833)
+- [Gmail IMAP setup](https://support.google.com/mail/answer/7126229)
 - [Microsoft Outlook.com POP/IMAP/SMTP settings](https://support.microsoft.com/en-gb/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040)
-- [Yahoo IMAP settings](https://my.help.yahoo.com/kb/SLN4075.html)
-- [Apple iCloud Mail server settings](https://support.apple.com/en-lamr/102525)
-- [Zoho IMAP server settings](https://help.zoho.com/portal/en/kb/mail/access-from-external-mail-clients/articles/what-are-the-incoming-outgoing-server-settings-for-zoho-to-setup-as-imap-account)
+- [Yahoo app passwords](https://help.yahoo.com/kb/mail/generate-password-sln15241.html)
+- [Apple iCloud Mail server settings](https://support.apple.com/en-us/102525)
+- [Apple app-specific passwords](https://support.apple.com/en-us/102654)
 - [Zoho IMAP access settings](https://www.zoho.com/mail/help/imap-access.html)
-- [Fastmail setup guide](https://www.fastmail.help/hc/en-us/articles/360058752834-Set-up-Fastmail-on-your-device)
+- [Fastmail app passwords](https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords)
 - [Fastmail server names and ports](https://www.fastmail.help/hc/en-us/articles/1500000278342-Server-names-and-ports)
-- [Proton Mail Bridge](https://proton.me/support/support/bridge)
+- [Proton Mail Bridge](https://proton.me/support/imap-smtp-and-pop3-setup)
 - [AOL IMAP settings](https://help.aol.com/articles/how-do-i-use-other-email-applications-to-send-and-receive-my-aol-mail)
-- [AOL export IMAP settings](https://help.aol.com/articles/download-your-email-from-aol-mail-with-imap)
+- [AOL app passwords](https://help.aol.com/articles/Create-and-manage-app-password)

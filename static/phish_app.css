@@ -1124,6 +1124,51 @@ button:disabled {
   margin-top: 14px;
 }
 
+.guide-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.provider-guide-card .guide-action-row a {
+  align-items: center;
+  min-height: 36px;
+  margin-top: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.provider-guide-card .guide-action-row a:hover,
+.provider-guide-card .guide-action-row a:focus-visible {
+  border-color: var(--accent-border);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.provider-guide-card .guide-action-row .guide-action-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.provider-guide-card .guide-action-row .guide-action-primary:hover,
+.provider-guide-card .guide-action-row .guide-action-primary:focus-visible {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: #fff;
+}
+
+.provider-guide-card .guide-help-link {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .phish-topbar,
   .workspace-header,

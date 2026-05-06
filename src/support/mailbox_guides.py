@@ -32,7 +32,19 @@ MAILBOX_GUIDE_OUTPUT_SCHEMA: dict[str, Any] = {
         "provider": {"type": "string"},
         "summary": {"type": "string"},
         "common_rules": {"type": "array", "items": {"type": "string"}},
-        "providers": {"type": "array", "items": {"type": "object"}},
+        "providers": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "slug": {"type": "string"},
+                    "name": {"type": "string"},
+                    "settings_links": {"type": "array", "items": {"type": "object"}},
+                    "official_links": {"type": "array", "items": {"type": "object"}},
+                },
+                "additionalProperties": True,
+            },
+        },
         "privacy": {"type": "object"},
     },
     "required": ["tool", "schema_version", "provider", "summary", "providers"],
@@ -74,14 +86,26 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Google revokes app passwords when the Google Account password changes.",
             "Some Google Workspace admins disable app passwords or IMAP. If you cannot create an app password, ask the admin or use manual .eml upload.",
         ],
+        "settings_links": [
+            {
+                "label": "Open Gmail IMAP settings",
+                "url": "https://mail.google.com/mail/u/0/#settings/fwdandpop",
+                "note": "Opens Gmail's Forwarding and POP/IMAP settings after sign-in.",
+            },
+            {
+                "label": "Open Google app passwords",
+                "url": "https://myaccount.google.com/apppasswords",
+                "note": "Requires 2-Step Verification and may be disabled by Workspace admins.",
+            },
+        ],
         "official_links": [
             {
                 "label": "Google app passwords",
-                "url": "https://support.google.com/mail/answer/185833",
+                "url": "https://support.google.com/accounts/answer/185833",
             },
             {
                 "label": "Gmail IMAP server settings",
-                "url": "https://developers.google.com/workspace/gmail/imap/imap-smtp",
+                "url": "https://support.google.com/mail/answer/7126229",
             },
         ],
     },
@@ -101,6 +125,13 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Microsoft states Outlook.com requires Modern Auth/OAuth2 for POP/IMAP.",
             "Work and university Microsoft 365 accounts often need tenant admin consent.",
             "Do not keep retrying your normal password if Microsoft blocks IMAP. That can trigger security lockouts.",
+        ],
+        "settings_links": [
+            {
+                "label": "Open Outlook POP/IMAP settings",
+                "url": "https://outlook.live.com/mail/0/options/mail/accounts/popImap",
+                "note": "Best for personal Outlook.com accounts. Work and school tenants may block this.",
+            },
         ],
         "official_links": [
             {
@@ -125,10 +156,17 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Yahoo app-password creation is sometimes unavailable on new or restricted accounts.",
             "If Yahoo refuses the app password, use manual .eml upload and try again later from Yahoo account security.",
         ],
+        "settings_links": [
+            {
+                "label": "Open Yahoo Account Security",
+                "url": "https://login.yahoo.com/account/security",
+                "note": "Generate or manage Yahoo app passwords from Account Security.",
+            }
+        ],
         "official_links": [
             {
-                "label": "Yahoo IMAP settings",
-                "url": "https://my.help.yahoo.com/kb/SLN4075.html",
+                "label": "Yahoo app passwords",
+                "url": "https://help.yahoo.com/kb/mail/generate-password-sln15241.html",
             }
         ],
     },
@@ -148,10 +186,21 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Apple says the username is often the part before @icloud.com. If that fails, try the full email address.",
             "Changing the Apple Account password can require a fresh app-specific password.",
         ],
+        "settings_links": [
+            {
+                "label": "Open Apple Account security",
+                "url": "https://account.apple.com/account/manage",
+                "note": "Go to Sign-In and Security, then App-Specific Passwords.",
+            }
+        ],
         "official_links": [
             {
                 "label": "Apple iCloud Mail server settings",
-                "url": "https://support.apple.com/en-lamr/102525",
+                "url": "https://support.apple.com/en-us/102525",
+            },
+            {
+                "label": "Apple app-specific passwords",
+                "url": "https://support.apple.com/en-us/102654",
             }
         ],
     },
@@ -171,11 +220,19 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Some Zoho plans or organization policies may disable IMAP.",
             "If your Zoho account is in a regional data center and imap.zoho.com fails, check Zoho's account-specific server guidance.",
         ],
-        "official_links": [
+        "settings_links": [
             {
-                "label": "Zoho IMAP server settings",
-                "url": "https://help.zoho.com/portal/en/kb/mail/access-from-external-mail-clients/articles/what-are-the-incoming-outgoing-server-settings-for-zoho-to-setup-as-imap-account",
+                "label": "Open Zoho Mail settings",
+                "url": "https://mail.zoho.com/zm/#settings/mailaccounts",
+                "note": "Enable IMAP access from Zoho Mail settings if your plan allows it.",
             },
+            {
+                "label": "Open Zoho app passwords",
+                "url": "https://accounts.zoho.com/home#security/security_pwd",
+                "note": "Use when Zoho two-factor authentication is enabled.",
+            },
+        ],
+        "official_links": [
             {
                 "label": "Zoho IMAP access settings",
                 "url": "https://www.zoho.com/mail/help/imap-access.html",
@@ -197,10 +254,17 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Fastmail Basic plans may not include third-party IMAP/app-password access.",
             "Fastmail also provides proxy hosts if a firewall blocks normal mail ports.",
         ],
+        "settings_links": [
+            {
+                "label": "Open Fastmail security settings",
+                "url": "https://app.fastmail.com/settings/security",
+                "note": "Create app passwords under Privacy and Security, Connected apps and API tokens.",
+            }
+        ],
         "official_links": [
             {
                 "label": "Fastmail app password guidance",
-                "url": "https://www.fastmail.help/hc/en-us/articles/360058752834-Set-up-Fastmail-on-your-device",
+                "url": "https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords",
             },
             {
                 "label": "Fastmail server names and ports",
@@ -224,6 +288,13 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Proton Mail does not provide normal direct IMAP access without Bridge.",
             "Bridge is easiest for local/private deployments. It is usually not a simple public SaaS connection path.",
         ],
+        "settings_links": [
+            {
+                "label": "Open Proton Mail Bridge",
+                "url": "https://proton.me/mail/bridge",
+                "note": "Install Bridge, then copy the IMAP host, port, username, and generated password from the Bridge app.",
+            }
+        ],
         "official_links": [
             {
                 "label": "Proton Mail Bridge",
@@ -246,14 +317,21 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
         "watch_out": [
             "AOL documents both imap.aol.com and export.imap.aol.com in support material. If one host fails, try the other official host.",
         ],
+        "settings_links": [
+            {
+                "label": "Open AOL Account Security",
+                "url": "https://login.aol.com/account/security",
+                "note": "Generate or manage AOL app passwords when your account requires them.",
+            }
+        ],
         "official_links": [
             {
                 "label": "AOL IMAP settings",
                 "url": "https://help.aol.com/articles/how-do-i-use-other-email-applications-to-send-and-receive-my-aol-mail",
             },
             {
-                "label": "AOL export IMAP settings",
-                "url": "https://help.aol.com/articles/download-your-email-from-aol-mail-with-imap",
+                "label": "AOL app passwords",
+                "url": "https://help.aol.com/articles/Create-and-manage-app-password",
             },
         ],
     },
@@ -274,6 +352,7 @@ PROVIDER_GUIDES: dict[str, dict[str, Any]] = {
             "Corporate and university accounts may block IMAP or require admin approval.",
             "If the provider only supports OAuth, use manual .eml upload until OAuth is available in the app.",
         ],
+        "settings_links": [],
         "official_links": [],
     },
 }

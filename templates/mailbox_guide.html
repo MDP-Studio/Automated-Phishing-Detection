@@ -71,7 +71,11 @@
           <li>Paste that app password into the mailbox form.</li>
         </ol>
         <p>Google Workspace accounts may block app passwords or IMAP.</p>
-        <a href="https://support.google.com/mail/answer/185833" rel="noopener">Google app password help</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://mail.google.com/mail/u/0/#settings/fwdandpop" target="_blank" rel="noopener noreferrer">Open Gmail IMAP settings</a>
+          <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">Open Google app passwords</a>
+        </div>
+        <a class="guide-help-link" href="https://support.google.com/accounts/answer/185833" target="_blank" rel="noopener noreferrer">Google app password help</a>
       </article>
 
       <article class="provider-guide-card warning">
@@ -89,7 +93,10 @@
           <li>For work, school, or university accounts, ask IT for approval.</li>
         </ol>
         <p>Microsoft commonly requires Modern Auth/OAuth2. A proper OAuth connector should be the next safer path.</p>
-        <a href="https://support.microsoft.com/en-gb/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040" rel="noopener">Microsoft IMAP help</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://outlook.live.com/mail/0/options/mail/accounts/popImap" target="_blank" rel="noopener noreferrer">Open Outlook POP/IMAP settings</a>
+        </div>
+        <a class="guide-help-link" href="https://support.microsoft.com/en-gb/office/pop-imap-and-smtp-settings-for-outlook-com-d088b986-291d-42b8-9564-9c414e2aa040" target="_blank" rel="noopener noreferrer">Microsoft IMAP help</a>
       </article>
 
       <article class="provider-guide-card">
@@ -107,7 +114,10 @@
           <li>Use your full Yahoo email address.</li>
         </ol>
         <p>If Yahoo cannot create an app password, use manual upload and try again later.</p>
-        <a href="https://my.help.yahoo.com/kb/SLN4075.html" rel="noopener">Yahoo IMAP settings</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://login.yahoo.com/account/security" target="_blank" rel="noopener noreferrer">Open Yahoo Account Security</a>
+        </div>
+        <a class="guide-help-link" href="https://help.yahoo.com/kb/mail/generate-password-sln15241.html" target="_blank" rel="noopener noreferrer">Yahoo app password help</a>
       </article>
 
       <article class="provider-guide-card">
@@ -124,7 +134,10 @@
           <li>Create an app-specific password.</li>
           <li>Use your iCloud email. If that fails, try the username before @icloud.com.</li>
         </ol>
-        <a href="https://support.apple.com/en-lamr/102525" rel="noopener">Apple iCloud Mail settings</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://account.apple.com/account/manage" target="_blank" rel="noopener noreferrer">Open Apple Account security</a>
+        </div>
+        <a class="guide-help-link" href="https://support.apple.com/en-us/102525" target="_blank" rel="noopener noreferrer">Apple iCloud Mail settings</a>
       </article>
 
       <article class="provider-guide-card">
@@ -142,7 +155,11 @@
           <li>Use your full Zoho email address.</li>
         </ol>
         <p>Some Zoho plans or organization policies may block IMAP.</p>
-        <a href="https://help.zoho.com/portal/en/kb/mail/access-from-external-mail-clients/articles/what-are-the-incoming-outgoing-server-settings-for-zoho-to-setup-as-imap-account" rel="noopener">Zoho IMAP settings</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://mail.zoho.com/zm/#settings/mailaccounts" target="_blank" rel="noopener noreferrer">Open Zoho Mail settings</a>
+          <a href="https://accounts.zoho.com/home#security/security_pwd" target="_blank" rel="noopener noreferrer">Open Zoho app passwords</a>
+        </div>
+        <a class="guide-help-link" href="https://www.zoho.com/mail/help/imap-access.html" target="_blank" rel="noopener noreferrer">Zoho IMAP help</a>
       </article>
 
       <article class="provider-guide-card">
@@ -159,7 +176,10 @@
           <li>Use your Fastmail username or email address.</li>
           <li>Use imap.fastmail.com unless Fastmail tells you to use a proxy host.</li>
         </ol>
-        <a href="https://www.fastmail.help/hc/en-us/articles/360058752834-Set-up-Fastmail-on-your-device" rel="noopener">Fastmail setup help</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://app.fastmail.com/settings/security" target="_blank" rel="noopener noreferrer">Open Fastmail security settings</a>
+        </div>
+        <a class="guide-help-link" href="https://www.fastmail.help/hc/en-us/articles/360058752854-App-passwords" target="_blank" rel="noopener noreferrer">Fastmail app password help</a>
       </article>
 
       <article class="provider-guide-card warning">
@@ -177,7 +197,31 @@
           <li>Use those exact values in the app.</li>
         </ol>
         <p>This is best for private/local setups, not a simple public SaaS path.</p>
-        <a href="https://proton.me/support/support/bridge" rel="noopener">Proton Bridge help</a>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://proton.me/mail/bridge" target="_blank" rel="noopener noreferrer">Open Proton Mail Bridge</a>
+        </div>
+        <a class="guide-help-link" href="https://proton.me/support/imap-smtp-and-pop3-setup" target="_blank" rel="noopener noreferrer">Proton Bridge help</a>
+      </article>
+
+      <article class="provider-guide-card">
+        <span>Usually works now</span>
+        <h2>AOL Mail</h2>
+        <dl>
+          <div><dt>Provider</dt><dd>IMAP</dd></div>
+          <div><dt>Host</dt><dd>imap.aol.com or export.imap.aol.com</dd></div>
+          <div><dt>Port</dt><dd>993</dd></div>
+          <div><dt>Password</dt><dd>AOL app password when required</dd></div>
+        </dl>
+        <ol>
+          <li>Open AOL Account Security.</li>
+          <li>Generate an app password if AOL requires it.</li>
+          <li>Use your full AOL email address.</li>
+        </ol>
+        <p>If one official AOL host fails, try the alternate host listed by AOL support.</p>
+        <div class="guide-action-row">
+          <a class="guide-action-primary" href="https://login.aol.com/account/security" target="_blank" rel="noopener noreferrer">Open AOL Account Security</a>
+        </div>
+        <a class="guide-help-link" href="https://help.aol.com/articles/Create-and-manage-app-password" target="_blank" rel="noopener noreferrer">AOL app password help</a>
       </article>
 
       <article class="provider-guide-card">

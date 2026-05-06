@@ -629,7 +629,9 @@ def test_mailbox_guide_opens_without_session_and_uses_host_brand(monkeypatch):
     assert "Mailbox Connection Guide - PhishAnalyze" in phish.text
     assert 'href="/monitor">Back to monitor</a>' in phish.text
     assert "Use an app password, not your normal email password." in phish.text
-    assert "Google app password help" in phish.text
+    assert "Open Google app passwords" in phish.text
+    assert "Open Outlook POP/IMAP settings" in phish.text
+    assert "Open AOL Account Security" in phish.text
     assert "'unsafe-inline'" not in phish.headers["Content-Security-Policy"]
 
     assert payshield.status_code == 200
