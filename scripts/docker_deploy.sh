@@ -29,8 +29,31 @@ if [ ! -f "$APP_ENV_FILE" ]; then
     exit 1
 fi
 
+read_env_value() {
+    local key="$1"
+    local line
+    line="$(grep -m1 "^${key}=" "$APP_ENV_FILE" 2>/dev/null || true)"
+    [ -n "$line" ] || return 1
+    printf '%s' "${line#*=}"
+}
+
+COMPOSE_ENV_FILE="$(mktemp)"
+cleanup() {
+    rm -f "$COMPOSE_ENV_FILE"
+}
+trap cleanup EXIT
+
+{
+    printf 'APP_ENV_FILE=%s\n' "$APP_ENV_FILE"
+    if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+        printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "$CLOUDFLARE_TUNNEL_TOKEN"
+    elif tunnel_token="$(read_env_value CLOUDFLARE_TUNNEL_TOKEN)"; then
+        printf 'CLOUDFLARE_TUNNEL_TOKEN=%s\n' "$tunnel_token"
+    fi
+} > "$COMPOSE_ENV_FILE"
+
 compose() {
-    docker compose --env-file "$APP_ENV_FILE" -f "$COMPOSE_FILE" "$@"
+    docker compose --env-file "$COMPOSE_ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
 if [ "$REQUIRE_TUNNEL" = "1" ] \

@@ -81,10 +81,11 @@ Stripe subscription setup:
 - Register `https://your-domain/api/stripe/webhook` in Stripe for `checkout.session.completed` and `customer.subscription.*`, then set `STRIPE_WEBHOOK_SECRET`.
 - Checkout and Customer Portal stay unavailable if required Stripe env vars are missing or Stripe rejects the runtime secret key.
 
-Avoid `$` in `.env` values unless you know how to escape Docker Compose
-interpolation. If `docker compose config` prints warnings about a variable that
-looks like part of a secret, regenerate that secret with `secrets.token_urlsafe`
-or quote/escape it before deploying.
+The deploy and self-heal scripts pass only Compose-control values into Docker
+Compose interpolation. The application secrets file is still mounted through
+the Compose `env_file` block in raw mode, so values such as encrypted mailbox
+keys are not re-expanded by Compose. If you run `docker compose` manually with
+`--env-file .env`, avoid `$` in secret values or escape them first.
 
 Add the Cloudflare tunnel token:
 ```bash
@@ -98,9 +99,8 @@ bash scripts/docker_deploy.sh
 ```
 
 By default the production Compose file reads runtime secrets from `.env` in
-raw mode so values containing `$` are not re-expanded by Docker Compose. To use
-a different file, set `APP_ENV_FILE=/path/to/env` before running the deploy or
-self-heal scripts.
+raw mode. To use a different file, set `APP_ENV_FILE=/path/to/env` before
+running the deploy or self-heal scripts.
 
 Check it's healthy:
 ```bash
