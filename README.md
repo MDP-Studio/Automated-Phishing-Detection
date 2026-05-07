@@ -234,7 +234,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1265 tests across 67 test modules
+1266 tests across 67 test modules
 ```
 
 Run all tests:

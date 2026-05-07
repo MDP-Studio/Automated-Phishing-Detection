@@ -209,6 +209,41 @@ async def test_urgent_enquiries_support_text_stays_safe():
 
 
 @pytest.mark.asyncio
+async def test_authenticated_overdue_invoice_notice_stays_safe():
+    analyzer = PaymentFraudAnalyzer()
+    attachment = AttachmentObject(
+        filename="AMS_INV_ATT.pdf",
+        content_type="application/pdf",
+        magic_type="application/pdf",
+        size_bytes=197876,
+        content=b"%PDF-1.4",
+        is_archive=False,
+        has_macros=False,
+    )
+    email = make_email(
+        subject="Fees - Invoice Online Now",
+        body=(
+            "Your invoice is available online. You can view payment due dates "
+            "and payment options in the saved student portal. This notice may "
+            "include overdue fee information."
+        ),
+        from_address="student.financials@example.edu",
+        reply_to="student.financials@example.edu",
+        attachments=[attachment],
+        auth_results="mx.example.com; spf=pass dkim=pass dmarc=pass",
+    )
+
+    result = await analyzer.analyze(email)
+
+    assert result.details["decision"] == "SAFE"
+    assert result.risk_score < 0.22
+    signal_names = {s["name"] for s in result.details["signals"]}
+    assert "payment_due_notice" in signal_names
+    assert "payment_portal_link" not in signal_names
+    assert "payment_urgency_pressure" not in signal_names
+
+
+@pytest.mark.asyncio
 async def test_payment_portal_action_link_requires_verify():
     analyzer = PaymentFraudAnalyzer()
     email = make_email(

@@ -131,10 +131,13 @@ class PaymentFraudAnalyzer:
         r"\btoday\b",
         r"\bwithin\s+24\s+hours\b",
         r"\bfinal\s+notice\b",
-        r"\boverdue\b",
-        r"\bpast\s+due\b",
         r"\bavoid\s+(?:late\s+)?fees\b",
         r"\bpayment\s+hold\b",
+    ]
+
+    DUE_NOTICE_PATTERNS = [
+        r"\boverdue\b",
+        r"\bpast\s+due\b",
     ]
 
     URGENCY_NEGATIONS = [
@@ -192,10 +195,10 @@ class PaymentFraudAnalyzer:
     ]
 
     PAYMENT_PORTAL_LINK_PATTERNS = [
-        r"\b(?:view|accept|approve|confirm|verify|review|click)\b.{0,100}"
+        r"\b(?:accept|approve|confirm|verify|review|click)\b.{0,100}"
         r"\b(?:payment|transaction|deposit|payroll|remittance)\b",
         r"\b(?:payment|transaction|deposit|payroll|remittance)\b.{0,100}"
-        r"\b(?:view|accept|approve|confirm|verify|review|click|link)\b",
+        r"\b(?:accept|approve|confirm|verify|review|click|link)\b",
         r"\b(?:review|sign|approve)\b.{0,120}"
         r"\b(?:payment authorization|account payable|payment document)\b",
         r"\b(?:payment authorization|account payable|payment document)\b.{0,120}"
@@ -521,6 +524,17 @@ class PaymentFraudAnalyzer:
                 evidence=f"Urgency language found around a payment request: {matches[0]}",
                 recommendation="Route the payment through normal approval instead of acting on urgency.",
                 risk_weight=0.16,
+            ))
+            return
+
+        due_notice_matches = self._matched_patterns(text, self.DUE_NOTICE_PATTERNS)
+        if due_notice_matches:
+            signals.append(self._signal(
+                name="payment_due_notice",
+                severity=PaymentSignalSeverity.LOW,
+                evidence=f"Routine payment due wording found: {due_notice_matches[0]}",
+                recommendation="Continue normal invoice checks without treating due-date wording as pressure.",
+                risk_weight=0.05,
             ))
 
     def _add_payment_portal_link_signal(self, text: str, signals: list[PaymentFraudSignal]) -> None:
