@@ -1304,6 +1304,8 @@ button:disabled {
   min-width: 0;
   background: var(--bg-tertiary);
   padding: 18px;
+  display: flex;
+  flex-direction: column;
 }
 
 .settings-card h3 {
@@ -1340,7 +1342,8 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .settings-actions .secondary-button {

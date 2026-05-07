@@ -110,7 +110,10 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     assert 'id="settingsWorkspaceName"' in phish_settings.text
     assert 'id="settingsTeamList"' in phish_settings.text
     assert 'data-settings-portal' in phish_settings.text
-    assert "Advanced API keys" in phish_settings.text
+    assert "API coverage" in phish_settings.text
+    assert "Provider checks are managed by the platform" in phish_settings.text
+    assert "Public users do not paste API keys" in phish_settings.text
+    assert "Bring-your-own keys" not in phish_settings.text
     assert "External reputation checks are included on paid plans" in phish_settings.text
     assert pay_root.status_code == 200
     assert "PayShield for invoice-heavy SMEs" in pay_root.text

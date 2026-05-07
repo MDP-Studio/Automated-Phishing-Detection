@@ -172,7 +172,7 @@
     },
     settings: {
       title: "Settings",
-      sub: "Keep normal setup simple. Advanced API keys stay out of first-run onboarding.",
+      sub: "Manage account, plan, mailbox, privacy, and platform-managed API coverage.",
     },
   };
 
