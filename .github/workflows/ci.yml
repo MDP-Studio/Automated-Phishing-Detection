@@ -11,7 +11,7 @@ name: CI
 #
 # All jobs install from `requirements.lock` (hash-pinned) so the build is
 # reproducible. Re-pin by running locally:
-#     uv pip compile requirements.txt -o requirements.lock --generate-hashes
+#     uv pip compile requirements.txt -o requirements.lock --generate-hashes --python-version 3.11
 # and committing the result.
 
 on:
