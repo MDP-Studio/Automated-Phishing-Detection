@@ -38,6 +38,33 @@
       </figure>
     </section>
 
+    <section class="about-band" aria-labelledby="about-payshield-title">
+      <div class="about-copy">
+        <span>About PayShield</span>
+        <h2 id="about-payshield-title">Payment-risk decision support for real invoice and supplier-email evidence.</h2>
+        <p>
+          PayShield is the payment-scam workflow in the shared FastAPI detection
+          platform. It helps SMEs review invoice fraud, supplier impersonation,
+          bank-detail changes, and payment-risk signals before a payment is
+          released.
+        </p>
+      </div>
+      <div class="about-points" aria-label="PayShield project details">
+        <article>
+          <span>What it checks</span>
+          <p>Payment-themed emails, changed bank details, supplier identity, urgent payment pressure, approval bypass language, authentication results, links, domains, and attachment metadata.</p>
+        </article>
+        <article>
+          <span>What it returns</span>
+          <p>A payment decision of SAFE, VERIFY, or DO_NOT_PAY_UNTIL_VERIFIED with risk evidence, masked payment fields, and verification steps.</p>
+        </article>
+        <article>
+          <span>Boundary</span>
+          <p>PayShield does not approve or release payments. It gives evidence and verification guidance so a human-controlled finance workflow can decide what happens next.</p>
+        </article>
+      </div>
+    </section>
+
     <section class="workflow-band" aria-label="Payment investigation workflow">
       <div class="workflow-item">
         <span>1</span>
@@ -101,9 +128,10 @@
         <span>Safety boundary</span>
         <h2>Trust-safe rollout</h2>
         <p>
-          The public surface uses committed sample emails only. Customer
-          uploads are session-bound, CSRF-protected, billed through Stripe
-          Checkout, and covered by retention and deletion controls.
+          The product supports real uploaded payment-email evidence. Demo
+          samples are provided for safe onboarding, while customer uploads are
+          session-bound, CSRF-protected, billed through Stripe Checkout, and
+          covered by retention and deletion controls.
         </p>
       </article>
     </section>

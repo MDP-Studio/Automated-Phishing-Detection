@@ -111,6 +111,22 @@ def test_payshield_static_copy_uses_safe_decision_support_wording():
         assert phrase.lower() not in lowered
 
 
+def test_product_pages_include_readme_backed_about_sections():
+    payshield = (ROOT / "templates" / "product.html").read_text(encoding="utf-8")
+    phish = (ROOT / "templates" / "phish_product.html").read_text(encoding="utf-8")
+
+    assert "About PayShield" in payshield
+    assert "payment-scam workflow" in payshield
+    assert "shared FastAPI detection" in payshield
+    assert "PayShield does not approve or release payments" in payshield
+    assert "real uploaded payment-email evidence" in payshield
+    assert "committed sample emails only" not in payshield
+
+    assert "About PhishAnalyze" in phish
+    assert "general suspicious-email scanner in the shared" in phish
+    assert "clear verdict, score, evidence, analyzer status" in phish
+
+
 def test_browser_extension_stays_link_only_and_privacy_bounded():
     extension = ROOT / "browser_extension"
     manifest = json.loads((extension / "manifest.json").read_text(encoding="utf-8"))
