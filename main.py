@@ -34,6 +34,7 @@ from src.billing.stripe_client import (
     StripeBillingClient,
     StripeConfigError,
     StripeWebhookError,
+    billing_interval_for_price_id,
     missing_checkout_env,
     plan_slug_for_price_id,
     price_id_for_plan,
@@ -1299,12 +1300,18 @@ class PhishingDetectionApp:
             if not plan_slug:
                 logger.warning("Stripe subscription event has unknown price %s", price_id)
                 return False
+            billing_interval = (
+                _metadata_value(subscription, "billing_interval")
+                or (billing_interval_for_price_id(price_id) if price_id else None)
+                or "monthly"
+            )
             store.set_subscription(
                 org_id=org_id,
                 plan_slug=plan_slug,
                 status=str(subscription.get("status", "") or "incomplete"),
                 stripe_customer_id=str(subscription.get("customer", "") or "") or None,
                 stripe_subscription_id=str(subscription.get("id", "") or "") or None,
+                billing_interval=billing_interval,
                 current_period_end=_stripe_period_end_iso(subscription),
             )
             return True
@@ -1331,6 +1338,7 @@ class PhishingDetectionApp:
                     status="active",
                     stripe_customer_id=customer_id or None,
                     stripe_subscription_id=subscription_id or None,
+                    billing_interval=_metadata_value(obj, "billing_interval") or "monthly",
                     current_period_end=None,
                 )
                 return {"processed": True, "event_type": event_type}

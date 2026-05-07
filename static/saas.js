@@ -213,6 +213,42 @@
     return selectedBillingInterval === "yearly" ? "/ month, billed yearly" : "/ month";
   }
 
+  function accountBillingIntervalLabel(account) {
+    if (!account || account.plan_slug === "free" || !account.stripe_subscription_id) {
+      return "Free plan";
+    }
+    return account.billing_interval === "yearly" ? "Annual plan" : "Monthly plan";
+  }
+
+  function formatAccountDate(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  function billingRenewalCopy(account) {
+    if (!account || account.plan_slug === "free") {
+      return "No card on file. Upgrade creates billing.";
+    }
+    if (!account.stripe_customer_id) {
+      return "Plan is set locally. Billing portal appears after first Stripe checkout.";
+    }
+    const renewal = formatAccountDate(account.current_period_end);
+    if (account.billing_interval === "yearly") {
+      return renewal
+        ? `Annual plan. Manage billing in Stripe. Monthly changes should be scheduled for ${renewal}, after the prepaid annual period ends.`
+        : "Annual plan. Manage billing in Stripe and schedule monthly changes at the next renewal.";
+    }
+    return renewal
+      ? `Monthly plan. Next renewal: ${renewal}.`
+      : "Monthly plan. Manage invoices, cards, and subscription changes in Stripe.";
+  }
+
   async function apiJson(path, options) {
     const response = await fetch(path, {
       credentials: "same-origin",
@@ -289,6 +325,7 @@
   function updateAccount(account) {
     document.getElementById("orgLabel").textContent = account.org_name;
     document.getElementById("planName").textContent = account.plan_name;
+    document.getElementById("planCadenceText").textContent = accountBillingIntervalLabel(account);
     document.getElementById("userEmail").textContent = account.email;
     document.getElementById("usageText").textContent =
       `${account.monthly_scan_used} / ${account.monthly_scan_quota}`;
@@ -305,7 +342,7 @@
     portalButton.disabled = !hasStripeCustomer;
     portalButton.textContent = hasStripeCustomer ? "Manage billing" : "Billing portal locked";
     billingHelp.textContent = hasStripeCustomer
-      ? "Manage invoices, cards, and subscription changes in Stripe."
+      ? billingRenewalCopy(account)
       : isHighestPlan
         ? "You are already on the highest plan. Billing portal appears after first checkout."
         : "Use Upgrade when you need more scans or paid checks.";

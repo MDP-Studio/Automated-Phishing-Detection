@@ -20,6 +20,15 @@ from src.support.mailbox_guides import CONNECTABLE_MAILBOX_PROVIDERS, MAILBOX_PR
 
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 WORKSPACE_ROLES = {"owner", "admin", "analyst", "viewer"}
+BILLING_INTERVALS = {"monthly", "yearly"}
+
+
+def normalize_billing_interval(value: str | None) -> str:
+    """Return the canonical billing interval used by account APIs."""
+    interval = (value or "monthly").strip().lower()
+    if interval == "annual":
+        interval = "yearly"
+    return interval if interval in BILLING_INTERVALS else "monthly"
 
 
 class DuplicateEmailError(ValueError):
@@ -46,6 +55,8 @@ class AccountContext:
     subscription_status: str
     stripe_customer_id: str | None
     stripe_subscription_id: str | None
+    billing_interval: str
+    current_period_end: str | None
     monthly_scan_quota: int
     monthly_scan_used: int
     monthly_scan_remaining: int
@@ -106,8 +117,21 @@ class SaaSStore:
     def initialize(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
+            self._ensure_schema(conn)
             conn.execute("PRAGMA user_version = 1")
             conn.commit()
+
+    def _ensure_schema(self, conn: sqlite3.Connection) -> None:
+        """Apply additive migrations for existing SQLite deployments."""
+        subscription_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(subscriptions)").fetchall()
+        }
+        if "billing_interval" not in subscription_columns:
+            conn.execute(
+                "ALTER TABLE subscriptions "
+                "ADD COLUMN billing_interval TEXT NOT NULL DEFAULT 'monthly'"
+            )
 
     def create_user_with_org(
         self,
@@ -148,10 +172,12 @@ class SaaSStore:
                 )
                 conn.execute(
                     """
-                    INSERT INTO subscriptions (org_id, plan_slug, status, updated_at)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO subscriptions (
+                        org_id, plan_slug, status, billing_interval, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (org_id, plan.slug, "active", now),
+                    (org_id, plan.slug, "active", "monthly", now),
                 )
                 self._write_audit(
                     conn,
@@ -322,7 +348,9 @@ class SaaSStore:
                     m.role,
                     COALESCE(s.plan_slug, 'free') AS plan_slug,
                     COALESCE(s.status, 'active') AS subscription_status,
-                    s.stripe_subscription_id
+                    s.stripe_subscription_id,
+                    COALESCE(s.billing_interval, 'monthly') AS billing_interval,
+                    s.current_period_end
                 FROM users u
                 JOIN memberships m ON m.user_id = u.id
                 JOIN organizations o ON o.id = m.org_id
@@ -356,6 +384,8 @@ class SaaSStore:
                 subscription_status=row["subscription_status"],
                 stripe_customer_id=row["stripe_customer_id"],
                 stripe_subscription_id=row["stripe_subscription_id"],
+                billing_interval=normalize_billing_interval(row["billing_interval"]),
+                current_period_end=row["current_period_end"],
                 monthly_scan_quota=plan.scan_quota,
                 monthly_scan_used=used,
                 monthly_scan_remaining=max(plan.scan_quota - used, 0),
@@ -369,9 +399,11 @@ class SaaSStore:
         status: str = "active",
         stripe_customer_id: str | None = None,
         stripe_subscription_id: str | None = None,
+        billing_interval: str = "monthly",
         current_period_end: str | None = None,
     ) -> None:
         plan = get_plan(plan_slug)
+        billing_interval = normalize_billing_interval(billing_interval)
         now = utc_now_iso()
         with self._connect() as conn:
             if stripe_customer_id:
@@ -383,13 +415,14 @@ class SaaSStore:
                 """
                 INSERT INTO subscriptions (
                     org_id, stripe_subscription_id, plan_slug, status,
-                    current_period_end, updated_at
+                    billing_interval, current_period_end, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(org_id) DO UPDATE SET
                     stripe_subscription_id = excluded.stripe_subscription_id,
                     plan_slug = excluded.plan_slug,
                     status = excluded.status,
+                    billing_interval = excluded.billing_interval,
                     current_period_end = excluded.current_period_end,
                     updated_at = excluded.updated_at
                 """,
@@ -398,6 +431,7 @@ class SaaSStore:
                     stripe_subscription_id,
                     plan.slug,
                     status,
+                    billing_interval,
                     current_period_end,
                     now,
                 ),
@@ -409,7 +443,12 @@ class SaaSStore:
                 action="subscription.updated",
                 target_type="subscription",
                 target_id=org_id,
-                metadata={"plan_slug": plan.slug, "status": status},
+                metadata={
+                    "plan_slug": plan.slug,
+                    "status": status,
+                    "billing_interval": billing_interval,
+                    "current_period_end": current_period_end,
+                },
                 now=now,
             )
             conn.commit()
@@ -1456,6 +1495,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     stripe_subscription_id TEXT,
     plan_slug TEXT NOT NULL,
     status TEXT NOT NULL,
+    billing_interval TEXT NOT NULL DEFAULT 'monthly',
     current_period_end TEXT,
     updated_at TEXT NOT NULL
 );

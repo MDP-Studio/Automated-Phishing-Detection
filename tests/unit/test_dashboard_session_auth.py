@@ -174,10 +174,12 @@ def test_saas_app_upgrade_options_are_hidden_until_requested():
     assert 'id="billingCycle"' in response.text
     assert 'data-billing-interval="monthly"' in response.text
     assert 'data-billing-interval="yearly"' in response.text
+    assert 'id="planCadenceText"' in response.text
     assert "Save 20%" in response.text
     assert 'data-upgrade-trigger' in js
     assert "selectedBillingInterval" in js
     assert "billing_interval: selectedBillingInterval" in js
+    assert "accountBillingIntervalLabel(account)" in js
     assert "billingIntervalLabel()" in js
     assert 'const planOrder = ["free", "starter", "pro", "business"]' in js
     assert "targetRank < currentRank" in js
@@ -284,6 +286,8 @@ def test_public_phishanalyze_routes_open_without_analyst_session():
         assert "Sign in to PhishAnalyze" in response.text
         assert "/static/phish_app.css" in response.text
         assert "/static/phish_app.js" in response.text
+        assert 'id="planCadenceText"' in response.text
+        assert 'id="settingsBillingCadenceNote"' in response.text
         assert "Analyst token" not in response.text
         assert "PayShield" not in response.text
         assert "Payment app" not in response.text

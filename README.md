@@ -64,7 +64,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Delete controls for stored scan results.
 - Plan-gated analyzers, quota checks, and locked-check reporting before paid
   API clients load.
-- Stripe Checkout, Customer Portal, yearly/monthly pricing, and webhook sync.
+- Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence
+  display, renewal-date display, and webhook sync.
 - Encrypted mailbox credential storage and gated on-demand mailbox scan now.
 - A PhishAnalyze settings page with workspace summary, billing entry points,
   mailbox status, privacy links, team member visibility, and platform-managed
@@ -146,6 +147,12 @@ Run the compact PayShield sample demo:
 
 Use `.env.production.example` as the template and keep real values only in the
 host `.env` or environment variables. Do not commit production secrets.
+
+Stripe is the source of truth for paid subscription changes. The app mirrors
+the active plan, monthly/yearly cadence, and renewal date from Checkout and
+subscription webhooks. Configure Stripe Customer Portal so annual-to-monthly
+changes are scheduled for the next renewal if you want annual customers to keep
+their prepaid access until the current period ends.
 
 Core required settings for a public SaaS deployment:
 

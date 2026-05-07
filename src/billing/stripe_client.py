@@ -202,6 +202,23 @@ def plan_slug_for_price_id(price_id: str, env: Mapping[str, str] | None = None) 
     return None
 
 
+def billing_interval_for_price_id(
+    price_id: str,
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    """Return monthly/yearly for a configured Stripe price ID."""
+    source = env if env is not None else os.environ
+    for plan in PLAN_CATALOG:
+        if plan.stripe_price_env and source.get(plan.stripe_price_env, "").strip() == price_id:
+            return "monthly"
+        if (
+            plan.stripe_yearly_price_env
+            and source.get(plan.stripe_yearly_price_env, "").strip() == price_id
+        ):
+            return "yearly"
+    return None
+
+
 def verify_stripe_webhook(
     payload: bytes,
     signature_header: str | None,

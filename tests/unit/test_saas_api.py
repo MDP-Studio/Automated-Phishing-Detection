@@ -1145,6 +1145,7 @@ def test_stripe_webhook_updates_subscription_plan(tmp_path, monkeypatch):
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "stripe_webhook_secret_for_tests")
     monkeypatch.setenv("STRIPE_PRICE_STARTER", "price_starter")
     monkeypatch.setenv("STRIPE_PRICE_PRO", "price_pro")
+    monkeypatch.setenv("STRIPE_PRICE_PRO_YEARLY", "price_pro_yearly")
     monkeypatch.setattr(app_main, "StripeBillingClient", FakeStripeBillingClient)
     FakeStripeBillingClient.created_customers = []
     FakeStripeBillingClient.checkout_sessions = []
@@ -1165,7 +1166,7 @@ def test_stripe_webhook_updates_subscription_plan(tmp_path, monkeypatch):
                 "customer": "cus_test",
                 "status": "active",
                 "current_period_end": 1_800_000_000,
-                "items": {"data": [{"price": {"id": "price_pro"}}]},
+                "items": {"data": [{"price": {"id": "price_pro_yearly"}}]},
             }
         },
     }
@@ -1183,6 +1184,8 @@ def test_stripe_webhook_updates_subscription_plan(tmp_path, monkeypatch):
     assert webhook.status_code == 200
     assert webhook.json()["processed"] is True
     assert session.json()["account"]["plan_slug"] == "pro"
+    assert session.json()["account"]["billing_interval"] == "yearly"
+    assert session.json()["account"]["current_period_end"].startswith("2027-01-15")
     assert session.json()["account"]["stripe_subscription_id"] == "sub_test"
 
 

@@ -74,7 +74,10 @@ Implemented foundation:
   organizations that already have a Stripe customer.
 - `/api/stripe/webhook` verifies Stripe signatures and mirrors
   `checkout.session.completed` plus `customer.subscription.*` events into the
-  local `subscriptions` table.
+  local `subscriptions` table, including plan slug, monthly/yearly cadence, and
+  current renewal period. Stripe Customer Portal should be configured to
+  schedule annual-to-monthly changes at renewal when prepaid annual access must
+  remain active until period end.
 
 Not implemented yet:
 

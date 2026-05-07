@@ -25,6 +25,8 @@ def test_signup_creates_user_org_subscription_and_context(tmp_path):
     assert context.org_name == "Example Finance"
     assert context.role == "owner"
     assert context.plan_slug == "free"
+    assert context.billing_interval == "monthly"
+    assert context.current_period_end is None
     assert context.monthly_scan_quota == 5
     assert context.monthly_scan_used == 0
 
@@ -122,7 +124,8 @@ def test_manual_scan_quota_counts_monthly_usage(tmp_path):
 def test_paid_plan_unlocks_starter_features(tmp_path):
     store = SaaSStore(tmp_path / "saas.db")
     context = store.create_user_with_org(email="a@example.com", password="long-password-1")
-    store.set_subscription(org_id=context.org_id, plan_slug="starter")
+    store.set_subscription(org_id=context.org_id, plan_slug="starter", billing_interval="annual")
+    updated_context = store.get_account_context(context.user_id)
 
     decision = store.check_entitlement(
         org_id=context.org_id,
@@ -132,6 +135,8 @@ def test_paid_plan_unlocks_starter_features(tmp_path):
 
     assert decision.available is True
     assert decision.current_plan == "starter"
+    assert updated_context is not None
+    assert updated_context.billing_interval == "yearly"
 
 
 def test_workspace_team_roles_preserve_last_owner(tmp_path):

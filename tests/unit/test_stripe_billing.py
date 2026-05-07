@@ -11,6 +11,7 @@ from src.billing.stripe_client import (
     StripeAPIError,
     StripeBillingClient,
     StripeWebhookError,
+    billing_interval_for_price_id,
     missing_checkout_env,
     plan_slug_for_price_id,
     price_id_for_plan,
@@ -43,6 +44,9 @@ def test_price_env_helpers_map_plans_to_price_ids():
     assert plan_slug_for_price_id("price_pro", env) == "pro"
     assert plan_slug_for_price_id("price_pro_yearly", env) == "pro"
     assert plan_slug_for_price_id("price_unknown", env) is None
+    assert billing_interval_for_price_id("price_pro", env) == "monthly"
+    assert billing_interval_for_price_id("price_pro_yearly", env) == "yearly"
+    assert billing_interval_for_price_id("price_unknown", env) is None
 
 
 def test_missing_checkout_env_lists_secret_and_plan_price():
