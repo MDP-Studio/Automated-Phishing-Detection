@@ -27,6 +27,10 @@ runtime behavior changes, follow the pull with the project deploy script:
 ssh meidie@100.110.79.52 "cd /home/meidie/.openclaw/workspace/Automated-Phishing-Detection && bash scripts/docker_deploy.sh"
 ```
 
+The deploy helper keeps the previous app container running until a new image is
+built and healthy. If SSH drops during dependency download, check host network
+logs before retrying because the remote currently depends on Wi-Fi.
+
 Do not print `.env` values, container environment values, signing keys, API
 keys, mailbox credentials, Stripe secrets, or analyst tokens while checking the
 remote.

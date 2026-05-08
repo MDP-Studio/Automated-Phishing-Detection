@@ -123,3 +123,27 @@ def test_production_health_check_fails_when_required_monitor_is_stopped(monkeypa
 
     assert report["ok"] is False
     assert "mailbox monitor is not running" in report["failures"]
+
+
+def test_dockerfile_uses_resilient_pip_install_for_remote_builds():
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "# syntax=docker/dockerfile:" in dockerfile
+    assert "--mount=type=cache,target=/root/.cache/pip" in dockerfile
+    assert "pip install --retries 10 --default-timeout 120 --require-hashes" in dockerfile
+
+
+def test_compose_env_helper_escapes_dollar_expansion_for_secrets():
+    helper = (ROOT / "scripts" / "compose_env.sh").read_text(encoding="utf-8")
+
+    assert "compose_env_escape()" in helper
+    assert "sed 's/\\$/\\$\\$/g'" in helper
+    assert "write_compose_env_value CLOUDFLARE_TUNNEL_TOKEN" in helper
+
+
+def test_deploy_scripts_use_shared_compose_env_helper():
+    for script_name in ("docker_deploy.sh", "docker_self_heal.sh"):
+        script = (ROOT / "scripts" / script_name).read_text(encoding="utf-8")
+        assert '. "$SCRIPT_DIR/compose_env.sh"' in script
+        assert "write_compose_env_file \"$COMPOSE_ENV_FILE\" \"$APP_ENV_FILE\"" in script
+        assert "DOCKER_BUILDKIT" in script

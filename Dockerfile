@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -21,7 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # `--require-hashes` makes pip refuse to install anything not in the lock,
 # which is the supply-chain protection from audit #14.
 COPY requirements.lock .
-RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --retries 10 --default-timeout 120 --require-hashes -r requirements.lock
 
 # Playwright: install Chromium + all system deps in one command.
 # Keep browsers in a shared path so the non-root runtime user can launch
