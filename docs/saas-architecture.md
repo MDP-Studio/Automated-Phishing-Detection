@@ -42,7 +42,8 @@ Implemented foundation:
   returns the same generic response for known and unknown emails.
 - `src/saas/database.py` creates `users`, `organizations`, `memberships`,
   `password_reset_tokens`, `subscriptions`, `mail_accounts`, `scan_jobs`,
-  `scan_results`, `usage_events`, `feature_locks`, and `audit_logs`.
+  `scan_results`, `usage_events`, `feature_locks`, `audit_logs`,
+  `webauthn_credentials`, `webauthn_challenges`, and `passkey_stepups`.
 - `/api/saas/analyze/upload` stores results in `scan_results`, not the shared
   analyst `data/results.jsonl` log.
 - `/api/saas/scans/{result_id}` deletes one organization-scoped scan result
@@ -78,6 +79,12 @@ Implemented foundation:
   current renewal period. Stripe Customer Portal should be configured to
   schedule annual-to-monthly changes at renewal when prepaid annual access must
   remain active until period end.
+- `/api/saas/security/policy` reports passkey policy state. Passkey
+  registration and authentication endpoints use browser-native WebAuthn with
+  short-lived server-side challenges. `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor`
+  is the default. In `enforce`, owner/admin team, mailbox, billing, and passkey
+  deletion mutations require a fresh passkey assertion when the user already
+  has a passkey.
 
 Not implemented yet:
 
@@ -121,6 +128,9 @@ development and single-operator demos.
 | `usage_events` | Quota and billing meter | `org_id`, `feature_slug`, `quantity`, `occurred_at`, `idempotency_key` |
 | `feature_locks` | Optional audit of blocked actions | `org_id`, `user_id`, `feature_slug`, `required_plan`, `created_at` |
 | `audit_logs` | Security and admin trace | `org_id`, `actor_user_id`, `action`, `target_type`, `target_id`, `created_at` |
+| `webauthn_credentials` | User-bound passkeys | `org_id`, `user_id`, `credential_id`, `public_key_b64`, `sign_count` |
+| `webauthn_challenges` | Short-lived register/auth challenges | `org_id`, `user_id`, `purpose`, `challenge`, `expires_at`, `used_at` |
+| `passkey_stepups` | Temporary privileged action freshness | `org_id`, `user_id`, `verified_at`, `expires_at` |
 
 Tenant isolation rule: every query for user-visible data must include `org_id`
 from the authenticated session. Tests must prove user A cannot read user B's
@@ -171,8 +181,14 @@ Safe implementation order:
 7. Add customer deletion and trust/privacy controls. **Done for scan history.**
 8. Add per-user mailbox connection. **Done for encrypted mailbox metadata,
    immediate IMAP verification, and customer onboarding.**
-9. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
-10. Add tenant isolation tests before enabling live customer mailbox polling.
+9. Add passkey/WebAuthn registration and privileged step-up. **Done in staged
+   monitor/enforce mode for owner/admin mutations.**
+10. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
+11. Add tenant isolation tests before enabling live customer mailbox polling.
 
-Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 10 are
+Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 11 are
 complete.
+
+Legacy analyst-token `/admin` access is not phishing-resistant because it is
+not bound to a user passkey. Keep it internal until that route is migrated to
+normal user sessions plus passkey step-up.

@@ -1,12 +1,12 @@
 name: CI
 
-# Runs on every push and PR to main. Three independent jobs:
-#   1. test       — full pytest suite on a fresh checkout against the locked
+# Runs on every push and PR to main. Four independent jobs:
+#   1. test       - full pytest suite on a fresh checkout against the locked
 #                   dependency set. This is the "fresh clone catches things
 #                   local-pass misses" gate from the cycle 4 review.
-#   2. browser-smoke — Playwright dashboard chart check under strict CSP.
-#   3. lint       — flake8 hygiene check.
-#   4. pip-audit  — supply-chain CVE scan against requirements.lock.
+#   2. browser-smoke - Playwright dashboard chart check under strict CSP.
+#   3. lint       - flake8 hygiene check.
+#   4. pip-audit  - supply-chain CVE scan against requirements.lock.
 #                   Fails the build on any high or critical advisory.
 #
 # All jobs install from `requirements.lock` (hash-pinned) so the build is
@@ -61,6 +61,9 @@ jobs:
       - name: Run pytest
         run: |
           python -m pytest -q --tb=short
+
+      - name: Validate signed export self-test
+        run: python scripts/validate_exports.py --self-test
 
   browser-smoke:
     name: Dashboard browser smoke

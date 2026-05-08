@@ -1237,3 +1237,123 @@ def test_saas_store_mail_account_metadata_is_org_scoped(tmp_path):
     assert deleted_other is False
     assert deleted_owner is True
     assert store.list_mail_accounts(owner.org_id) == []
+
+
+def test_saas_security_policy_defaults_to_passkey_monitor_mode(tmp_path, monkeypatch):
+    monkeypatch.delenv("PHISHANALYZE_PASSKEY_ENFORCEMENT", raising=False)
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    assert signup.status_code == 200
+
+    response = client.get("/api/saas/security/policy")
+
+    assert response.status_code == 200
+    policy = response.json()["policy"]
+    assert policy["enforcement"] == "monitor"
+    assert policy["passkey_registered"] is False
+    assert policy["legacy_admin_access"]["phishing_resistant"] is False
+
+
+def test_passkey_enforce_blocks_privileged_mutation_when_step_up_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("PHISHANALYZE_PASSKEY_ENFORCEMENT", "enforce")
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="credential-test",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+
+    response = _post_json_with_csrf(client, "/api/saas/team/members", {
+        "email": "analyst@example.com",
+        "password": "correct horse battery",
+        "role": "analyst",
+    })
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["passkey_required"] is True
+    assert detail["action"] == "team.member.create"
+
+
+def test_passkey_enforce_allows_privileged_mutation_after_step_up(tmp_path, monkeypatch):
+    monkeypatch.setenv("PHISHANALYZE_PASSKEY_ENFORCEMENT", "enforce")
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="credential-test",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+    store.record_passkey_step_up(org_id=account["org_id"], user_id=account["user_id"])
+
+    response = _post_json_with_csrf(client, "/api/saas/team/members", {
+        "email": "analyst@example.com",
+        "password": "correct horse battery",
+        "role": "analyst",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["member"]["email"] == "analyst@example.com"
+
+
+def test_saas_channel_scan_normalizes_sms_and_does_not_echo_raw_text(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    assert signup.status_code == 200
+
+    response = _post_json_with_csrf(client, "/api/saas/analyze/channel", {
+        "channel": "sms",
+        "sender": "+61400111222",
+        "text": "Secret callback code 123456 at https://example.test/pay",
+        "timestamp": "2026-05-08T01:02:03+00:00",
+    })
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["channel"]["channel"] == "sms"
+    assert payload["source"] == "manual_channel_scan"
+    assert "Secret callback code" not in json.dumps(payload)
+
+
+def test_saas_channel_scan_requires_csrf(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    assert signup.status_code == 200
+
+    response = client.post("/api/saas/analyze/channel", json={
+        "channel": "chat",
+        "text": "Click https://example.test",
+    })
+
+    assert response.status_code in {400, 403}
+
+
+def test_saas_channel_scan_obeys_manual_scan_quota(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    for index in range(account["monthly_scan_quota"]):
+        store.record_usage_event(
+            org_id=account["org_id"],
+            user_id=account["user_id"],
+            feature_slug="manual_scan",
+            idempotency_key=f"seed-{index}",
+        )
+
+    response = _post_json_with_csrf(client, "/api/saas/analyze/channel", {
+        "channel": "voice_transcript",
+        "transcript": "Call back the billing desk now.",
+        "timestamp": "2026-05-08T01:02:03+00:00",
+    })
+
+    assert response.status_code == 402

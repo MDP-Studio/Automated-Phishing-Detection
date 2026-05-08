@@ -38,6 +38,13 @@ Vulnerabilities in any of these are in scope and welcome:
 - **Browser sandbox** — container escape, host filesystem access, host network egress that should be blocked.
 - **Feedback API** — auth bypass, IDOR, SQL injection, label-poisoning attacks beyond the documented "no-auth-by-default" residual risk.
 - **Secrets handling** — credentials leaking into logs, reports, STIX exports, dashboard responses, or git history.
+- **Passkey step-up** — privileged owner/admin SaaS mutations should run with
+  `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor` until passkeys are enrolled, then
+  move to `enforce` for team, mailbox, billing, and passkey deletion actions.
+  Password-only sessions and legacy analyst tokens are not phishing-resistant.
+- **Export integrity** — shareable STIX/Sigma file exports require an Ed25519
+  signing key and a signed manifest. Validate manifests before sharing threat
+  intel externally.
 - **Dependency-chain issues** — vulnerable pinned dependencies in `requirements.txt`.
 
 ### Out of scope
@@ -59,13 +66,16 @@ If you're running this in any non-laptop context, do at minimum:
 2. **Use `/admin/login` for owner browser access.** It sets a signed session cookie plus a CSRF cookie. API clients can still use `Authorization: Bearer <ANALYST_API_TOKEN>`.
 3. **Treat `PUBLIC_DEMO_MODE=true` as sample-only.** It opens `/demo`, not the real dashboard, live upload analysis, mailbox monitoring, feedback learning, paid API-backed checks, or account management. Keep `ANALYST_API_TOKEN` configured.
 4. **Treat `/app` public signup as a privacy switch.** Keep `SAAS_PUBLIC_SIGNUP_ENABLED=false` until you are ready to accept visitor email uploads, set a high-entropy `SAAS_SESSION_SECRET`, and have retention/support/abuse handling in place. User signup, login, and password-reset routes require same-origin `Origin` or `Referer` headers before setting cookies.
-5. **Register Stripe webhooks only over HTTPS and keep `STRIPE_WEBHOOK_SECRET` secret.** `/api/stripe/webhook` verifies Stripe signatures before changing subscription state. Do not disable signature checks.
-6. **Run the `browser-sandbox` container on its own Docker network.** Do not give it host networking. The default `docker-compose.yml` already separates it; verify before deploying.
-7. **Treat `.env` as secret material.** Don't commit it. Don't bake it into images. Mount it at runtime.
-8. **Back up runtime data and purge it on a schedule.** Results, alerts, feedback labels, sender profiles, and SaaS scan results can all contain regulated personal data. Use `python scripts/backup_runtime_data.py` for non-secret backups and `python main.py purge --target all --dry-run` before deleting rows.
-9. **Monitor uptime and mailbox freshness.** Run `python scripts/production_health_check.py --require-monitor-running` from cron or an external monitor and send failures to a webhook.
-10. **Monitor circuit-breaker state.** If every analyzer is open-circuit, the pipeline is effectively producing CLEAN verdicts on real phishing. Alert on this.
-11. **Pin the brand reference set.** Treat `brand_references/` as detection content under change control. Anyone who can write to that directory can blind the visual similarity analyzer.
+5. **Treat `/admin` as internal until passkey migration is complete.** The
+   legacy analyst token is useful for single-operator diagnostics, but it is
+   not user-bound or phishing-resistant.
+6. **Register Stripe webhooks only over HTTPS and keep `STRIPE_WEBHOOK_SECRET` secret.** `/api/stripe/webhook` verifies Stripe signatures before changing subscription state. Do not disable signature checks.
+7. **Run the `browser-sandbox` container on its own Docker network.** Do not give it host networking. The default `docker-compose.yml` already separates it; verify before deploying.
+8. **Treat `.env` as secret material.** Don't commit it. Don't bake it into images. Mount it at runtime.
+9. **Back up runtime data and purge it on a schedule.** Results, alerts, feedback labels, sender profiles, and SaaS scan results can all contain regulated personal data. Use `python scripts/backup_runtime_data.py` for non-secret backups and `python main.py purge --target all --dry-run` before deleting rows.
+10. **Monitor uptime and mailbox freshness.** Run `python scripts/production_health_check.py --require-monitor-running` from cron or an external monitor and send failures to a webhook.
+11. **Monitor circuit-breaker state.** If every analyzer is open-circuit, the pipeline is effectively producing CLEAN verdicts on real phishing. Alert on this.
+12. **Pin the brand reference set.** Treat `brand_references/` as detection content under change control. Anyone who can write to that directory can blind the visual similarity analyzer.
 
 ## Coordinated disclosure
 

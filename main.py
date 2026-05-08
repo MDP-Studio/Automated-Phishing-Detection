@@ -44,6 +44,11 @@ from src.billing.stripe_client import (
 from src.config import PipelineConfig, _coerce_bool
 from src.analyzers.result_contract import normalize_analyzer_result
 from src.models import EmailObject
+from src.ingestion.channel_adapter import (
+    ChannelAdapterError,
+    adapt_channel_payload,
+    channel_public_payload,
+)
 from src.orchestrator.pipeline import PhishingPipeline
 from src.product_verdicts import (
     build_evidence_summary,
@@ -57,6 +62,7 @@ from src.llm_evidence_summarizer import (
 from src.reporting.report_generator import ReportGenerator
 from src.reporting.ioc_exporter import IOCExporter
 from src.reporting.sigma_exporter import SigmaExporter
+from src.reporting.export_integrity import ExportIntegrityError, write_signed_export_manifest
 from src.reporting.dashboard import PhishingDashboard
 from src.security.web_security import (
     CSRF_COOKIE_NAME,
@@ -84,6 +90,13 @@ from src.saas.email_delivery import (
     PasswordResetEmail,
     SMTPPasswordResetMailer,
     ZohoPasswordResetMailer,
+)
+from src.saas.passkeys import (
+    authentication_options as passkey_authentication_options,
+    registration_options as passkey_registration_options,
+    verify_authentication as verify_passkey_authentication,
+    verify_registration as verify_passkey_registration,
+    webauthn_available,
 )
 
 
@@ -294,6 +307,7 @@ def _api_payload_from_pipeline(email: EmailObject, result, timestamp: str) -> di
         "overall_score": result.overall_score,
         "overall_confidence": result.overall_confidence,
         "timestamp": timestamp,
+        "channel": channel_public_payload(email),
         "analyzer_results": analyzer_results,
         "payment_protection": payment_protection,
         "product_verdicts": product_verdicts,
@@ -459,8 +473,10 @@ class PhishingDetectionApp:
             elif output_format == "html":
                 print(outputs.get("html", "No HTML output available"))
             elif output_format == "stix":
+                logger.info("STIX stdout output is unsigned. Use --format all for signed file exports.")
                 print(outputs.get("stix", "No STIX output available"))
             elif output_format == "sigma":
+                logger.info("Sigma stdout output is unsigned. Use --format all for signed file exports.")
                 print(outputs.get("sigma", "No Sigma rule emitted (CLEAN verdict or no observables)"))
             elif output_format == "all":
                 # Save all outputs to files
@@ -469,6 +485,8 @@ class PhishingDetectionApp:
                 html_path = f"{email_id}_report.html"
                 stix_path = f"{email_id}_iocs.json"
                 sigma_path = f"{email_id}_rule.yml"
+                manifest_path = f"{email_id}_export_manifest.json"
+                signed_artifacts = []
 
                 import json
                 if "json" in outputs:
@@ -485,11 +503,21 @@ class PhishingDetectionApp:
                     with open(stix_path, "w") as f:
                         f.write(outputs["stix"])
                     logger.info(f"Wrote STIX bundle to {stix_path}")
+                    signed_artifacts.append(stix_path)
 
                 if "sigma" in outputs:
                     with open(sigma_path, "w") as f:
                         f.write(outputs["sigma"])
                     logger.info(f"Wrote Sigma rule to {sigma_path}")
+                    signed_artifacts.append(sigma_path)
+
+                if signed_artifacts:
+                    try:
+                        write_signed_export_manifest(signed_artifacts, manifest_path)
+                    except ExportIntegrityError as exc:
+                        logger.error("Export signing failed: %s", exc)
+                        raise
+                    logger.info(f"Wrote signed export manifest to {manifest_path}")
 
                 print(f"Analysis complete. Reports saved to:")
                 if "json" in outputs:
@@ -500,6 +528,8 @@ class PhishingDetectionApp:
                     print(f"  - {stix_path}")
                 if "sigma" in outputs:
                     print(f"  - {sigma_path}")
+                if signed_artifacts:
+                    print(f"  - {manifest_path}")
 
         except Exception as e:
             logger.error(f"Error analyzing email: {e}", exc_info=True)
@@ -917,6 +947,63 @@ class PhishingDetectionApp:
                     status_code=403,
                     detail="Workspace role is not allowed to perform this action",
                 )
+
+        def _passkey_enforcement_mode() -> str:
+            raw = os.getenv("PHISHANALYZE_PASSKEY_ENFORCEMENT", "monitor").strip().lower()
+            return raw if raw in {"monitor", "enforce"} else "monitor"
+
+        def _passkey_policy_payload(store: SaaSStore, context) -> dict:
+            registered_count = store.count_webauthn_credentials(
+                org_id=context.org_id,
+                user_id=context.user_id,
+            )
+            step_up = store.get_passkey_step_up(org_id=context.org_id, user_id=context.user_id)
+            has_fresh_step_up = store.has_fresh_passkey_step_up(
+                org_id=context.org_id,
+                user_id=context.user_id,
+            )
+            privileged_role = str(context.role).lower() in {"owner", "admin"}
+            mode = _passkey_enforcement_mode()
+            return {
+                "baseline_mfa": "user-session",
+                "privileged_mfa": "passkey",
+                "enforcement": mode,
+                "webauthn_available": webauthn_available(),
+                "passkey_registered": registered_count > 0,
+                "passkey_count": registered_count,
+                "fresh_step_up": has_fresh_step_up,
+                "step_up_expires_at": step_up.get("expires_at") if step_up else None,
+                "requires_privileged_step_up": (
+                    mode == "enforce" and privileged_role and registered_count > 0
+                ),
+                "legacy_admin_access": {
+                    "phishing_resistant": False,
+                    "scope": "internal",
+                    "note": (
+                        "Legacy analyst-token /admin access is not phishing-resistant. "
+                        "Keep it internal until it is migrated to user-bound passkeys."
+                    ),
+                },
+            }
+
+        def _require_privileged_step_up(store: SaaSStore, context, action: str) -> None:
+            if _passkey_enforcement_mode() != "enforce":
+                return
+            if str(context.role).lower() not in {"owner", "admin"}:
+                return
+            if store.count_webauthn_credentials(org_id=context.org_id, user_id=context.user_id) == 0:
+                return
+            if store.has_fresh_passkey_step_up(org_id=context.org_id, user_id=context.user_id):
+                return
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "Fresh passkey step-up is required for this privileged action",
+                    "action": action,
+                    "passkey_required": True,
+                    "policy": _passkey_policy_payload(store, context),
+                },
+            )
 
         def _saas_session_payload(request: Request) -> dict:
             if not self.saas_session_manager.enabled:
@@ -1735,6 +1822,108 @@ class PhishingDetectionApp:
                 "account": updated_context.to_dict(),
             }
 
+        @app.get("/api/saas/security/policy")
+        async def api_saas_security_policy(request: Request):
+            """Return staged MFA policy state for the signed-in user."""
+            context = _current_user_context(request)
+            store = _get_saas_store()
+            return {
+                "account": context.to_dict(),
+                "policy": _passkey_policy_payload(store, context),
+                "passkeys": [
+                    item.to_public_dict()
+                    for item in store.list_webauthn_credentials(
+                        org_id=context.org_id,
+                        user_id=context.user_id,
+                    )
+                ],
+            }
+
+        @app.get("/api/saas/security/passkeys")
+        async def api_saas_passkeys(request: Request):
+            """List registered passkeys without exposing public-key material."""
+            context = _current_user_context(request)
+            store = _get_saas_store()
+            return {
+                "passkeys": [
+                    item.to_public_dict()
+                    for item in store.list_webauthn_credentials(
+                        org_id=context.org_id,
+                        user_id=context.user_id,
+                    )
+                ],
+                "policy": _passkey_policy_payload(store, context),
+            }
+
+        @app.post("/api/saas/security/passkeys/register/options")
+        async def api_saas_passkey_register_options(request: Request):
+            """Create short-lived WebAuthn registration options."""
+            context = _current_user_context(request, require_csrf=True)
+            store = _get_saas_store()
+            return passkey_registration_options(store, context, request)
+
+        @app.post("/api/saas/security/passkeys/register/verify")
+        async def api_saas_passkey_register_verify(request: Request):
+            """Verify a WebAuthn registration response and save the credential."""
+            context = _current_user_context(request, require_csrf=True)
+            store = _get_saas_store()
+            payload = await _json_object_body(request)
+            result = verify_passkey_registration(store, context, request, payload)
+            return {
+                "status": "ok",
+                **result,
+                "policy": _passkey_policy_payload(store, context),
+            }
+
+        @app.post("/api/saas/security/passkeys/authenticate/options")
+        async def api_saas_passkey_authentication_options(request: Request):
+            """Create short-lived WebAuthn authentication options."""
+            context = _current_user_context(request, require_csrf=True)
+            store = _get_saas_store()
+            return passkey_authentication_options(store, context, request)
+
+        @app.post("/api/saas/security/passkeys/authenticate/verify")
+        async def api_saas_passkey_authentication_verify(request: Request):
+            """Verify a passkey assertion and grant a short privileged step-up."""
+            context = _current_user_context(request, require_csrf=True)
+            store = _get_saas_store()
+            payload = await _json_object_body(request)
+            result = verify_passkey_authentication(store, context, request, payload)
+            return {
+                "status": "ok",
+                **result,
+                "policy": _passkey_policy_payload(store, context),
+            }
+
+        @app.delete("/api/saas/security/passkeys/{credential_id}")
+        async def api_saas_delete_passkey(request: Request, credential_id: str):
+            """Delete one registered passkey after privileged step-up when enforced."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "passkey.delete")
+            if (
+                _passkey_enforcement_mode() == "enforce"
+                and store.count_webauthn_credentials(org_id=context.org_id, user_id=context.user_id) <= 1
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Add another passkey before deleting the last enforced credential",
+                )
+            deleted = store.delete_webauthn_credential(
+                org_id=context.org_id,
+                user_id=context.user_id,
+                credential_id=credential_id,
+            )
+            if not deleted:
+                raise HTTPException(status_code=404, detail="Passkey not found")
+            return {
+                "status": "ok",
+                "deleted": True,
+                "credential_id": credential_id,
+                "policy": _passkey_policy_payload(store, context),
+            }
+
         @app.get("/api/saas/team/members")
         async def api_saas_team_members(request: Request):
             """Return workspace members for role-aware product UI."""
@@ -1756,9 +1945,11 @@ class PhishingDetectionApp:
             """Create or attach a workspace member with a scoped role."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "team.member.create")
             payload = await _json_object_body(request)
             try:
-                member = _get_saas_store().add_org_member(
+                member = store.add_org_member(
                     org_id=context.org_id,
                     actor_user_id=context.user_id,
                     email=str(payload.get("email", "")),
@@ -1772,7 +1963,7 @@ class PhishingDetectionApp:
                 "member": member.to_public_dict(),
                 "members": [
                     item.to_public_dict()
-                    for item in _get_saas_store().list_org_members(context.org_id)
+                    for item in store.list_org_members(context.org_id)
                 ],
             }
 
@@ -1781,9 +1972,11 @@ class PhishingDetectionApp:
             """Update a workspace member role."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "team.member.update")
             payload = await _json_object_body(request)
             try:
-                member = _get_saas_store().update_org_member_role(
+                member = store.update_org_member_role(
                     org_id=context.org_id,
                     actor_user_id=context.user_id,
                     target_user_id=user_id,
@@ -1798,8 +1991,10 @@ class PhishingDetectionApp:
             """Remove one member from the signed-in workspace."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "team.member.delete")
             try:
-                deleted = _get_saas_store().remove_org_member(
+                deleted = store.remove_org_member(
                     org_id=context.org_id,
                     actor_user_id=context.user_id,
                     target_user_id=user_id,
@@ -1822,6 +2017,8 @@ class PhishingDetectionApp:
             """Register or reconnect a user-owned mailbox for future monitoring."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "mailbox.connect")
             payload = await _json_object_body(request)
             from src.support.mailbox_guides import (
                 CONNECTABLE_MAILBOX_PROVIDERS,
@@ -1854,7 +2051,6 @@ class PhishingDetectionApp:
             if port < 1 or port > 65535:
                 raise HTTPException(status_code=400, detail="IMAP port is invalid")
 
-            store = _get_saas_store()
             entitlement = store.check_entitlement(
                 org_id=context.org_id,
                 user_id=context.user_id,
@@ -1958,6 +2154,7 @@ class PhishingDetectionApp:
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
             store = _get_saas_store()
+            _require_privileged_step_up(store, context, "mailbox.delete")
             deleted = store.delete_mail_account(
                 org_id=context.org_id,
                 user_id=context.user_id,
@@ -2003,6 +2200,8 @@ class PhishingDetectionApp:
             """Create a Stripe Checkout Session for a subscription upgrade."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "billing.checkout")
             payload = await _json_object_body(request)
             target_plan = str(payload.get("plan", "")).strip().lower()
             billing_interval = str(payload.get("billing_interval", "monthly")).strip().lower()
@@ -2051,7 +2250,6 @@ class PhishingDetectionApp:
                     },
                 )
 
-            store = _get_saas_store()
             try:
                 price_id = price_id_for_plan(
                     plan,
@@ -2139,6 +2337,8 @@ class PhishingDetectionApp:
             """Create a short-lived Stripe Customer Portal session."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "billing.portal")
             if not context.stripe_customer_id:
                 raise HTTPException(
                     status_code=409,
@@ -2252,6 +2452,79 @@ class PhishingDetectionApp:
                 response_payload = _api_payload_from_pipeline(email, result, timestamp)
                 await _maybe_add_llm_evidence_summary(store, context, response_payload)
                 response_payload["upload_filename"] = file.filename or email.email_id
+                payment = response_payload.get("payment_protection") or {}
+                store.record_usage_event(
+                    org_id=context.org_id,
+                    user_id=context.user_id,
+                    feature_slug="manual_scan",
+                    quantity=1,
+                    idempotency_key=scan_job_id,
+                )
+                store.record_scan_result(
+                    org_id=context.org_id,
+                    user_id=context.user_id,
+                    scan_job_id=scan_job_id,
+                    email_id=result.email_id,
+                    verdict=result.verdict.value,
+                    payment_decision=payment.get("decision") if isinstance(payment, dict) else None,
+                    result=response_payload,
+                )
+                store.complete_scan_job(scan_job_id, "completed")
+            except Exception:
+                store.complete_scan_job(scan_job_id, "failed")
+                raise
+
+            updated_context = store.get_account_context(context.user_id)
+            response_payload["account"] = updated_context.to_dict() if updated_context else context.to_dict()
+            response_payload["feature_locks"] = [
+                item
+                for item in response_payload["analyzer_results"].values()
+                if item.get("status") == "feature_locked"
+            ]
+            return response_payload
+
+        @app.post("/api/saas/analyze/channel")
+        async def api_saas_analyze_channel(request: Request):
+            """Analyze normalized SMS, chat, or voice transcript JSON for a signed-in user."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
+            store = _get_saas_store()
+            scan_access = store.check_entitlement(
+                org_id=context.org_id,
+                user_id=context.user_id,
+                feature_slug="manual_scan",
+                enforce_scan_quota=True,
+            )
+            if not scan_access.available:
+                return JSONResponse(status_code=402, content={"locked": scan_access.to_dict()})
+
+            payload = await _json_object_body(request)
+            try:
+                email = adapt_channel_payload(payload)
+            except ChannelAdapterError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+            def feature_gate(feature_slug: str) -> dict:
+                return store.check_entitlement(
+                    org_id=context.org_id,
+                    user_id=context.user_id,
+                    feature_slug=feature_slug,
+                    enforce_scan_quota=False,
+                ).to_dict()
+
+            from datetime import datetime, timezone
+            scan_job_id = store.create_scan_job(
+                org_id=context.org_id,
+                user_id=context.user_id,
+                source="manual_channel_scan",
+            )
+            try:
+                result = await self.pipeline.analyze(email, feature_gate=feature_gate)
+                timestamp = datetime.now(timezone.utc).isoformat()
+                response_payload = _api_payload_from_pipeline(email, result, timestamp)
+                await _maybe_add_llm_evidence_summary(store, context, response_payload)
+                response_payload["source"] = "manual_channel_scan"
+                response_payload["sample_id"] = str(payload.get("sample_id") or "")[:128]
                 payment = response_payload.get("payment_protection") or {}
                 store.record_usage_event(
                     org_id=context.org_id,

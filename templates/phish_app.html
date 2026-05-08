@@ -386,6 +386,19 @@
               </div>
             </article>
             <article class="settings-card">
+              <span>Security</span>
+              <h3 id="settingsPasskeyHeading">Passkey step-up</h3>
+              <p id="settingsPasskeyStatus">Passkey policy is loading.</p>
+              <div class="settings-actions">
+                <button type="button" id="passkeyRegisterButton">Add passkey</button>
+                <button class="secondary-button" type="button" id="passkeyStepupButton">Verify passkey</button>
+              </div>
+              <div class="settings-team-list" id="settingsPasskeyList">
+                <span>No passkeys loaded.</span>
+              </div>
+              <div class="notice" id="passkeyNotice" hidden></div>
+            </article>
+            <article class="settings-card">
               <span>Team</span>
               <h3 id="settingsTeamSummary">Workspace members</h3>
               <p>Owner and admin users can manage access. Analysts can scan and review results. Viewers can review history without changing settings.</p>

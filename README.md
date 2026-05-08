@@ -40,6 +40,9 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 ## What Works Now
 
 - `.eml` upload through the SaaS app.
+- JSON channel scans for SMS, chat, and voice transcripts through
+  `/api/saas/analyze/channel`, normalized into the same analyzer-compatible
+  message model as email.
 - Upload help for saving emails from Gmail, Outlook desktop, Outlook web, Apple
   Mail, and Zoho Mail, plus a sample email button for first-time users.
 - Email parsing for sender, reply-to, subject, body, URLs, attachments, and
@@ -70,6 +73,12 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - A PhishAnalyze settings page with workspace summary, billing entry points,
   mailbox status, privacy links, team member visibility, and platform-managed
   API coverage guidance.
+- Staged passkey/WebAuthn support for owner/admin step-up. The default
+  `monitor` mode exposes policy state and registration without blocking users;
+  `enforce` requires a fresh passkey step-up for team, mailbox, billing, and
+  passkey deletion mutations when a passkey exists.
+- Signed STIX/Sigma file export manifests with Ed25519 signatures and a
+  validator for hashes, signatures, STIX parsing, and Sigma structure.
 - `/mailbox-guide` with provider-specific setup steps and direct settings links
   for Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic
   IMAP.
@@ -93,6 +102,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - LLMs are explanation helpers, not final verdict authorities.
 - PayShield does not approve payments. It gives risk evidence and verification
   guidance.
+- Legacy analyst-token `/admin` access is not phishing-resistant. Keep it
+  internal until it is migrated to user-bound passkeys.
 
 ## Analyzer Pipeline
 
@@ -162,6 +173,7 @@ SAAS_SESSION_SECRET=
 SAAS_DB_PATH=data/saas.db
 SAAS_PUBLIC_SIGNUP_ENABLED=true
 ACCOUNTS_ENCRYPTION_KEY=
+PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor
 PHISHANALYZE_PUBLIC_URL=https://phishanalyze.mdpstudio.com.au
 PAYSHIELD_PUBLIC_URL=https://payshield.mdpstudio.com.au
 ```
@@ -216,6 +228,38 @@ STRIPE_PRICE_BUSINESS_YEARLY=
 STRIPE_ADAPTIVE_PRICING_ENABLED=true
 ```
 
+Passkey step-up:
+
+```bash
+PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor
+PASSKEY_RP_NAME=PhishAnalyze
+PASSKEY_RP_ID=phishanalyze.mdpstudio.com.au
+PASSKEY_ORIGIN=https://phishanalyze.mdpstudio.com.au
+PASSKEY_STEP_UP_TTL_SECONDS=600
+```
+
+Use `enforce` only after owner/admin users have enrolled at least one passkey.
+When enforced and a passkey exists, team management, mailbox connection or
+deletion, billing checkout or portal access, and passkey deletion require a
+fresh WebAuthn assertion.
+
+Signed STIX/Sigma file exports:
+
+```bash
+EXPORT_SIGNING_PRIVATE_KEY_B64=
+EXPORT_SIGNING_PUBLIC_KEY_B64=
+EXPORT_SIGNING_KEY_ID=production-export-key
+```
+
+`python main.py --analyze sample.eml --format stix` and `--format sigma` still
+print unsigned inspection output to stdout. `--format all` writes STIX/Sigma
+files plus a signed export manifest and requires the signing key. Validate a
+bundle with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_exports.py --manifest sample_export_manifest.json
+```
+
 ## Plans And Cost Gates
 
 Plan behavior is enforced before paid analyzers or mailbox features run.
@@ -234,7 +278,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1266 tests across 67 test modules
+1287 tests across 70 test modules
 ```
 
 Run all tests:
@@ -274,6 +318,14 @@ Remote public-corpus smoke run on commit `c459237`:
 Per-sample committed eval data lives in [`eval_runs/`](eval_runs/). Larger
 generated public corpora and trained model artifacts stay ignored under `data/`
 and `models/`.
+
+Mixed-channel evaluation uses a private JSON or JSONL manifest with `channel`,
+`label`, and either `path`, `text`, `body`, or `transcript`. The summary JSON
+includes per-channel false positives, false negatives, and errors:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_eval.py --mixed-manifest data\mixed_channel_corpus\manifest.jsonl
+```
 
 ## Deployment
 

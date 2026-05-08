@@ -15,7 +15,9 @@ from src.eval.harness import (
     AggregateMetrics,
     EvalRun,
     PerSampleRow,
+    aggregate_rows_by_channel,
     run_eval,
+    run_mixed_channel_eval,
 )
 from src.eval.corpus_prepare import PreparedCorpus, prepare_corpus
 from src.eval.failure_inspector import FailureReport, FailureRow, build_report
@@ -57,6 +59,7 @@ __all__ = [
     "SeedSummary",
     "ValidationResult",
     "audit_dataset_pii",
+    "aggregate_rows_by_channel",
     "build_report",
     "export_ml_jsonl",
     "evaluate_payment_decisions",
@@ -64,6 +67,7 @@ __all__ = [
     "prepare_corpus",
     "redact_eml",
     "run_eval",
+    "run_mixed_channel_eval",
     "scan_redaction_findings",
     "seed_public_corpus_payment_examples",
     "seed_synthetic_bank_change_dataset",

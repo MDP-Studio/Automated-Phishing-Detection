@@ -127,7 +127,35 @@ python scripts/eval_inspect_failures.py \
 
 The generated corpus is intentionally not committed. Raw external corpora are large, carry licensing constraints, and should be rebuilt from the downloader plus the manifest instead of stored in git.
 
-### 3.2 What to fix the seed on
+### 3.2 Mixed-channel run
+
+Real campaigns blend email with smishing, chat lures, callback scams, and
+voice transcripts. The channel adapter layer keeps analyzers email-compatible
+while allowing the eval harness to report false negatives by channel.
+
+Use a private JSONL manifest like:
+
+```json
+{"sample_id":"sms-001","channel":"sms","label":"PHISHING","text":"Card locked. Visit https://example.test/unlock","sender":"+61400111222","timestamp":"2026-05-08T01:02:03+00:00"}
+{"sample_id":"voice-001","channel":"voice_transcript","label":"PHISHING","transcript":"This is the bank fraud desk. Call back before 5pm.","sender":"callback queue","timestamp":"2026-05-08T01:03:03+00:00"}
+{"sample_id":"email-001","channel":"email","label":"CLEAN","path":"emails/supplier-invoice.eml"}
+```
+
+Then run:
+
+```bash
+python scripts/run_eval.py \
+  --mixed-manifest data/mixed_channel_corpus/manifest.jsonl \
+  --output eval_runs
+```
+
+The per-sample rows include `channel`, and the summary JSON includes a
+`channels` object with TP/FP/TN/FN and error counts per channel. For the P1
+mixed-corpus validation, stage 200 private samples across email, SMS, chat, and
+voice transcript lures, then compare the false-negative delta by channel before
+tuning analyzers.
+
+### 3.3 What to fix the seed on
 
 - API client randomness (jitter on retries) — disable during eval
 - LLM intent classifier — pin model version, disable thinking mode for JSON classification where the provider supports it, and use temperature 0 when the model accepts that parameter. Claude Opus 4.7 and OpenAI GPT-5.x reject `temperature=0`, so log that exception explicitly instead of treating it as a deterministic setting. OpenAI GPT-5.x Chat Completions calls also need `max_completion_tokens` rather than deprecated `max_tokens`.
@@ -135,7 +163,7 @@ The generated corpus is intentionally not committed. Raw external corpora are la
 
 Without seed control, eval runs aren't comparable across days.
 
-### 3.3 Data leakage
+### 3.4 Data leakage
 
 The unit tests in `tests/unit/` use a small set of hand-crafted emails that exist in the repository. **These must not be in the evaluation corpus.** Any overlap inflates metrics by measuring memorization rather than generalization.
 

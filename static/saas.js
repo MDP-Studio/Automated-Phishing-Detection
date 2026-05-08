@@ -262,7 +262,11 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(payload.detail || payload.reason || `Request failed with ${response.status}`);
+      let message = payload.detail || payload.reason || `Request failed with ${response.status}`;
+      if (message && typeof message === "object") {
+        message = message.message || message.reason || JSON.stringify(message);
+      }
+      const error = new Error(message);
       error.status = response.status;
       error.payload = payload;
       if (payload.locked) {
@@ -285,7 +289,10 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = payload.detail || payload.reason || `Request failed with ${response.status}`;
+      let message = payload.detail || payload.reason || `Request failed with ${response.status}`;
+      if (message && typeof message === "object") {
+        message = message.message || message.reason || JSON.stringify(message);
+      }
       const error = new Error(response.status === 402 && payload.locked ? payload.locked.reason : message);
       error.status = response.status;
       error.payload = payload;

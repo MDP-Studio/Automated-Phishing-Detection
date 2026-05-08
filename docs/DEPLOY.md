@@ -60,6 +60,11 @@ Optional public preview:
 - Set `PUBLIC_DEMO_MODE=true` only if you want `/demo` to be reachable without login. It is sample-only: it does not expose owner live upload analysis, global mailbox monitoring, paid API-backed owner checks, feedback learning, admin dashboard data, or owner account management.
 - `/api/demo/plans` is also public in demo mode. It exposes non-secret plan and lock metadata only, so visitors can see which analyzers require Starter, Pro, or Business.
 - Set `SAAS_PUBLIC_SIGNUP_ENABLED=true` only on deployments ready to accept visitor email uploads. `/analyze`, `/dashboard`, `/monitor`, `/app`, and `/api/saas/*` support normal user accounts, tenant-scoped scan storage, and free-tier quota gates, but public signup is still an explicit deployment decision.
+- Keep `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor` until owner/admin users
+  enroll passkeys from `/settings`. Switch to `enforce` after enrollment to
+  require passkey step-up for team, mailbox, billing, and passkey deletion
+  actions. The legacy `/admin` token path remains internal and is not
+  phishing-resistant.
 
 Transactional email setup:
 - Prefer Zoho Mail API direct send for password reset email: set `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNT_ID`, `ZOHO_FROM`, `ZOHO_ACCOUNTS_BASE`, `ZOHO_API_BASE`, and `ZOHO_ENABLE_DIRECT_SEND=true`.
@@ -80,6 +85,14 @@ Stripe subscription setup:
   if Stripe rejects adaptive pricing for the account.
 - Register `https://your-domain/api/stripe/webhook` in Stripe for `checkout.session.completed` and `customer.subscription.*`, then set `STRIPE_WEBHOOK_SECRET`.
 - Checkout and Customer Portal stay unavailable if required Stripe env vars are missing or Stripe rejects the runtime secret key.
+
+Export integrity setup:
+- Set `EXPORT_SIGNING_PRIVATE_KEY_B64` before using `python main.py --analyze
+  sample.eml --format all` for shareable STIX/Sigma artifacts.
+- Keep `EXPORT_SIGNING_PUBLIC_KEY_B64` and `EXPORT_SIGNING_KEY_ID` stable so
+  recipients and CI can verify provenance.
+- Validate artifacts with `python scripts/validate_exports.py --manifest
+  <email_id>_export_manifest.json` before sharing externally.
 
 The deploy and self-heal scripts pass only Compose-control values into Docker
 Compose interpolation. The application secrets file is still mounted through

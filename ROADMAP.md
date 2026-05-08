@@ -79,7 +79,10 @@ Status is one of:
 | **Stripe Billing subscription flow** - `/api/saas/billing/checkout` creates hosted subscription Checkout Sessions, `/api/saas/billing/portal` opens Customer Portal, and `/api/stripe/webhook` verifies signatures before mirroring Stripe subscription status into the SaaS DB. | `src/billing/stripe_client.py`, `main.py`, `src/saas/database.py`, `static/saas.js` |
 | **Stripe Checkout Adaptive Pricing** - Checkout sessions can opt into Stripe Adaptive Pricing so eligible customers see localized currency while the configured Stripe Prices remain AUD-backed. | `src/billing/stripe_client.py`, `main.py`, `docs/DEPLOY.md` |
 | **Zoho-compatible password reset flow** - `/app` adds reset-password UI, `/api/saas/auth/password-reset/*` stores hashed one-time tokens, rate-limits reset requests, and sends reset links through configurable SMTP. | `src/saas/email_delivery.py`, `src/saas/database.py`, `main.py`, `templates/saas_app.html`, `static/saas.js` |
-| 1173 tests (60 test modules) | unit + integration |
+| **Channel-normalized phishing scans** - email, SMS, chat, and voice transcripts normalize to the analyzer-compatible message model, with `/api/saas/analyze/channel` and mixed-channel eval summaries that report false negatives by channel. | `src/ingestion/channel_adapter.py`, `src/eval/harness.py`, `main.py`, `scripts/run_eval.py` |
+| **Staged passkey/WebAuthn step-up** - `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor|enforce` gates owner/admin team, mailbox, billing, and passkey deletion mutations with fresh WebAuthn assertions when enforce is active and a passkey exists. | `src/saas/passkeys.py`, `src/saas/database.py`, `main.py`, `static/phish_app.js` |
+| **Signed export integrity manifests** - STIX/Sigma filesystem exports require Ed25519 signed manifests, while stdout inspection remains unsigned. CI validates a signed sample export. | `src/reporting/export_integrity.py`, `scripts/validate_exports.py`, `.github/workflows/ci.yml` |
+| 1287 tests (70 test modules) | unit + integration |
 
 ---
 
@@ -100,7 +103,8 @@ Append-only log of who relabeled what. Closes residual risk **R2**. Required bef
 Pipe the static rule library through `sigmac` / `pysigma` in CI to validate rules against multiple SIEM backends (Splunk SPL, Elastic EQL, Sentinel KQL). Currently rules are hand-written and untested against a converter.
 
 ### TAXII 2.1 push for STIX bundles
-Optional outbound TAXII collection push. STIX export already works; this is the transport layer.
+Optional outbound TAXII collection push. STIX export and signed export
+manifests already work; this remains only the transport layer.
 
 ### IOC reputation feedback loop
 When an analyst marks an email CONFIRMED_PHISHING, push the URL/domain/hash IOCs back to the local cache as ground truth for future runs. Distinct from logistic regression weight retraining.

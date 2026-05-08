@@ -21,6 +21,21 @@ from src.utils.domains import get_root_domain
 logger = logging.getLogger(__name__)
 
 
+def _channel_metadata_dict(email: EmailObject) -> dict:
+    metadata = getattr(email, "channel_metadata", None)
+    if metadata is None:
+        return {}
+    return {
+        "source": getattr(metadata, "source", ""),
+        "platform": getattr(metadata, "platform", ""),
+        "conversation_id": getattr(metadata, "conversation_id", ""),
+        "sender": getattr(metadata, "sender", ""),
+        "recipients": list(getattr(metadata, "recipients", []) or []),
+        "direction": getattr(metadata, "direction", "inbound"),
+        "received_at": getattr(metadata, "received_at", None),
+    }
+
+
 class PhishingPipeline:
     """
     Central coordinator for phishing detection analysis.
@@ -254,6 +269,8 @@ class PhishingPipeline:
         iocs = {
             "headers": {},
             "raw_headers": json.dumps(dict(email.raw_headers), default=str),
+            "channel": getattr(getattr(email, "channel", None), "value", "email"),
+            "channel_metadata": _channel_metadata_dict(email),
             "malicious_urls": [],
             "malicious_domains": [],
             "malicious_ips": [],

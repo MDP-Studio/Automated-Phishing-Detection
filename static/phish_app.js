@@ -40,6 +40,12 @@
   const settingsPortalButton = document.querySelector("[data-settings-portal]");
   const settingsTeamList = document.getElementById("settingsTeamList");
   const settingsTeamSummary = document.getElementById("settingsTeamSummary");
+  const passkeyNotice = document.getElementById("passkeyNotice");
+  const passkeyRegisterButton = document.getElementById("passkeyRegisterButton");
+  const passkeyStepupButton = document.getElementById("passkeyStepupButton");
+  const settingsPasskeyList = document.getElementById("settingsPasskeyList");
+  const settingsPasskeyStatus = document.getElementById("settingsPasskeyStatus");
+  const settingsPasskeyHeading = document.getElementById("settingsPasskeyHeading");
   const forms = {
     login: document.getElementById("loginForm"),
     signup: document.getElementById("signupForm"),
@@ -237,7 +243,10 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = payload.detail || payload.reason || (payload.locked && payload.locked.reason) || `Request failed with ${response.status}`;
+      let message = payload.detail || payload.reason || (payload.locked && payload.locked.reason) || `Request failed with ${response.status}`;
+      if (message && typeof message === "object") {
+        message = message.message || message.reason || JSON.stringify(message);
+      }
       const error = new Error(message);
       error.status = response.status;
       error.payload = payload;
@@ -261,7 +270,10 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const message = payload.detail || payload.reason || (payload.locked && payload.locked.reason) || `Request failed with ${response.status}`;
+      let message = payload.detail || payload.reason || (payload.locked && payload.locked.reason) || `Request failed with ${response.status}`;
+      if (message && typeof message === "object") {
+        message = message.message || message.reason || JSON.stringify(message);
+      }
       const error = new Error(message);
       error.status = response.status;
       error.payload = payload;
@@ -271,6 +283,72 @@
       throw error;
     }
     return payload;
+  }
+
+  function base64urlToBuffer(value) {
+    const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const binary = window.atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  function bufferToBase64url(buffer) {
+    const bytes = new Uint8Array(buffer || []);
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function credentialToJson(credential) {
+    const response = credential.response || {};
+    return {
+      id: credential.id,
+      type: credential.type,
+      rawId: bufferToBase64url(credential.rawId),
+      authenticatorAttachment: credential.authenticatorAttachment || undefined,
+      response: {
+        clientDataJSON: bufferToBase64url(response.clientDataJSON),
+        attestationObject: response.attestationObject ? bufferToBase64url(response.attestationObject) : undefined,
+        authenticatorData: response.authenticatorData ? bufferToBase64url(response.authenticatorData) : undefined,
+        signature: response.signature ? bufferToBase64url(response.signature) : undefined,
+        userHandle: response.userHandle ? bufferToBase64url(response.userHandle) : undefined,
+        transports: typeof response.getTransports === "function" ? response.getTransports() : undefined,
+      },
+      clientExtensionResults: typeof credential.getClientExtensionResults === "function"
+        ? credential.getClientExtensionResults()
+        : {},
+    };
+  }
+
+  function prepareCredentialCreationOptions(options) {
+    const publicKey = { ...options };
+    publicKey.challenge = base64urlToBuffer(publicKey.challenge);
+    publicKey.user = { ...publicKey.user, id: base64urlToBuffer(publicKey.user.id) };
+    publicKey.excludeCredentials = (publicKey.excludeCredentials || []).map((item) => ({
+      ...item,
+      id: base64urlToBuffer(item.id),
+    }));
+    return publicKey;
+  }
+
+  function prepareCredentialRequestOptions(options) {
+    const publicKey = { ...options };
+    publicKey.challenge = base64urlToBuffer(publicKey.challenge);
+    publicKey.allowCredentials = (publicKey.allowCredentials || []).map((item) => ({
+      ...item,
+      id: base64urlToBuffer(item.id),
+    }));
+    return publicKey;
+  }
+
+  function webAuthnSupported() {
+    return Boolean(window.PublicKeyCredential && navigator.credentials);
   }
 
   function escapeHtml(value) {
@@ -625,6 +703,115 @@ ${element.innerHTML}
     }
   }
 
+  function renderPasskeyPolicy(payload) {
+    const policy = (payload && payload.policy) || {};
+    const passkeys = (payload && payload.passkeys) || [];
+    if (settingsPasskeyHeading) {
+      settingsPasskeyHeading.textContent = policy.enforcement === "enforce"
+        ? "Passkey step-up enforced"
+        : "Passkey step-up monitoring";
+    }
+    if (settingsPasskeyStatus) {
+      const support = webAuthnSupported() && policy.webauthn_available;
+      const stepup = policy.fresh_step_up ? "Fresh step-up active." : "Fresh step-up not active.";
+      settingsPasskeyStatus.textContent = support
+        ? `${passkeys.length} passkey${passkeys.length === 1 ? "" : "s"} registered. ${stepup}`
+        : "This browser or server cannot complete WebAuthn passkey setup.";
+    }
+    if (passkeyRegisterButton) {
+      passkeyRegisterButton.disabled = !webAuthnSupported() || policy.webauthn_available === false;
+    }
+    if (passkeyStepupButton) {
+      passkeyStepupButton.disabled = !webAuthnSupported() || !passkeys.length || policy.webauthn_available === false;
+    }
+    if (settingsPasskeyList) {
+      settingsPasskeyList.innerHTML = passkeys.length
+        ? passkeys.map((item) => `
+          <article>
+            <strong>${escapeHtml(item.credential_id.slice(0, 12))}</strong>
+            <span>Added ${escapeHtml(item.created_at || "recently")}</span>
+          </article>
+        `).join("")
+        : "<span>No passkey registered.</span>";
+    }
+  }
+
+  async function loadSecurityPolicy() {
+    if (!settingsPasskeyStatus && !settingsPasskeyList) return;
+    try {
+      const payload = await apiJson("/api/saas/security/policy");
+      renderPasskeyPolicy(payload);
+      hideNotice(passkeyNotice);
+    } catch (error) {
+      if (settingsPasskeyStatus) {
+        settingsPasskeyStatus.textContent = "Passkey policy could not be loaded.";
+      }
+      showNotice(passkeyNotice, error.message);
+    }
+  }
+
+  async function registerPasskey() {
+    if (!webAuthnSupported()) {
+      showNotice(passkeyNotice, "This browser does not support passkeys.");
+      return;
+    }
+    passkeyRegisterButton.disabled = true;
+    showNotice(passkeyNotice, "Waiting for browser passkey registration.");
+    try {
+      const payload = await apiJson("/api/saas/security/passkeys/register/options", {
+        method: "POST",
+        body: "{}",
+      });
+      const credential = await navigator.credentials.create({
+        publicKey: prepareCredentialCreationOptions(payload.options),
+      });
+      await apiJson("/api/saas/security/passkeys/register/verify", {
+        method: "POST",
+        body: JSON.stringify({
+          challenge: payload.challenge,
+          credential: credentialToJson(credential),
+        }),
+      });
+      showNotice(passkeyNotice, "Passkey registered. Fresh step-up is active.");
+      await loadSecurityPolicy();
+    } catch (error) {
+      showNotice(passkeyNotice, error.message);
+    } finally {
+      passkeyRegisterButton.disabled = false;
+    }
+  }
+
+  async function verifyPasskeyStepup() {
+    if (!webAuthnSupported()) {
+      showNotice(passkeyNotice, "This browser does not support passkeys.");
+      return;
+    }
+    passkeyStepupButton.disabled = true;
+    showNotice(passkeyNotice, "Waiting for browser passkey verification.");
+    try {
+      const payload = await apiJson("/api/saas/security/passkeys/authenticate/options", {
+        method: "POST",
+        body: "{}",
+      });
+      const credential = await navigator.credentials.get({
+        publicKey: prepareCredentialRequestOptions(payload.options),
+      });
+      await apiJson("/api/saas/security/passkeys/authenticate/verify", {
+        method: "POST",
+        body: JSON.stringify({
+          challenge: payload.challenge,
+          credential: credentialToJson(credential),
+        }),
+      });
+      showNotice(passkeyNotice, "Passkey verified. Privileged actions are unlocked briefly.");
+      await loadSecurityPolicy();
+    } catch (error) {
+      showNotice(passkeyNotice, error.message);
+    } finally {
+      passkeyStepupButton.disabled = false;
+    }
+  }
+
   async function loadSession() {
     const session = await apiJson("/api/saas/session");
     csrfCookieName = session.csrf_cookie || csrfCookieName;
@@ -646,6 +833,7 @@ ${element.innerHTML}
       loadPlans(),
       loadHistory(),
       loadMailboxes(),
+      loadSecurityPolicy(),
       loadTeam().catch(() => {
         if (settingsTeamList) settingsTeamList.innerHTML = "<span>Team settings could not be loaded.</span>";
       }),
@@ -1395,6 +1583,14 @@ ${element.innerHTML}
     settingsPortalButton.addEventListener("click", () => {
       document.getElementById("portalButton").click();
     });
+  }
+
+  if (passkeyRegisterButton) {
+    passkeyRegisterButton.addEventListener("click", registerPasskey);
+  }
+
+  if (passkeyStepupButton) {
+    passkeyStepupButton.addEventListener("click", verifyPasskeyStepup);
   }
 
   billingCycle.addEventListener("click", (event) => {

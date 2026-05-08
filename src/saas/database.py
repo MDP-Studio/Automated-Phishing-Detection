@@ -106,6 +106,30 @@ class TeamMemberRecord:
         }
 
 
+@dataclass(frozen=True)
+class WebAuthnCredentialRecord:
+    id: str
+    org_id: str
+    user_id: str
+    credential_id: str
+    public_key_b64: str
+    sign_count: int
+    transports: list[str]
+    aaguid: str
+    created_at: str
+    last_used_at: str | None
+
+    def to_public_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "credential_id": self.credential_id,
+            "transports": self.transports,
+            "aaguid": self.aaguid,
+            "created_at": self.created_at,
+            "last_used_at": self.last_used_at,
+        }
+
+
 class SaaSStore:
     """Small production-shaped account store for local SQLite deployments."""
 
@@ -1283,6 +1307,264 @@ class SaaSStore:
             "payment_display_decisions": _counter_rows(payment_display_counts),
         }
 
+    def create_webauthn_challenge(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        purpose: str,
+        challenge: str,
+        ttl_seconds: int = 300,
+    ) -> str:
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
+        expires_at = (now_dt + timedelta(seconds=max(30, ttl_seconds))).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO webauthn_challenges (
+                    id, org_id, user_id, purpose, challenge, created_at, expires_at, used_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+                """,
+                (new_id("wch"), org_id, user_id, purpose, challenge, now, expires_at),
+            )
+            conn.commit()
+        return challenge
+
+    def consume_webauthn_challenge(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        purpose: str,
+        challenge: str,
+    ) -> bool:
+        now = utc_now_iso()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE webauthn_challenges
+                SET used_at = ?
+                WHERE org_id = ?
+                  AND user_id = ?
+                  AND purpose = ?
+                  AND challenge = ?
+                  AND used_at IS NULL
+                  AND expires_at >= ?
+                """,
+                (now, org_id, user_id, purpose, challenge, now),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
+    def add_webauthn_credential(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        credential_id: str,
+        public_key_b64: str,
+        sign_count: int,
+        transports: list[str] | None = None,
+        aaguid: str = "",
+    ) -> WebAuthnCredentialRecord:
+        now = utc_now_iso()
+        record_id = new_id("pkc")
+        transports = transports or []
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO webauthn_credentials (
+                    id, org_id, user_id, credential_id, public_key_b64,
+                    sign_count, transports_json, aaguid, created_at, last_used_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                """,
+                (
+                    record_id,
+                    org_id,
+                    user_id,
+                    credential_id,
+                    public_key_b64,
+                    int(sign_count),
+                    json.dumps(transports),
+                    aaguid,
+                    now,
+                ),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=user_id,
+                action="passkey.registered",
+                target_type="webauthn_credential",
+                target_id=credential_id,
+                metadata={"transports": transports, "aaguid": aaguid},
+                now=now,
+            )
+            conn.commit()
+        return WebAuthnCredentialRecord(
+            id=record_id,
+            org_id=org_id,
+            user_id=user_id,
+            credential_id=credential_id,
+            public_key_b64=public_key_b64,
+            sign_count=int(sign_count),
+            transports=transports,
+            aaguid=aaguid,
+            created_at=now,
+            last_used_at=None,
+        )
+
+    def list_webauthn_credentials(self, *, org_id: str, user_id: str) -> list[WebAuthnCredentialRecord]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, org_id, user_id, credential_id, public_key_b64, sign_count,
+                       transports_json, aaguid, created_at, last_used_at
+                FROM webauthn_credentials
+                WHERE org_id = ? AND user_id = ?
+                ORDER BY created_at DESC
+                """,
+                (org_id, user_id),
+            ).fetchall()
+            return [self._webauthn_record_from_row(row) for row in rows]
+
+    def get_webauthn_credential(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        credential_id: str,
+    ) -> WebAuthnCredentialRecord | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, org_id, user_id, credential_id, public_key_b64, sign_count,
+                       transports_json, aaguid, created_at, last_used_at
+                FROM webauthn_credentials
+                WHERE org_id = ? AND user_id = ? AND credential_id = ?
+                """,
+                (org_id, user_id, credential_id),
+            ).fetchone()
+            return self._webauthn_record_from_row(row) if row else None
+
+    def count_webauthn_credentials(self, *, org_id: str, user_id: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM webauthn_credentials
+                WHERE org_id = ? AND user_id = ?
+                """,
+                (org_id, user_id),
+            ).fetchone()
+            return int(row["count"] or 0)
+
+    def update_webauthn_credential_usage(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        credential_id: str,
+        sign_count: int,
+    ) -> None:
+        now = utc_now_iso()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE webauthn_credentials
+                SET sign_count = ?, last_used_at = ?
+                WHERE org_id = ? AND user_id = ? AND credential_id = ?
+                """,
+                (int(sign_count), now, org_id, user_id, credential_id),
+            )
+            conn.commit()
+
+    def delete_webauthn_credential(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        credential_id: str,
+    ) -> bool:
+        now = utc_now_iso()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT credential_id
+                FROM webauthn_credentials
+                WHERE org_id = ? AND user_id = ? AND credential_id = ?
+                """,
+                (org_id, user_id, credential_id),
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute(
+                """
+                DELETE FROM webauthn_credentials
+                WHERE org_id = ? AND user_id = ? AND credential_id = ?
+                """,
+                (org_id, user_id, credential_id),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=user_id,
+                action="passkey.deleted",
+                target_type="webauthn_credential",
+                target_id=credential_id,
+                metadata={},
+                now=now,
+            )
+            conn.commit()
+            return True
+
+    def record_passkey_step_up(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        ttl_seconds: int = 600,
+    ) -> str:
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
+        expires_at = (now_dt + timedelta(seconds=max(60, ttl_seconds))).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO passkey_stepups (org_id, user_id, verified_at, expires_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(org_id, user_id) DO UPDATE SET
+                    verified_at = excluded.verified_at,
+                    expires_at = excluded.expires_at
+                """,
+                (org_id, user_id, now, expires_at),
+            )
+            conn.commit()
+        return expires_at
+
+    def get_passkey_step_up(self, *, org_id: str, user_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT verified_at, expires_at
+                FROM passkey_stepups
+                WHERE org_id = ? AND user_id = ?
+                """,
+                (org_id, user_id),
+            ).fetchone()
+            if row is None:
+                return None
+            return {"verified_at": row["verified_at"], "expires_at": row["expires_at"]}
+
+    def has_fresh_passkey_step_up(self, *, org_id: str, user_id: str) -> bool:
+        row = self.get_passkey_step_up(org_id=org_id, user_id=user_id)
+        if row is None:
+            return False
+        return str(row.get("expires_at") or "") >= utc_now_iso()
+
     def feature_lock_count(self, org_id: str) -> int:
         with self._connect() as conn:
             row = conn.execute(
@@ -1325,6 +1607,27 @@ class SaaSStore:
         if row["status"] not in ACTIVE_SUBSCRIPTION_STATUSES and row["plan_slug"] != "free":
             return "free"
         return row["plan_slug"] or "free"
+
+    @staticmethod
+    def _webauthn_record_from_row(row: sqlite3.Row) -> WebAuthnCredentialRecord:
+        try:
+            transports = json.loads(row["transports_json"] or "[]")
+        except json.JSONDecodeError:
+            transports = []
+        if not isinstance(transports, list):
+            transports = []
+        return WebAuthnCredentialRecord(
+            id=row["id"],
+            org_id=row["org_id"],
+            user_id=row["user_id"],
+            credential_id=row["credential_id"],
+            public_key_b64=row["public_key_b64"],
+            sign_count=int(row["sign_count"] or 0),
+            transports=[str(item) for item in transports],
+            aaguid=row["aaguid"] or "",
+            created_at=row["created_at"],
+            last_used_at=row["last_used_at"],
+        )
 
     @staticmethod
     def _owner_count(conn: sqlite3.Connection, org_id: str) -> int:
@@ -1565,6 +1868,38 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id TEXT NOT NULL UNIQUE,
+    public_key_b64 TEXT NOT NULL,
+    sign_count INTEGER NOT NULL DEFAULT 0,
+    transports_json TEXT NOT NULL DEFAULT '[]',
+    aaguid TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS webauthn_challenges (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose TEXT NOT NULL,
+    challenge TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS passkey_stepups (
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    verified_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    PRIMARY KEY (org_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_usage_org_feature_time
     ON usage_events(org_id, feature_slug, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_scan_results_org_time
@@ -1573,4 +1908,8 @@ CREATE INDEX IF NOT EXISTS idx_feature_locks_org_time
     ON feature_locks(org_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_org_time
     ON audit_logs(org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user
+    ON webauthn_credentials(org_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_webauthn_challenges_user
+    ON webauthn_challenges(org_id, user_id, purpose, expires_at);
 """

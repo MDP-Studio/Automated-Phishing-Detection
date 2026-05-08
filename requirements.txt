@@ -46,6 +46,7 @@ aiosqlite>=0.19
 
 # IOC export
 stix2>=3.0
+cryptography>=44.0.2
 
 # Reporting
 jinja2>=3.1
@@ -59,6 +60,7 @@ pyyaml>=6.0
 # Security: HTML sanitization for body_html rendering (defense in depth
 # alongside the sandboxed iframe). See src/security/html_sanitizer.py.
 bleach>=6.0
+webauthn>=2.7
 
 # Testing
 pytest>=7.4

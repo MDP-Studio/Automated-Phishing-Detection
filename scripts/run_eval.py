@@ -86,26 +86,45 @@ async def _main():
                         help="Directory containing .eml samples (default: tests/real_world_samples/)")
     parser.add_argument("--labels", type=Path, default=None,
                         help="JSON file mapping filename->label. Default: built-in 22-sample labels.")
+    parser.add_argument("--mixed-manifest", type=Path, default=None,
+                        help="JSON or JSONL manifest with email, sms, chat, and voice_transcript samples.")
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "eval_runs",
                         help="Where to write JSONL + summary (default: eval_runs/)")
     parser.add_argument("--projection", choices=["permissive", "strict"], default="permissive",
                         help="Binary projection for the per-row TP/FP flags (default: permissive)")
     args = parser.parse_args()
 
-    if args.labels:
+    if args.mixed_manifest:
+        from src.eval import run_mixed_channel_eval
+
+        print(f"Running mixed-channel eval against {args.mixed_manifest}...")
+        eval_run = await run_mixed_channel_eval(
+            manifest_path=args.mixed_manifest,
+            output_dir=args.output,
+            projection=args.projection,
+        )
+    elif args.labels:
         labels = json.loads(args.labels.read_text(encoding="utf-8"))
+        from src.eval import run_eval
+
+        print(f"Running eval against {args.corpus} ({len(labels)} samples)...")
+        eval_run = await run_eval(
+            corpus_dir=args.corpus,
+            labels=labels,
+            output_dir=args.output,
+            projection=args.projection,
+        )
     else:
         labels = DEFAULT_LABELS
+        from src.eval import run_eval
 
-    from src.eval import run_eval
-
-    print(f"Running eval against {args.corpus} ({len(labels)} samples)...")
-    eval_run = await run_eval(
-        corpus_dir=args.corpus,
-        labels=labels,
-        output_dir=args.output,
-        projection=args.projection,
-    )
+        print(f"Running eval against {args.corpus} ({len(labels)} samples)...")
+        eval_run = await run_eval(
+            corpus_dir=args.corpus,
+            labels=labels,
+            output_dir=args.output,
+            projection=args.projection,
+        )
 
     print(f"\nRun ID: {eval_run.run_id}")
     print(f"Per-sample JSONL: {args.output}/{eval_run.run_id}.jsonl")
@@ -119,6 +138,15 @@ async def _main():
     print(f"  TP={strict.true_positive} FP={strict.false_positive} TN={strict.true_negative} FN={strict.false_negative}")
     print(f"  precision={strict.precision:.3f} recall={strict.recall:.3f} f1={strict.f1:.3f}")
     print(f"\nErrors: {perm.errors}/{eval_run.sample_count}")
+    channels = eval_run.to_summary_dict().get("channels", {})
+    if channels:
+        print("\nBy channel:")
+        for channel, metrics in sorted(channels.items()):
+            print(
+                f"  {channel}: TP={metrics['true_positive']} FP={metrics['false_positive']} "
+                f"TN={metrics['true_negative']} FN={metrics['false_negative']} "
+                f"errors={metrics['errors']}"
+            )
     print()
     print("These numbers are a baseline. They are not a goal. Detection-quality")
     print("improvements should be tracked by diffing the per-sample JSONL between")

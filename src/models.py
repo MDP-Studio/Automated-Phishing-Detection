@@ -30,6 +30,24 @@ class URLSource(str, Enum):
     QR_CODE_HTML_RENDERED = "qr_code_html_rendered"
 
 
+class MessageChannel(str, Enum):
+    EMAIL = "email"
+    SMS = "sms"
+    CHAT = "chat"
+    VOICE_TRANSCRIPT = "voice_transcript"
+
+
+@dataclass
+class ChannelMetadata:
+    source: str = ""
+    platform: str = ""
+    conversation_id: str = ""
+    sender: str = ""
+    recipients: list[str] = field(default_factory=list)
+    direction: str = "inbound"
+    received_at: Optional[str] = None
+
+
 class AttachmentRisk(str, Enum):
     BENIGN = "benign"
     SUSPICIOUS = "suspicious"
@@ -79,6 +97,8 @@ class EmailObject:
     inline_images: list[bytes]
     message_id: str
     received_chain: list[str]
+    channel: MessageChannel = MessageChannel.EMAIL
+    channel_metadata: ChannelMetadata = field(default_factory=ChannelMetadata)
 
 
 @dataclass

@@ -56,7 +56,12 @@ from typing import Optional, Union
 
 from src.config import PipelineConfig
 from src.extractors.eml_parser import EMLParser
-from src.models import PipelineResult, Verdict
+from src.ingestion.channel_adapter import (
+    ChannelAdapterError,
+    adapt_channel_payload,
+    parse_message_channel,
+)
+from src.models import EmailObject, MessageChannel, PipelineResult, Verdict
 from src.orchestrator.pipeline import PhishingPipeline
 
 logger = logging.getLogger(__name__)
@@ -91,6 +96,7 @@ class PerSampleRow:
     false_positive: bool
     true_negative: bool
     false_negative: bool
+    channel: str = "email"
     error: Optional[str] = None
 
     def to_dict(self) -> dict:
@@ -168,6 +174,7 @@ class EvalRun:
             "sample_count": self.sample_count,
             "permissive": self.aggregates_permissive.to_dict(),
             "strict": self.aggregates_strict.to_dict(),
+            "channels": aggregate_rows_by_channel(self.rows, self.aggregates_permissive.projection),
         }
 
 
@@ -198,6 +205,7 @@ def _row_from_pipeline_result(
     result: PipelineResult,
     commit_sha: str,
     projection: str = "permissive",
+    channel: str = "email",
 ) -> PerSampleRow:
     predicted_label = _project_verdict_to_label(result.verdict, projection)
     tp = true_label == "PHISHING" and predicted_label == "PHISHING"
@@ -241,11 +249,18 @@ def _row_from_pipeline_result(
         false_positive=fp,
         true_negative=tn,
         false_negative=fn,
+        channel=channel,
         error=None,
     )
 
 
-def _error_row(sample_id: str, true_label: str, commit_sha: str, error: str) -> PerSampleRow:
+def _error_row(
+    sample_id: str,
+    true_label: str,
+    commit_sha: str,
+    error: str,
+    channel: str = "email",
+) -> PerSampleRow:
     return PerSampleRow(
         sample_id=sample_id,
         true_label=true_label,
@@ -263,6 +278,7 @@ def _error_row(sample_id: str, true_label: str, commit_sha: str, error: str) -> 
         false_positive=False,
         true_negative=False,
         false_negative=False,
+        channel=channel,
         error=error,
     )
 
@@ -287,6 +303,89 @@ def aggregate_rows(rows: list[PerSampleRow], projection: str) -> AggregateMetric
 
 
 # ─── public entry point ─────────────────────────────────────────────────────
+
+
+def aggregate_rows_by_channel(rows: list[PerSampleRow], projection: str) -> dict[str, dict]:
+    """Return confusion metrics grouped by normalized message channel."""
+    channels = sorted({row.channel or "email" for row in rows})
+    return {
+        channel: aggregate_rows(
+            [row for row in rows if (row.channel or "email") == channel],
+            projection,
+        ).to_dict()
+        for channel in channels
+    }
+
+
+def _load_mixed_manifest(manifest_path: Path) -> list[dict]:
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"mixed-channel manifest not found: {manifest_path}")
+    if manifest_path.suffix.lower() == ".jsonl":
+        entries = []
+        for line_no, line in enumerate(manifest_path.read_text(encoding="utf-8").splitlines(), start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSONL on line {line_no}: {exc}") from exc
+            if not isinstance(item, dict):
+                raise ValueError(f"Manifest line {line_no} must be a JSON object")
+            entries.append(item)
+        return entries
+
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        data = data.get("samples", [])
+    if not isinstance(data, list):
+        raise ValueError("Mixed-channel manifest must be a list or a JSON object with samples")
+    if not all(isinstance(item, dict) for item in data):
+        raise ValueError("Mixed-channel manifest entries must be JSON objects")
+    return data
+
+
+def _manifest_sample_id(entry: dict, index: int) -> str:
+    raw = entry.get("sample_id") or entry.get("id") or entry.get("filename") or entry.get("path")
+    return str(raw or f"sample_{index:04d}")
+
+
+def _manifest_label(entry: dict) -> str:
+    label = str(entry.get("label") or entry.get("true_label") or "").strip().upper()
+    if label not in {"PHISHING", "CLEAN"}:
+        raise ValueError("Manifest label must be PHISHING or CLEAN")
+    return label
+
+
+def _manifest_channel(entry: dict) -> str:
+    return parse_message_channel(entry.get("channel", MessageChannel.EMAIL.value)).value
+
+
+def _manifest_relative_path(manifest_path: Path, entry: dict) -> Path | None:
+    raw_path = entry.get("path") or entry.get("filename")
+    if not raw_path:
+        return None
+    sample_path = Path(str(raw_path))
+    if not sample_path.is_absolute():
+        sample_path = manifest_path.parent / sample_path
+    return sample_path
+
+
+def _email_from_mixed_entry(manifest_path: Path, entry: dict) -> EmailObject:
+    channel = parse_message_channel(entry.get("channel", MessageChannel.EMAIL.value))
+    sample_path = _manifest_relative_path(manifest_path, entry)
+    if channel == MessageChannel.EMAIL:
+        if sample_path is not None:
+            email = EMLParser().parse_file(str(sample_path))
+            if email is None:
+                raise ChannelAdapterError("parse_failed")
+            return email
+        return adapt_channel_payload({**entry, "channel": MessageChannel.EMAIL.value})
+
+    adapted_entry = dict(entry)
+    if sample_path is not None and not any(adapted_entry.get(key) for key in ("text", "body", "transcript", "message")):
+        adapted_entry["text"] = sample_path.read_text(encoding="utf-8")
+    return adapt_channel_payload(adapted_entry)
 
 
 async def run_eval(
@@ -340,7 +439,12 @@ async def run_eval(
                     continue
                 result = await pipeline.analyze(email)
                 rows.append(_row_from_pipeline_result(
-                    sample_name, true_label, result, commit_sha, projection,
+                    sample_name,
+                    true_label,
+                    result,
+                    commit_sha,
+                    projection,
+                    getattr(getattr(email, "channel", MessageChannel.EMAIL), "value", "email"),
                 ))
             except Exception as e:
                 logger.exception("Pipeline raised on %s", sample_name)
@@ -406,4 +510,106 @@ async def run_eval(
         aggregates_strict.precision, aggregates_strict.recall,
     )
 
+    return eval_run
+
+
+async def run_mixed_channel_eval(
+    manifest_path: Union[str, Path],
+    output_dir: Union[str, Path] = "eval_runs",
+    projection: str = "permissive",
+    config: Optional[PipelineConfig] = None,
+) -> EvalRun:
+    """Run eval over a mixed email, SMS, chat, and voice transcript manifest."""
+    if projection not in BINARY_PROJECTIONS:
+        raise ValueError(f"projection must be one of {list(BINARY_PROJECTIONS)}, got {projection!r}")
+
+    manifest = Path(manifest_path)
+    entries = _load_mixed_manifest(manifest)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    config = config or PipelineConfig.from_env()
+    pipeline = PhishingPipeline.from_config(config)
+    commit_sha = _short_sha()
+    rows: list[PerSampleRow] = []
+
+    try:
+        for index, entry in enumerate(entries, start=1):
+            sample_id = _manifest_sample_id(entry, index)
+            try:
+                true_label = _manifest_label(entry)
+                channel = _manifest_channel(entry)
+                email = _email_from_mixed_entry(manifest, entry)
+                result = await pipeline.analyze(email)
+                rows.append(_row_from_pipeline_result(
+                    sample_id,
+                    true_label,
+                    result,
+                    commit_sha,
+                    projection,
+                    channel,
+                ))
+            except Exception as e:
+                logger.exception("Mixed-channel eval failed on %s", sample_id)
+                try:
+                    channel = _manifest_channel(entry)
+                except Exception:
+                    channel = "unknown"
+                label = str(entry.get("label") or entry.get("true_label") or "CLEAN").strip().upper()
+                if label not in {"PHISHING", "CLEAN"}:
+                    label = "CLEAN"
+                rows.append(_error_row(sample_id, label, commit_sha, str(e), channel))
+    finally:
+        await pipeline.close()
+
+    now_utc = datetime.now(timezone.utc)
+    run_id = f"{now_utc.strftime('%Y-%m-%d_%H%M')}_{commit_sha}_mixed"
+    aggregates_permissive = aggregate_rows(rows, "permissive")
+    strict_rows = []
+    for r in rows:
+        if r.error is not None:
+            strict_rows.append(r)
+            continue
+        try:
+            verdict = Verdict(r.predicted_verdict)
+        except ValueError:
+            strict_rows.append(r)
+            continue
+        strict_label = _project_verdict_to_label(verdict, "strict")
+        strict_rows.append(PerSampleRow(
+            **{**asdict(r),
+               "predicted_label": strict_label,
+               "true_positive": r.true_label == "PHISHING" and strict_label == "PHISHING",
+               "false_positive": r.true_label == "CLEAN" and strict_label == "PHISHING",
+               "true_negative": r.true_label == "CLEAN" and strict_label == "CLEAN",
+               "false_negative": r.true_label == "PHISHING" and strict_label == "CLEAN"}
+        ))
+    aggregates_strict = aggregate_rows(strict_rows, "strict")
+
+    eval_run = EvalRun(
+        run_id=run_id,
+        timestamp=now_utc.isoformat(),
+        commit_sha=commit_sha,
+        corpus_dir=str(manifest),
+        sample_count=len(rows),
+        rows=rows,
+        aggregates_permissive=aggregates_permissive,
+        aggregates_strict=aggregates_strict,
+    )
+
+    jsonl_path = output_path / f"{run_id}.jsonl"
+    with jsonl_path.open("w", encoding="utf-8", newline="\n") as fh:
+        for row in rows:
+            fh.write(json.dumps(row.to_dict(), default=str) + "\n")
+
+    summary_path = output_path / f"{run_id}.summary.json"
+    with summary_path.open("w", encoding="utf-8") as fh:
+        json.dump(eval_run.to_summary_dict(), fh, indent=2, default=str)
+
+    logger.info(
+        "Mixed-channel eval complete: %s, %d samples, channels=%s",
+        run_id,
+        eval_run.sample_count,
+        ", ".join(sorted(aggregate_rows_by_channel(rows, projection))),
+    )
     return eval_run
