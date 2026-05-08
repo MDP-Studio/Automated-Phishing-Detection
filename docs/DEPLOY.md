@@ -167,9 +167,11 @@ pulls the browser/tunnel images when possible, removes orphaned old containers,
 escapes tunnel-token values so `$` characters are not reinterpreted by Compose,
 injects the current git SHA into the image for `/api/health` and static asset
 cache busting, enables BuildKit, reuses a pip cache with longer retry/timeout
-settings for remote builds, requires `CLOUDFLARE_TUNNEL_TOKEN` for the
-production tunnel, and waits for the orchestrator container to become healthy
-plus `cloudflared-tunnel` to stay running.
+settings for remote builds, skips the duplicate local Chromium install in
+production because detonation uses the `browser-sandbox` service, requires
+`CLOUDFLARE_TUNNEL_TOKEN` for the production tunnel, and waits for the
+orchestrator container to become healthy plus `cloudflared-tunnel` to stay
+running.
 
 After deploy, confirm the active build:
 

@@ -131,6 +131,8 @@ def test_dockerfile_uses_resilient_pip_install_for_remote_builds():
     assert "# syntax=docker/dockerfile:" in dockerfile
     assert "--mount=type=cache,target=/root/.cache/pip" in dockerfile
     assert "pip install --retries 10 --default-timeout 120 --require-hashes" in dockerfile
+    assert "ARG INSTALL_PLAYWRIGHT_BROWSER=1" in dockerfile
+    assert 'if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "1" ]' in dockerfile
 
 
 def test_compose_env_helper_escapes_dollar_expansion_for_secrets():

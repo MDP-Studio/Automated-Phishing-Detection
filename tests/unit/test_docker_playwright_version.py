@@ -39,3 +39,12 @@ def test_browser_sandbox_server_matches_python_client() -> None:
             f"playwright@{version}",
         ]
         assert browser_sandbox["command"][3] == "run-server"
+
+
+def test_production_orchestrator_uses_remote_browser_sandbox() -> None:
+    compose_text = (ROOT / "docker-compose.production.yml").read_text(encoding="utf-8")
+    compose = yaml.safe_load(compose_text)
+    orchestrator = compose["services"]["orchestrator"]
+
+    assert orchestrator["build"]["args"]["INSTALL_PLAYWRIGHT_BROWSER"] == "0"
+    assert "PLAYWRIGHT_WS_ENDPOINT=ws://browser-sandbox:3000/" in orchestrator["environment"]

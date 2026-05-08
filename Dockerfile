@@ -25,11 +25,16 @@ COPY requirements.lock .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --retries 10 --default-timeout 120 --require-hashes -r requirements.lock
 
-# Playwright: install Chromium + all system deps in one command.
-# Keep browsers in a shared path so the non-root runtime user can launch
-# Chromium; the default root cache is not visible after gosu drops privileges.
+# Playwright: install Chromium + all system deps when the image needs a local
+# browser. Production uses the separate browser-sandbox service over
+# PLAYWRIGHT_WS_ENDPOINT, so it skips this duplicate 250MB+ browser layer.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN playwright install --with-deps chromium \
+ARG INSTALL_PLAYWRIGHT_BROWSER=1
+RUN if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "1" ]; then \
+        playwright install --with-deps chromium; \
+    else \
+        mkdir -p /ms-playwright; \
+    fi \
     && chmod -R a+rX /ms-playwright
 
 # Copy application code

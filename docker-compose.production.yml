@@ -25,6 +25,7 @@ services:
       dockerfile: Dockerfile
       args:
         APP_BUILD_SHA: ${APP_BUILD_SHA:-unknown}
+        INSTALL_PLAYWRIGHT_BROWSER: "0"
     container_name: phishing-orchestrator
     init: true
     # Cloudflare Tunnel connects to the Docker network. The host mapping is

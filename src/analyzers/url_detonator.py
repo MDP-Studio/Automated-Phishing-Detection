@@ -14,10 +14,10 @@ interface. The production analyzer was written later and drives
 Playwright directly — different abstraction, same class name.
 
 The pipeline fallback to this stub is effectively dead in shipped
-environments (Playwright is a declared dependency and the Docker image
-runs ``playwright install --with-deps chromium``), so in practice all
-real detonation traffic goes through ``url_detonation.py``, which has
-no unit coverage.
+environments (Playwright is a declared dependency and production connects
+to the ``browser-sandbox`` service through ``PLAYWRIGHT_WS_ENDPOINT``), so
+in practice all real detonation traffic goes through ``url_detonation.py``,
+which has no unit coverage.
 
 Audit finding (open, tracked)
 -----------------------------
