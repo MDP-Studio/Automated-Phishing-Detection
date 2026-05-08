@@ -44,7 +44,8 @@ Every code change follows the same loop:
 4. **COMMIT** — one focused commit with a detailed message
 5. **FINAL TEST** — re-run the full pytest after the change
 6. **PUSH** — to a feature branch or directly to `main` as appropriate
-7. **POST-PUSH AUDIT** — verify CI green, sweep again for anything missed
+7. **REMOTE SYNC** - after pushing, pull the same commit on the remote runtime checkout. Follow [`docs/REMOTE_SYNC_AFTER_PUSH.md`](docs/REMOTE_SYNC_AFTER_PUSH.md)
+8. **POST-PUSH AUDIT** — verify CI green, sweep again for anything missed
 
 This is not optional discipline; it's why the test suite has grown across every cycle with zero regressions. Current test count is tracked in [`HISTORY.md`](HISTORY.md) — **HISTORY is the single source of truth for counters**; do not hardcode the number in this file or the README.
 
