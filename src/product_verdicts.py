@@ -30,6 +30,10 @@ PHISHANALYZE_NEXT_STEPS = {
 }
 
 PAYSHIELD_NEXT_STEPS = {
+    "NOT_PAYMENT_SPECIFIC": [
+        "No payment workflow is needed for this email.",
+        "Use the general phishing evidence if the message still looks suspicious.",
+    ],
     "SAFE": [
         "Continue normal internal payment checks.",
         "Keep the scan result with the supplier record if the request is material.",
@@ -93,8 +97,12 @@ def payshield_verdict(
     overall_score: float,
 ) -> dict:
     payment_protection = payment_protection or {}
-    backend_decision = str(payment_protection.get("decision") or "").upper()
-    display_decision = _payment_display_decision(backend_decision, phishing_verdict)
+    if _is_non_payment_specific(payment_protection):
+        backend_decision = ""
+        display_decision = "NOT_PAYMENT_SPECIFIC"
+    else:
+        backend_decision = str(payment_protection.get("decision") or "").upper()
+        display_decision = _payment_display_decision(backend_decision, phishing_verdict)
     return {
         "product": "payshield",
         "backend_decision": backend_decision or None,
@@ -166,6 +174,8 @@ def build_evidence_summary(
 
 def payment_decision_label(value: Any) -> str:
     decision = str(value or "").upper()
+    if decision == "NOT_PAYMENT_SPECIFIC":
+        return "Not payment-specific"
     if decision in {"DO_NOT_PAY", "DO_NOT_PAY_UNTIL_VERIFIED"}:
         return "Do not pay until independently confirmed"
     if decision == "VERIFY":
@@ -186,6 +196,11 @@ def _payment_display_decision(backend_decision: str, phishing_verdict: str) -> s
 
 
 def _payment_summary(display_decision: str, summary: Any, phishing_verdict: str) -> str:
+    if display_decision == "NOT_PAYMENT_SPECIFIC":
+        return (
+            "This email did not look like an invoice, billing notice, receipt, "
+            "bank-detail change, or payment request."
+        )
     if summary:
         return str(summary)
     if display_decision == "DO_NOT_PAY_UNTIL_VERIFIED":
@@ -193,6 +208,16 @@ def _payment_summary(display_decision: str, summary: Any, phishing_verdict: str)
     if display_decision == "VERIFY":
         return "Some payment-risk indicators were found. Verify outside email before acting."
     return f"No strong payment-risk signal was found. Pipeline verdict: {_label(phishing_verdict)}."
+
+
+def _is_non_payment_specific(payment_protection: dict) -> bool:
+    message = str(payment_protection.get("message") or "").lower()
+    if message == "not_payment_related":
+        return True
+    relevance = payment_protection.get("payment_relevance")
+    if isinstance(relevance, dict):
+        return str(relevance.get("label") or "").lower() == "non_payment"
+    return False
 
 
 def _phishing_label(verdict: str) -> str:

@@ -126,5 +126,5 @@ async def test_payment_decision_eval_reports_mismatch(tmp_path: Path):
     assert summary.row_count == 1
     assert summary.correct == 0
     assert summary.mismatches == 1
-    assert summary.confusion_matrix == {"DO_NOT_PAY": {"SAFE": 1}}
-    assert summary.rows[0].predicted_decision == "SAFE"
+    assert summary.confusion_matrix == {"DO_NOT_PAY": {"NOT_PAYMENT_SPECIFIC": 1}}
+    assert summary.rows[0].predicted_decision == "NOT_PAYMENT_SPECIFIC"

@@ -32,6 +32,10 @@ Rules:
 - Runs the `mailbox_monitoring` entitlement before mailbox lookup or IMAP
   connection.
 - Reads at most 10 unread messages per request.
+- Runs the local `payment_relevance` gate before deep analysis. Clear
+  non-payment messages are skipped and not written to scan history. Invoice,
+  payment request, bank-detail change, receipt, billing notice, and unknown
+  messages continue to the full pipeline.
 - Stores results as `mailbox_scan` scan history entries.
 - Does not return raw email bodies, mailbox passwords, encrypted credential
   blobs, or provider tokens to the browser.

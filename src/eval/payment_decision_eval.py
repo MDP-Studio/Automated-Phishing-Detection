@@ -2,7 +2,8 @@
 Evaluate payment-fraud business decisions against the payment dataset.
 
 The generic eval harness answers PHISHING vs CLEAN. This module answers the
-SME workflow question: did the analyzer choose SAFE, VERIFY, or DO_NOT_PAY?
+SME workflow question: did the analyzer choose NOT_PAYMENT_SPECIFIC, SAFE,
+VERIFY, or DO_NOT_PAY?
 """
 from __future__ import annotations
 
@@ -87,6 +88,12 @@ def _slice_metrics(rows: list[PaymentDecisionEvalRow], attribute: str) -> dict[s
             "accuracy": round(correct / total, 3) if total else 0.0,
         }
     return metrics
+
+
+def _predicted_decision(result, details: dict) -> str:
+    if result.status == "skipped" and details.get("message") == "not_payment_related":
+        return "NOT_PAYMENT_SPECIFIC"
+    return str(details.get("decision") or "ERROR")
 
 
 def _markdown(summary: PaymentDecisionEvalSummary) -> str:
@@ -251,7 +258,7 @@ async def evaluate_payment_decisions(
 
         result = await analyzer.analyze(email)
         details = result.details or {}
-        predicted = str(details.get("decision", "ERROR"))
+        predicted = _predicted_decision(result, details)
         signals = [
             str(signal.get("name", "unknown"))
             for signal in details.get("signals", [])

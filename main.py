@@ -1198,6 +1198,7 @@ class PhishingDetectionApp:
             return IMAPConfig(host=host, port=port, user=user, password=password)
 
         async def _scan_mailbox_now(store: SaaSStore, context, mailbox, max_results: int) -> dict:
+            from src.analyzers.payment_relevance import PaymentRelevanceAnalyzer
             from src.extractors.eml_parser import EMLParser
             from src.ingestion.imap_provider import IMAPProvider
 
@@ -1225,7 +1226,9 @@ class PhishingDetectionApp:
                 actor_user_id=context.user_id,
             )
             parser = EMLParser()
+            relevance_analyzer = PaymentRelevanceAnalyzer()
             analyzed = []
+            skipped = []
 
             def feature_gate(feature_slug: str) -> dict:
                 return store.check_entitlement(
@@ -1239,6 +1242,19 @@ class PhishingDetectionApp:
             for item in fetched:
                 email = parser.parse_bytes(item.raw_bytes)
                 if email is None:
+                    continue
+                relevance_result = await relevance_analyzer.analyze(email)
+                relevance_details = relevance_result.details or {}
+                if relevance_details.get("should_scan") is False:
+                    skipped.append({
+                        "provider_id": str(item.provider_id),
+                        "subject": email.subject or "",
+                        "payment_relevance": {
+                            "label": relevance_details.get("label"),
+                            "confidence": relevance_details.get("confidence"),
+                            "summary": relevance_details.get("summary"),
+                        },
+                    })
                     continue
                 scan_job_id = store.create_scan_job(
                     org_id=context.org_id,
@@ -1293,6 +1309,9 @@ class PhishingDetectionApp:
                 ).to_public_dict(),
                 "fetched": len(fetched),
                 "analyzed": len(analyzed),
+                "skipped": len(skipped),
+                "skipped_non_payment": len(skipped),
+                "skipped_results": skipped,
                 "results": analyzed,
             }
 

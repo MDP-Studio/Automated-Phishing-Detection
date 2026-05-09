@@ -4,12 +4,14 @@ The first agent-native product slice is a narrow payment email investigation
 tool:
 
 ```text
-analyze_payment_email(email_path) -> SAFE | VERIFY | DO_NOT_PAY + evidence
+analyze_payment_email(email_path) -> NOT_PAYMENT_SPECIFIC | SAFE | VERIFY | DO_NOT_PAY + evidence
 mailbox_connection_guide(provider) -> provider setup + privacy notes
 ```
 
-It wraps the existing `payment_fraud` analyzer and returns structured evidence
-without exposing full email bodies, raw headers, or attachment content.
+It wraps the existing payment relevance and `payment_fraud` analyzers and
+returns structured evidence without exposing full email bodies, raw headers, or
+attachment content. Clear non-payment messages return `NOT_PAYMENT_SPECIFIC` so
+agents do not treat them as safe payment requests.
 The companion mailbox guide tool returns setup instructions only. It never
 accepts mailbox passwords or stores credentials.
 
@@ -29,7 +31,7 @@ Output:
 ```json
 {
   "tool": "analyze_payment_email",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "decision": "VERIFY",
   "risk_score": 0.548,
   "confidence": 0.8,
@@ -46,6 +48,10 @@ Output:
   ],
   "extracted_payment_fields": {},
   "verification_steps": [],
+  "payment_relevance": {
+    "label": "payment_request",
+    "should_scan": true
+  },
   "safety": {
     "body_returned": false,
     "raw_headers_returned": false,

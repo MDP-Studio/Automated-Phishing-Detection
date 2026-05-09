@@ -59,9 +59,9 @@ def _payment_tool_definition() -> dict[str, Any]:
         "title": "Payment Email Scam Analyzer",
         "description": (
             "Analyze a local .eml invoice or payment email and return a "
-            "SAFE, VERIFY, or DO_NOT_PAY decision with evidence and "
-            "verification steps. The tool does not return full email bodies, "
-            "raw headers, or attachment contents."
+            "NOT_PAYMENT_SPECIFIC, SAFE, VERIFY, or DO_NOT_PAY decision with "
+            "evidence and verification steps. The tool does not return full "
+            "email bodies, raw headers, or attachment contents."
         ),
         "inputSchema": TOOL_INPUT_SCHEMA,
         "outputSchema": TOOL_OUTPUT_SCHEMA,

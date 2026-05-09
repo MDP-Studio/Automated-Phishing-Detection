@@ -13,8 +13,8 @@ moves.
 
 The demo shows Gemini acting as an accounts payable agent. Gemini does not
 guess from the raw email. It calls the local `payment-scam-firewall` MCP server,
-receives a structured `SAFE`, `VERIFY`, or `DO_NOT_PAY` result, and turns that
-tool result into an AP team note.
+receives a structured `NOT_PAYMENT_SPECIFIC`, `SAFE`, `VERIFY`, or
+`DO_NOT_PAY` result, and turns that tool result into an AP team note.
 
 The important product proof is the boundary:
 

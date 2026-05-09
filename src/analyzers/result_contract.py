@@ -43,6 +43,7 @@ ANALYZER_DISPLAY_NAMES = {
     "header_analysis": "Header authentication",
     "nlp_intent": "Intent analysis",
     "payment_fraud": "Business email compromise signals",
+    "payment_relevance": "Payment relevance",
     "rmm_lure": "Remote access lure detection",
     "sender_profiling": "Sender profiling",
     "url_detonation": "Browser URL detonation",
@@ -57,6 +58,7 @@ SKIPPED_MESSAGES = {
     "no_sender_information",
     "no_urls_to_analyze",
     "no_urls_to_detonate",
+    "not_payment_related",
 }
 
 NOT_CONFIGURED_MESSAGES = {
@@ -189,6 +191,36 @@ def failed_analyzer_result(
         timing_ms=timing_ms,
         started_at=_utc_iso(),
         completed_at=_utc_iso(),
+    )
+
+
+def skipped_analyzer_result(
+    analyzer_id: str,
+    reason: str,
+    *,
+    details: dict | None = None,
+) -> AnalyzerResult:
+    """Represent an analyzer intentionally skipped by a preflight gate."""
+    feature = _feature_metadata(analyzer_id)
+    payload = {
+        "message": "not_payment_related",
+        "reason": reason,
+        **(details or {}),
+    }
+    return AnalyzerResult(
+        analyzer_name=analyzer_id,
+        risk_score=0.0,
+        confidence=0.0,
+        details=payload,
+        status="skipped",
+        plan_required=feature["plan_required"],
+        cost_tier=feature["cost_tier"],
+        risk_contribution=0.0,
+        failure_reason=None,
+        timing_ms=0.0,
+        started_at=_utc_iso(),
+        completed_at=_utc_iso(),
+        evidence=[{"type": "summary", "text": reason}],
     )
 
 

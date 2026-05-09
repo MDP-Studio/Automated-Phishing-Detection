@@ -4,6 +4,8 @@ This product layer turns the phishing detector into a payment decision guard for
 
 Instead of only answering "is this email phishing?", it also answers:
 
+- `NOT_PAYMENT_SPECIFIC`: the message does not look like an invoice, billing
+  notice, receipt, bank-detail change, or payment request.
 - `SAFE`: no material payment scam indicators were found.
 - `VERIFY`: do not pay until the supplier or executive is verified independently.
 - `DO_NOT_PAY`: block payment release until verification is completed.
@@ -27,7 +29,7 @@ Sensitive payment identifiers are masked in analyzer output by default.
 
 ## Pipeline Integration
 
-The new analyzer is `src/analyzers/payment_fraud.py`.
+The payment risk analyzer is `src/analyzers/payment_fraud.py`.
 
 It runs as part of the existing analyzer set under the name `payment_fraud`, and returns:
 
@@ -37,6 +39,14 @@ It runs as part of the existing analyzer set under the name `payment_fraud`, and
 - explainable signals
 - masked payment fields
 - verification steps
+
+The lightweight relevance gate is `src/analyzers/payment_relevance.py`. It runs
+before `payment_fraud` and classifies messages as `invoice`,
+`payment_request`, `bank_detail_change`, `receipt`, `billing_notice`,
+`non_payment`, or `unknown`. The gate is high recall: every label except clear
+`non_payment` continues to the full payment-risk analyzer. SaaS mailbox
+scan-now also uses the same gate before creating a scan job, so obvious
+non-payment inbox messages are skipped rather than stored in PayShield history.
 
 The pipeline uses the payment decision as a business-aware override:
 
@@ -126,9 +136,11 @@ examples. More real full-body `VERIFY` and `DO_NOT_PAY` examples are still the
 main evidence gap before claiming external production metrics.
 
 `payment_eval.py` writes JSON, CSV, and Markdown reports under
-`data/payment_scam_dataset/reports/` comparing expected vs predicted `SAFE`,
-`VERIFY`, and `DO_NOT_PAY` decisions. Reports include accuracy by source type
-and split, and `--split holdout` can be used for the public-derived holdout set.
+`data/payment_scam_dataset/reports/` comparing expected vs predicted payment
+decisions. A predicted `NOT_PAYMENT_SPECIFIC` row means the relevance gate ruled
+the sample outside PayShield's payment workflow. Reports include accuracy by
+source type and split, and `--split holdout` can be used for the public-derived
+holdout set.
 
 `payment_train.py` trains and tests a TF-IDF + logistic regression baseline on
 the exported ML JSONL. It writes ignored model artifacts and metrics under

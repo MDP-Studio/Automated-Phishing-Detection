@@ -30,7 +30,7 @@ CLEAN | SUSPICIOUS | LIKELY_PHISHING | CONFIRMED_PHISHING
 PayShield customer-facing decisions:
 
 ```text
-SAFE | VERIFY | DO_NOT_PAY_UNTIL_VERIFIED
+NOT_PAYMENT_SPECIFIC | SAFE | VERIFY | DO_NOT_PAY_UNTIL_VERIFIED
 ```
 
 The backend and older dataset tools may still contain the enum `DO_NOT_PAY`.
@@ -70,6 +70,10 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence
   display, renewal-date display, and webhook sync.
 - Encrypted mailbox credential storage and gated on-demand mailbox scan now.
+- PayShield mailbox scans run a cheap payment-relevance gate first. Clear
+  non-payment emails are skipped without being stored as deep scan results;
+  invoice, payment request, bank-detail change, receipt, billing, and uncertain
+  emails continue to the full pipeline.
 - A PhishAnalyze settings page with workspace summary, billing entry points,
   mailbox status, privacy links, team member visibility, and platform-managed
   API coverage guidance.
@@ -123,6 +127,7 @@ Current analyzers include:
 - `nlp_intent`
 - `rmm_lure`
 - `sender_profiling`
+- `payment_relevance`
 - `payment_fraud`
 - `brand_impersonation`
 

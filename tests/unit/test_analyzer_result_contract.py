@@ -76,6 +76,28 @@ def test_rmm_lure_contract_is_free_local_and_customer_readable():
     assert payload["evidence"][0]["text"] == result.details["summary"]
 
 
+def test_payment_relevance_contract_is_advisory_and_free():
+    result = AnalyzerResult(
+        analyzer_name="payment_relevance",
+        risk_score=0.0,
+        confidence=0.91,
+        details={
+            "label": "non_payment",
+            "should_scan": False,
+            "summary": "No payment context was detected.",
+        },
+        risk_contribution=0.0,
+    )
+
+    payload = normalize_analyzer_result("payment_relevance", result)
+
+    assert payload["display_name"] == "Payment relevance"
+    assert payload["plan_required"] == "free"
+    assert payload["cost_tier"] == "free_local"
+    assert payload["risk_contribution"] == 0.0
+    assert payload["details"]["should_scan"] is False
+
+
 def test_nested_api_client_cache_marker_promotes_cached_status():
     result = AnalyzerResult(
         analyzer_name="url_reputation",
@@ -125,6 +147,37 @@ def test_payment_product_mapper_preserves_backend_enum_but_exposes_safe_copy():
     assert verdicts["payshield"]["label"] == "Do not pay until independently confirmed"
     assert enriched["decision"] == "DO_NOT_PAY"
     assert enriched["display_decision"] == "DO_NOT_PAY_UNTIL_VERIFIED"
+
+
+def test_payment_product_mapper_labels_non_payment_skip_distinctly():
+    analyzer_results = {
+        "payment_fraud": {
+            "status": "skipped",
+            "cost_tier": "free_local",
+            "details": {
+                "message": "not_payment_related",
+                "summary": "No payment context was detected.",
+                "payment_relevance": {
+                    "label": "non_payment",
+                    "confidence": 0.91,
+                },
+            },
+        }
+    }
+
+    verdicts = build_product_verdicts(
+        phishing_verdict="CLEAN",
+        overall_score=0.02,
+        analyzer_results=analyzer_results,
+    )
+    enriched = enrich_payment_protection(
+        analyzer_results["payment_fraud"]["details"],
+        verdicts["payshield"],
+    )
+
+    assert verdicts["payshield"]["display_decision"] == "NOT_PAYMENT_SPECIFIC"
+    assert verdicts["payshield"]["label"] == "Not payment-specific"
+    assert enriched["display_decision"] == "NOT_PAYMENT_SPECIFIC"
 
 
 class DummyAPIClient(BaseAPIClient):

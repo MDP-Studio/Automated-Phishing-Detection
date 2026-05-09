@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Evaluate SAFE / VERIFY / DO_NOT_PAY decisions for a payment-scam dataset.
-"""
+"""Evaluate PayShield payment decisions for a payment-scam dataset."""
 from __future__ import annotations
 
 import argparse

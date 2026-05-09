@@ -1141,6 +1141,7 @@ ${element.innerHTML}
       header_analysis: "Header authentication",
       nlp_intent: "Intent analysis",
       payment_fraud: "Business email compromise signals",
+      payment_relevance: "Payment relevance",
       rmm_lure: "Remote access lure detection",
       sender_profiling: "Sender profiling",
       url_detonation: "Browser link check",
@@ -1771,7 +1772,12 @@ ${element.innerHTML}
         await loadMailboxes();
         await loadHistory();
         const count = Number(payload.analyzed || 0);
-        notice(mailboxNotice, count ? `Scanned ${count} new email${count === 1 ? "" : "s"}.` : "No new unread emails found.");
+        const skipped = Number(payload.skipped_non_payment || payload.skipped || 0);
+        const parts = [];
+        if (count) parts.push(`scanned ${count} payment-related email${count === 1 ? "" : "s"}`);
+        if (skipped) parts.push(`skipped ${skipped} non-payment email${skipped === 1 ? "" : "s"}`);
+        const message = parts.join(" and ");
+        notice(mailboxNotice, message ? `${message.charAt(0).toUpperCase()}${message.slice(1)}.` : "No new unread emails found.");
       } catch (error) {
         scanButton.disabled = false;
         scanButton.textContent = "Scan now";

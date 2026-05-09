@@ -60,8 +60,10 @@ async def test_no_payment_context_returns_safe():
     result = await analyzer.analyze(email)
 
     assert result.analyzer_name == "payment_fraud"
-    assert result.details["decision"] == "SAFE"
-    assert result.risk_score < 0.1
+    assert result.status == "skipped"
+    assert result.details["message"] == "not_payment_related"
+    assert result.details["payment_relevance"]["label"] == "non_payment"
+    assert result.risk_score == 0.0
     assert result.details["signals"] == []
 
 

@@ -11,7 +11,11 @@ from time import perf_counter
 from typing import Callable, Optional
 
 from src.billing.entitlements import ANALYZER_FEATURES, locked_analyzer_result
-from src.analyzers.result_contract import failed_analyzer_result, not_configured_analyzer_result
+from src.analyzers.result_contract import (
+    failed_analyzer_result,
+    not_configured_analyzer_result,
+    skipped_analyzer_result,
+)
 from src.models import EmailObject, PipelineResult, Verdict, AnalyzerResult
 from src.config import PipelineConfig
 from src.scoring.blocklist_allowlist import BlocklistAllowlistChecker, ListCheckResult
@@ -394,6 +398,33 @@ class PhishingPipeline:
 
         results = {}
 
+        relevance_result = await self._run_payment_relevance_preflight(
+            email,
+            iocs,
+            extracted_urls,
+        )
+        if relevance_result is not None:
+            results["payment_relevance"] = relevance_result
+            if not self._should_run_payment_fraud(relevance_result):
+                phase1_names = [
+                    name for name in phase1_names if name != "payment_fraud"
+                ]
+                relevance_details = relevance_result.details or {}
+                results["payment_fraud"] = skipped_analyzer_result(
+                    "payment_fraud",
+                    (
+                        "Skipped because the payment relevance gate classified "
+                        "this email as clear non-payment."
+                    ),
+                    details={
+                        "payment_relevance": {
+                            "label": relevance_details.get("label"),
+                            "confidence": relevance_details.get("confidence"),
+                            "summary": relevance_details.get("summary"),
+                        },
+                    },
+                )
+
         async def _launch(names: list[str]) -> list[tuple[str, asyncio.Task, float, str]]:
             tasks: list[tuple[str, asyncio.Task, float, str]] = []
             for analyzer_name in names:
@@ -628,6 +659,12 @@ class PhishingPipeline:
                 )
             elif name == "sender_profiling":
                 return await analyzer.analyze(email)
+            elif name == "payment_relevance":
+                return await analyzer.analyze(
+                    email=email,
+                    iocs=iocs,
+                    extracted_urls=urls,
+                )
             elif name == "payment_fraud":
                 return await analyzer.analyze(
                     email=email,
@@ -653,6 +690,48 @@ class PhishingPipeline:
         result.started_at = result.started_at or started_at_iso
         result.completed_at = result.completed_at or datetime.now(timezone.utc).isoformat()
         return result
+
+    async def _run_payment_relevance_preflight(
+        self,
+        email: EmailObject,
+        iocs: dict,
+        extracted_urls: list,
+    ) -> AnalyzerResult | None:
+        """Run the cheap PayShield relevance gate before deeper analyzers."""
+        analyzer = await self._load_analyzer("payment_relevance")
+        if analyzer is None:
+            return None
+        started_at = perf_counter()
+        started_at_iso = datetime.now(timezone.utc).isoformat()
+        try:
+            result = await self._run_analyzer_with_limits(
+                "payment_relevance",
+                analyzer,
+                email,
+                iocs,
+                extracted_urls,
+            )
+            result.timing_ms = result.timing_ms or round((perf_counter() - started_at) * 1000, 2)
+            result.started_at = result.started_at or started_at_iso
+            result.completed_at = result.completed_at or datetime.now(timezone.utc).isoformat()
+            return result
+        except Exception as exc:
+            self.logger.warning("Payment relevance preflight failed: %s", exc)
+            return failed_analyzer_result(
+                "payment_relevance",
+                str(exc),
+                status="failed",
+                timing_ms=round((perf_counter() - started_at) * 1000, 2),
+            )
+
+    def _should_run_payment_fraud(self, relevance_result: AnalyzerResult | None) -> bool:
+        """Return True unless the preflight is confidently non-payment."""
+        if relevance_result is None or relevance_result.status not in {"success", "cached"}:
+            return True
+        details = relevance_result.details or {}
+        if details.get("should_scan") is False:
+            return False
+        return True
 
     # Domains whose authentication (SPF/DKIM/DMARC) passing is strong
     # evidence the email is legitimate, even when content looks "phishy".
@@ -1126,6 +1205,9 @@ class PhishingPipeline:
             elif name == "sender_profiling":
                 from src.analyzers.sender_profiling import SenderProfileAnalyzer
                 analyzer = SenderProfileAnalyzer()
+            elif name == "payment_relevance":
+                from src.analyzers.payment_relevance import PaymentRelevanceAnalyzer
+                analyzer = PaymentRelevanceAnalyzer()
             elif name == "payment_fraud":
                 from src.analyzers.payment_fraud import PaymentFraudAnalyzer
                 analyzer = PaymentFraudAnalyzer()

@@ -71,6 +71,16 @@ class PaymentDecision(str, Enum):
     DO_NOT_PAY = "DO_NOT_PAY"
 
 
+class PaymentRelevanceLabel(str, Enum):
+    INVOICE = "invoice"
+    PAYMENT_REQUEST = "payment_request"
+    BANK_DETAIL_CHANGE = "bank_detail_change"
+    RECEIPT = "receipt"
+    BILLING_NOTICE = "billing_notice"
+    NON_PAYMENT = "non_payment"
+    UNKNOWN = "unknown"
+
+
 class PaymentSignalSeverity(str, Enum):
     INFO = "info"
     LOW = "low"
@@ -213,3 +223,15 @@ class PaymentFraudAnalysis:
     signals: list[PaymentFraudSignal] = field(default_factory=list)
     extracted_payment_fields: dict = field(default_factory=dict)
     verification_steps: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PaymentRelevanceAnalysis:
+    """Cheap mailbox prefilter result for deciding whether PayShield should run."""
+    label: PaymentRelevanceLabel
+    confidence: float
+    should_scan: bool
+    summary: str
+    reasons: list[str] = field(default_factory=list)
+    matched_terms: list[str] = field(default_factory=list)
+    classifier: str = "rules_v1"

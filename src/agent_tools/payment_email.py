@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import Any
 
 from src.analyzers.payment_fraud import PaymentFraudAnalyzer
-from src.eval.payment_dataset import DEFAULT_DATASET_DIR, SAMPLES_DIR
+from src.eval.payment_dataset import SAMPLES_DIR
 from src.eval.payment_demo import read_payment_labels, select_demo_label_rows
 from src.extractors.eml_parser import EMLParser
 from src.models import EmailObject
 
 
 TOOL_NAME = "analyze_payment_email"
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AGENT_DEMO_DIR = PROJECT_ROOT / "demo_samples" / "agent_payment"
 DEMO_MANIFEST = "manifest.json"
@@ -49,7 +49,10 @@ TOOL_OUTPUT_SCHEMA: dict[str, Any] = {
         "tool": {"type": "string"},
         "schema_version": {"type": "string"},
         "source_file": {"type": "string"},
-        "decision": {"type": "string", "enum": ["SAFE", "VERIFY", "DO_NOT_PAY"]},
+        "decision": {
+            "type": "string",
+            "enum": ["NOT_PAYMENT_SPECIFIC", "SAFE", "VERIFY", "DO_NOT_PAY"],
+        },
         "risk_score": {"type": "number"},
         "confidence": {"type": "number"},
         "summary": {"type": "string"},
@@ -57,6 +60,7 @@ TOOL_OUTPUT_SCHEMA: dict[str, Any] = {
         "signals": {"type": "array"},
         "extracted_payment_fields": {"type": "object"},
         "verification_steps": {"type": "array", "items": {"type": "string"}},
+        "payment_relevance": {"type": "object"},
         "ml_decision": {"type": "object"},
         "email": {"type": "object"},
         "safety": {"type": "object"},
@@ -129,6 +133,8 @@ def _email_metadata(email: EmailObject) -> dict[str, Any]:
 
 
 def _next_action(decision: str) -> str:
+    if decision == "NOT_PAYMENT_SPECIFIC":
+        return "No payment workflow is needed for this email."
     if decision == "DO_NOT_PAY":
         return "Block payment release and complete independent verification."
     if decision == "VERIFY":
@@ -185,7 +191,10 @@ async def analyze_payment_email_file(
     analyzer = PaymentFraudAnalyzer()
     result = await analyzer.analyze(email)
     details = result.details or {}
-    decision = str(details.get("decision") or "SAFE")
+    if result.status == "skipped" and details.get("message") == "not_payment_related":
+        decision = "NOT_PAYMENT_SPECIFIC"
+    else:
+        decision = str(details.get("decision") or "SAFE")
     signals = [
         payload
         for payload in (_signal_payload(signal) for signal in details.get("signals", []))
@@ -204,6 +213,7 @@ async def analyze_payment_email_file(
         "signals": signals,
         "extracted_payment_fields": details.get("extracted_payment_fields") or {},
         "verification_steps": details.get("verification_steps") or [],
+        "payment_relevance": details.get("payment_relevance") or {},
         "ml_decision": _sanitized_ml_decision(details),
         "safety": {
             "body_returned": False,

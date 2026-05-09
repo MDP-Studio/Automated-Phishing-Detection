@@ -402,8 +402,8 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
                     account_id="owner@example.com",
                     raw_bytes=(
                         b"From: vendor@example.com\r\n"
-                        b"Subject: Mailbox scan test\r\n\r\n"
-                        b"Private mailbox body should not be returned."
+                        b"Subject: Invoice INV-100\r\n\r\n"
+                        b"Private mailbox body should not be returned. Payment due AUD $120.00."
                     ),
                     provider_type="imap",
                     metadata={},
@@ -445,7 +445,8 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
     assert response.status_code == 200
     assert response.json()["fetched"] == 1
     assert response.json()["analyzed"] == 1
-    assert response.json()["results"][0]["subject"] == "Mailbox scan test"
+    assert response.json()["skipped_non_payment"] == 0
+    assert response.json()["results"][0]["subject"] == "Invoice INV-100"
     assert response.json()["mailbox"]["credential_saved"] is True
     assert history.json()["results"][0]["email_id"]
     assert FakeIMAPProvider.config_seen.host == "imap.zoho.com"
@@ -453,6 +454,93 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
     assert FakeIMAPProvider.config_seen.user == "owner@example.com"
     assert FakeIMAPProvider.disconnected is True
     assert "Private mailbox body" not in serialized
+    assert "secret app password" not in serialized
+    assert "encrypted_token_ref" not in serialized
+
+
+def test_mailbox_scan_now_skips_clear_non_payment_mail(tmp_path, monkeypatch):
+    monkeypatch.setenv("ACCOUNTS_ENCRYPTION_KEY", "test-mailbox-encryption-key-for-unit-tests")
+
+    from src.ingestion.email_provider import FetchedEmail
+    import src.ingestion.imap_provider as imap_provider_module
+
+    class FakeIMAPProvider:
+        def __init__(self, config):
+            self.config = config
+
+        def authenticate(self):
+            return True
+
+        def fetch_new_emails(self, max_results=20):
+            assert max_results == 2
+            return [
+                FetchedEmail(
+                    provider_id="uid-meeting",
+                    account_id="owner@example.com",
+                    raw_bytes=(
+                        b"From: teammate@example.com\r\n"
+                        b"Subject: Team planning reminder\r\n\r\n"
+                        b"Bring your roadmap notes to tomorrow's meeting."
+                    ),
+                    provider_type="imap",
+                    metadata={},
+                ),
+                FetchedEmail(
+                    provider_id="uid-invoice",
+                    account_id="owner@example.com",
+                    raw_bytes=(
+                        b"From: vendor@example.com\r\n"
+                        b"Subject: Invoice INV-200\r\n\r\n"
+                        b"Amount due AUD $240.00. Please process through normal approval."
+                    ),
+                    provider_type="imap",
+                    metadata={},
+                ),
+            ]
+
+        def disconnect(self):
+            pass
+
+    monkeypatch.setattr(imap_provider_module, "IMAPProvider", FakeIMAPProvider)
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+
+    signup = _signup(client)
+    context = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=context["org_id"], plan_slug="pro")
+    connect = _post_json_with_csrf(
+        client,
+        "/api/saas/mailboxes",
+        {
+            "provider": "imap",
+            "email": "owner@example.com",
+            "host": "imap.example.com",
+            "app_password": "secret app password",
+        },
+    )
+    mailbox_id = connect.json()["mailbox"]["id"]
+
+    response = _post_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{mailbox_id}/scan-now",
+        {"max_results": 2},
+    )
+    payload = response.json()
+    history = client.get("/api/saas/scans")
+    serialized = json.dumps(payload)
+
+    assert response.status_code == 200
+    assert payload["fetched"] == 2
+    assert payload["analyzed"] == 1
+    assert payload["skipped_non_payment"] == 1
+    assert payload["skipped_results"][0]["payment_relevance"]["label"] == "non_payment"
+    assert payload["results"][0]["subject"] == "Invoice INV-200"
+    assert len(history.json()["results"]) == 1
+    assert "Bring your roadmap notes" not in serialized
     assert "secret app password" not in serialized
     assert "encrypted_token_ref" not in serialized
 

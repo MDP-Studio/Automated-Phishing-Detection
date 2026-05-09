@@ -52,6 +52,10 @@ Implemented foundation:
   organization-scoped mailbox records. Connection is Pro+ gated, quota checked,
   CSRF protected, verifies IMAP access before storing, and stores submitted app
   passwords only as encrypted credential bundles.
+- `/api/saas/mailboxes/{mail_account_id}/scan-now` applies a local
+  `payment_relevance` prefilter before deep analysis. Clear non-payment
+  messages are skipped and only counted in the response; payment-related or
+  uncertain messages are analyzed and stored as tenant-scoped scan results.
 - `/trust` documents the customer-facing privacy boundary, analyzer visibility,
   deletion controls, and the separation between normal accounts and private
   admin pages. The route is hostname-aware: PhishAnalyze renders email-analysis

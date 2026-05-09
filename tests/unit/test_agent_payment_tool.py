@@ -41,6 +41,16 @@ def _write_sample(tmp_path: Path, body: str = PAYMENT_REDIRECT_EML) -> Path:
     return path
 
 
+NON_PAYMENT_EML = """From: Team <team@example.com>
+To: finance@example.com
+Subject: Planning notes
+Date: Mon, 27 Apr 2026 10:00:00 +0000
+Message-ID: <planning@example.test>
+
+Please bring your roadmap notes to tomorrow's internal planning meeting.
+"""
+
+
 @pytest.mark.asyncio
 async def test_agent_payment_tool_returns_sanitized_decision(tmp_path, monkeypatch):
     monkeypatch.setenv(
@@ -60,6 +70,20 @@ async def test_agent_payment_tool_returns_sanitized_decision(tmp_path, monkeypat
     assert '"raw_headers":' not in json.dumps(payload)
     assert "model_path" not in payload["ml_decision"]
     assert any(signal["name"] == "bank_detail_change_request" for signal in payload["signals"])
+
+
+@pytest.mark.asyncio
+async def test_agent_payment_tool_reports_non_payment_without_body_leak(tmp_path):
+    sample = _write_sample(tmp_path, NON_PAYMENT_EML)
+
+    payload = await analyze_payment_email_file(sample)
+    serialized = json.dumps(payload)
+
+    assert payload["decision"] == "NOT_PAYMENT_SPECIFIC"
+    assert payload["payment_relevance"]["label"] == "non_payment"
+    assert payload["safety"]["body_returned"] is False
+    assert "roadmap notes" not in serialized
+    assert '"raw_headers":' not in serialized
 
 
 @pytest.mark.asyncio

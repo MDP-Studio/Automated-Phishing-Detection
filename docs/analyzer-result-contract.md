@@ -51,6 +51,11 @@ Supported cost tiers:
 
 Analyzer-specific details:
 
+- `payment_relevance` is a free local PayShield preflight check. Its `details`
+  include `label`, `confidence`, `should_scan`, `summary`, `reasons`,
+  `matched_terms`, `classifier`, and `ml_sidecar`. Clear `non_payment`
+  messages can skip `payment_fraud`; uncertain messages keep `should_scan:
+  true`.
 - `rmm_lure` is a free local PhishAnalyze check. Its `details` include
   `lure_category`, `detected_remote_tool_keywords`,
   `suspicious_download_indicators`, `linked_domains`, `file_names`,

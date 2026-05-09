@@ -2,7 +2,8 @@
 Payment fraud analyzer for invoice scams, supplier impersonation, and BEC.
 
 This analyzer turns the phishing pipeline into a business decision guard:
-SAFE, VERIFY, or DO_NOT_PAY before money leaves the business.
+skip clear non-payment, or return SAFE, VERIFY, or DO_NOT_PAY before money
+leaves the business.
 """
 import logging
 import os
@@ -13,6 +14,7 @@ from html import unescape
 from pathlib import Path
 from typing import Optional
 
+from src.analyzers.payment_relevance import PaymentRelevanceAnalyzer
 from src.extractors.header_analyzer import HeaderAnalyzer
 from src.models import (
     AnalyzerResult,
@@ -303,12 +305,31 @@ class PaymentFraudAnalyzer:
 
         try:
             text = self._combined_text(email)
+            relevance = PaymentRelevanceAnalyzer().classify(email)
             fields = self._extract_payment_fields(text)
             attachments = email.attachments if hasattr(email, "attachments") else []
             invoice_attachments = self._invoice_attachment_names(attachments)
             payment_terms = self._matched_terms(text, self.PAYMENT_TERMS)
 
             payment_context = bool(payment_terms or fields["has_payment_fields"] or invoice_attachments)
+            if not relevance.should_scan:
+                relevance_details = asdict(relevance)
+                relevance_details["label"] = relevance.label.value
+                return AnalyzerResult(
+                    analyzer_name=analyzer_name,
+                    risk_score=0.0,
+                    confidence=0.0,
+                    details={
+                        "message": "not_payment_related",
+                        "summary": relevance.summary,
+                        "payment_relevance": relevance_details,
+                        "signals": [],
+                        "extracted_payment_fields": fields,
+                        "verification_steps": [],
+                    },
+                    status="skipped",
+                    risk_contribution=0.0,
+                )
             header_detail = HeaderAnalyzer().analyze(email)
             from_domain = self._domain_from_email(email.from_address)
             reply_domain = self._domain_from_email(email.reply_to or "")
