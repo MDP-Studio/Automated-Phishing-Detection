@@ -56,14 +56,14 @@ class AgentPromptInjectionAnalyzer:
     ACTION_EXFIL_PATTERNS = (
         r"\bapi[_\s-]?call\b",
         r"\bconfirmation\s+signal\b",
-        r"\b(?:send|forward|email|post|upload)\b.{0,140}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,140}\b(?:to|at)\s+[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
-        r"\b(?:send|forward|email|post|upload)\b.{0,140}\b(?:to|at)\s+[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,140}\b(?:body|content|payload|result|confirmation\s+signal)\b",
-        r"\b(?:send|forward|email|post|upload|deliver|transmit)\b.{0,260}\b(?:e-?mail|message)\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,260}\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
-        r"\b(?:send|forward|email|post|upload|deliver|transmit)\b.{0,260}\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b",
-        r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,260}\b(?:send|forward|email|post|upload|deliver|transmit)\b",
-        r"\b(?:send|forward|email|post|upload|deliver|transmit|issue)\b.{0,320}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b.{0,320}\b(?:body|content|payload|result|message|confirmation\s+signal)\b",
-        r"\b(?:send|forward|email|post|upload|deliver|transmit|issue)\b.{0,320}\b(?:body|content|payload|result|message|confirmation\s+signal)\b.{0,320}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b",
-        r"\b(?:to|recipient)\b.{0,80}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b.{0,180}\b(?:body|content|payload|result|message)\b",
+        r"\b(?:send|forward|upload|deliver|transmit)\b.{0,140}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,140}\b(?:to|at)\s+[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
+        r"\b(?:send|forward|upload|deliver|transmit)\b.{0,140}\b(?:to|at)\s+[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,140}\b(?:body|content|payload|result|confirmation\s+signal)\b",
+        r"\b(?:send|forward|upload|deliver|transmit)\b.{0,260}\b(?:e-?mail|message)\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,260}\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
+        r"\b(?:send|forward|upload|deliver|transmit)\b.{0,260}\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b",
+        r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,260}\b(?:send|forward|upload|deliver|transmit)\b",
+        r"\b(?:send|forward|upload|deliver|transmit|issue)\b.{0,320}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b.{0,320}\b(?:body|content|payload|result|message|confirmation\s+signal)\b",
+        r"\b(?:send|forward|upload|deliver|transmit|issue)\b.{0,320}\b(?:body|content|payload|result|message|confirmation\s+signal)\b.{0,320}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b",
+        r"\b(?:to|recipient)\b.{0,80}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b.{0,180}\b(?:body|content|payload|message)\b",
         r"\b(?:to|recipient)\s+(?:argument|field)\b.{0,160}\b(?:body|content|payload)\s+(?:argument|field)\b",
     )
     SECRET_EXFIL_PATTERNS = (
