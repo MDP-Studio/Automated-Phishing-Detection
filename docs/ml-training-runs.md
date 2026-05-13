@@ -17,10 +17,10 @@ Remote repo:
 /home/meidie/.openclaw/workspace/Automated-Phishing-Detection
 ```
 
-Current deployed code commit for the latest prompt-injection analyzer pass:
+Current deployed code commit for the latest prompt-injection ML pass:
 
 ```text
-cbc018c Tighten prompt injection action matching
+1ae2ffa Persist models in production compose
 ```
 
 Original code commit used for the dataset download and first training pass:
@@ -194,7 +194,9 @@ is an invoice fraud case.
 For PhishAnalyze, prompt-injection emails can be evaluated as suspicious hostile
 input, but the LLM or ML model must not become the sole verdict authority.
 
-Latest LLMail-Inject aggregate check:
+### Rule-Only LLMail Aggregate Check
+
+This was the rule-only pass before the optional ML model was trained.
 
 | Metric | Value |
 | --- | ---: |
@@ -221,3 +223,98 @@ data/prompt_injection_eval/llmail_agent_prompt_injection_summary.json
 ```
 
 The summary intentionally does not store raw prompt-injection email text.
+
+### Shared Prompt-Injection ML Dataset
+
+Path:
+
+```bash
+data/prompt_injection_corpus/prompt_injection_ml.jsonl
+```
+
+This dataset is separate from the PhishAnalyze and PayShield classifiers. It
+uses LLMail attacks as `PROMPT_INJECTION`, LLMail benign FP examples as
+`CLEAN`, and clean Enron/SpamAssassin mail from the full no-oversample corpus
+as `CLEAN`. It does not duplicate rows to balance classes.
+
+Counts:
+
+| Label | Count |
+| --- | ---: |
+| `PROMPT_INJECTION` | 461,640 |
+| `CLEAN` | 130,679 |
+| Total | 592,319 |
+
+Sources:
+
+| Source | Count |
+| --- | ---: |
+| LLMail attacks | 461,640 |
+| Enron ham | 126,326 |
+| SpamAssassin ham | 4,150 |
+| LLMail benign FP | 203 |
+
+### Latest Prompt-Injection ML Training
+
+Path:
+
+```bash
+models/prompt_injection_classifier
+```
+
+Metrics:
+
+| Metric | Value |
+| --- | ---: |
+| Train rows | 473,883 |
+| Validation rows | 59,603 |
+| Test rows | 58,833 |
+| Test accuracy | 0.999 |
+
+Test confusion matrix:
+
+| Expected | Predicted | Count |
+| --- | --- | ---: |
+| `CLEAN` | `CLEAN` | 12,996 |
+| `CLEAN` | `PROMPT_INJECTION` | 9 |
+| `PROMPT_INJECTION` | `CLEAN` | 37 |
+| `PROMPT_INJECTION` | `PROMPT_INJECTION` | 45,791 |
+
+Runtime threshold:
+
+```text
+PROMPT_INJECTION_ML_THRESHOLD=0.90
+```
+
+The threshold was raised from `0.75` after LLMail benign confidence inspection:
+benign FP samples topped out at `0.849`, while `991/1000` seeded attack samples
+were at or above `0.90`.
+
+### Rules Plus ML LLMail Aggregate Check
+
+Output path:
+
+```bash
+data/prompt_injection_eval/llmail_agent_prompt_injection_with_ml_summary.json
+```
+
+| Metric | Value |
+| --- | ---: |
+| Attack pool size | 461,640 |
+| Seeded attack sample | 1,000 |
+| Attack samples detected | 994 |
+| Attack detection rate | 0.994 |
+| Benign FP tests | 203 |
+| Benign FP detections | 0 |
+| ML available on attack sample | 1,000 |
+| ML available on benign FP tests | 203 |
+
+Signal counts in the seeded attack sample:
+
+| Signal | Count |
+| --- | ---: |
+| `ml_prompt_injection_pattern` | 991 |
+| `agent_action_exfiltration_instruction` | 478 |
+| `agent_tool_abuse_instruction` | 44 |
+| `instruction_override_attempt` | 8 |
+| `encoded_agent_instruction` | 5 |
