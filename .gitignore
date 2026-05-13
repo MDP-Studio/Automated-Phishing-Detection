@@ -75,6 +75,7 @@ data/sender_profiles.db
 
 # ===== Account Credentials & Tokens =====
 data/accounts.json
+data/*.backup*
 data/gmail_token.json
 data/outlook_token.json
 data/*_token.json
