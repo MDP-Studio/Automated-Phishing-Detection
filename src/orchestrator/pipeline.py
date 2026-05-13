@@ -384,6 +384,7 @@ class PhishingPipeline:
             "attachment_analysis",
             "nlp_intent",
             "rmm_lure",
+            "agent_prompt_injection",
             "sender_profiling",
             "payment_fraud",
         ]
@@ -1079,6 +1080,35 @@ class PhishingPipeline:
                     "rmm_lure override: remote access lure indicators require review"
                 )
 
+        agent_injection_result = analyzer_results.get("agent_prompt_injection")
+        if agent_injection_result and agent_injection_result.confidence > 0:
+            agent_details = agent_injection_result.details or {}
+            if (
+                agent_injection_result.risk_score >= 0.70
+                and verdict == Verdict.CLEAN
+            ):
+                verdict = Verdict.SUSPICIOUS
+                analyzer_details.append(
+                    "agent_prompt_injection override: AI-agent instruction attack detected"
+                )
+            elif (
+                agent_injection_result.risk_score >= 0.45
+                and verdict == Verdict.CLEAN
+                and agent_details.get("signals")
+            ):
+                verdict = Verdict.SUSPICIOUS
+                analyzer_details.append(
+                    "agent_prompt_injection override: AI-agent instructions require review"
+                )
+            elif (
+                agent_injection_result.risk_score >= 0.45
+                and verdict == Verdict.SUSPICIOUS
+                and agent_details.get("signals")
+            ):
+                analyzer_details.append(
+                    "agent_prompt_injection signal: AI-agent instructions require review"
+                )
+
         # Generate reasoning
         trust_note = ""
         if is_trusted:
@@ -1202,6 +1232,9 @@ class PhishingPipeline:
             elif name == "rmm_lure":
                 from src.analyzers.rmm_lure import RMMLureAnalyzer
                 analyzer = RMMLureAnalyzer()
+            elif name == "agent_prompt_injection":
+                from src.analyzers.agent_prompt_injection import AgentPromptInjectionAnalyzer
+                analyzer = AgentPromptInjectionAnalyzer()
             elif name == "sender_profiling":
                 from src.analyzers.sender_profiling import SenderProfileAnalyzer
                 analyzer = SenderProfileAnalyzer()

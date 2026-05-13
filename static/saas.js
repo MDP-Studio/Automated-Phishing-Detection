@@ -70,6 +70,10 @@
     "This is urgent because the shipment will be delayed if the transfer is not completed today.",
   ].join("\r\n");
   const customerFeatureCopy = {
+    agent_prompt_injection: {
+      name: "AI instruction safety",
+      description: "Flags hidden or direct instructions that try to control AI tools.",
+    },
     payment_rules: {
       name: "Payment scam checks",
       description: "Supplier impersonation, bank-detail changes, urgency, and payment-redirection wording.",
@@ -1062,6 +1066,7 @@ ${element.innerHTML}
 
   function analyzerLabel(name) {
     const labels = {
+      agent_prompt_injection: "AI instruction safety",
       attachment_analysis: "Attachment analysis",
       brand_impersonation: "Brand impersonation",
       domain_intelligence: "Domain intelligence",

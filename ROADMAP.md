@@ -60,6 +60,7 @@ Status is one of:
 | **Public-corpus payment scam miner** - mines Nazario phishing and SpamAssassin spam corpora for invoice/payment/wire/bank/account language, redacts and neutralizes domains/URLs/payment identifiers, and conservatively labels public payment-link/payment-notification samples for `VERIFY` while leaving clean `DO_NOT_PAY` BEC patterns to advisory seeds unless raw corpus evidence is explicit. | `scripts/payment_dataset.py seed-public-corpus`, `src/eval/payment_dataset.py`, `tests/unit/test_payment_dataset.py` |
 | **Payment dataset readiness report** - counts source types, labels, payment decisions, and splits, and warns when non-synthetic coverage is missing for a payment decision. | `scripts/payment_dataset.py readiness`, `src/eval/payment_dataset.py` |
 | **Generic public-corpus ML baseline** - trains a TF-IDF + logistic regression classifier from prepared Nazario/Enron/SpamAssassin corpora and writes ignored model metrics. | `src/ml/phishing_classifier.py`, `scripts/phishing_train.py` |
+| **AI-agent prompt-injection safety check** - free local analyzer detects hidden, encoded, or direct email instructions aimed at AI agents, tools, prompts, secrets, or mailbox/account actions without scoring routine invoice link wording. | `src/analyzers/agent_prompt_injection.py`, `docs/agent-prompt-injection.md`, `docs/ml-datasets.md` |
 | **Payment ML decision sidecar** - payment analyzer reports model prediction, confidence, probabilities, and rules disagreement without letting synthetic-only ML override payment release. | `src/analyzers/payment_fraud.py`, `src/ml/payment_classifier.py` |
 | **Payment demo runner** - compact expected-vs-predicted `SAFE` / `VERIFY` / `DO_NOT_PAY` table for PII-free demo samples. | `src/eval/payment_demo.py`, `scripts/payment_demo.py` |
 | **Synthetic SAFE invoice seed class** - payment dataset generator can add routine invoice examples so `SAFE`, `VERIFY`, and `DO_NOT_PAY` all train and evaluate. | `src/eval/payment_dataset.py` |
@@ -83,7 +84,7 @@ Status is one of:
 | **Channel-normalized phishing scans** - email, SMS, chat, and voice transcripts normalize to the analyzer-compatible message model, with `/api/saas/analyze/channel` and mixed-channel eval summaries that report false negatives by channel. | `src/ingestion/channel_adapter.py`, `src/eval/harness.py`, `main.py`, `scripts/run_eval.py` |
 | **Staged passkey/WebAuthn step-up** - `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor|enforce` gates owner/admin team, mailbox, billing, and passkey deletion mutations with fresh WebAuthn assertions when enforce is active and a passkey exists. | `src/saas/passkeys.py`, `src/saas/database.py`, `main.py`, `static/phish_app.js` |
 | **Signed export integrity manifests** - STIX/Sigma filesystem exports require Ed25519 signed manifests, while stdout inspection remains unsigned. CI validates a signed sample export. | `src/reporting/export_integrity.py`, `scripts/validate_exports.py`, `.github/workflows/ci.yml` |
-| 1287 tests (70 test modules) | unit + integration |
+| 1309 tests (72 test modules) | unit + integration |
 
 ---
 
@@ -114,7 +115,7 @@ When an analyst marks an email CONFIRMED_PHISHING, push the URL/domain/hash IOCs
 
 ## In progress
 
-*(none currently. Last shipped pass was cheaper LLM provider support, Adaptive Pricing, and SaaS billing UI polish.)*
+*(none currently. Last shipped pass was AI-agent prompt-injection safety controls and dataset planning.)*
 
 ---
 

@@ -35,6 +35,7 @@ LEGACY_COST_TIER_MAP = {
 }
 
 ANALYZER_DISPLAY_NAMES = {
+    "agent_prompt_injection": "AI instruction safety",
     "attachment_analysis": "Attachment analysis",
     "attachment_sandbox": "Attachment sandbox",
     "brand_impersonation": "Brand impersonation",

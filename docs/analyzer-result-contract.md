@@ -51,6 +51,10 @@ Supported cost tiers:
 
 Analyzer-specific details:
 
+- `agent_prompt_injection` is a free local AI-agent safety check. Its
+  `details` include `summary`, `signals`, `user_guidance`, and
+  `agent_safety_boundary`. Clean emails return `status: "skipped"` so routine
+  invoice or account-link wording does not vote on the phishing score.
 - `payment_relevance` is a free local PayShield preflight check. Its `details`
   include `label`, `confidence`, `should_scan`, `summary`, `reasons`,
   `matched_terms`, `classifier`, and `ml_sidecar`. Clear `non_payment`

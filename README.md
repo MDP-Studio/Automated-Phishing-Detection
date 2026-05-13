@@ -51,6 +51,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Remote access lure detection for fake document, invoice, HR, tax, crypto,
   Teams/Zoom, Adobe, and SSA-style messages that try to push installer or
   support-tool downloads.
+- AI instruction safety detection for hidden, encoded, or direct email content
+  that attempts to control AI agents, tools, prompts, or secret handling.
 - Normalized analyzer result contract with `success`, `failed`, `timeout`,
   `skipped`, `feature_locked`, `not_configured`, `quota_exceeded`, and `cached`
   statuses.
@@ -126,6 +128,7 @@ Current analyzers include:
 - `attachment_analysis`
 - `nlp_intent`
 - `rmm_lure`
+- `agent_prompt_injection`
 - `sender_profiling`
 - `payment_relevance`
 - `payment_fraud`
@@ -283,7 +286,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1287 tests across 70 test modules
+1309 tests across 72 test modules
 ```
 
 Run all tests:
@@ -302,7 +305,7 @@ The tests cover analyzer normalization, product verdict mapping, SaaS sessions,
 CSRF, tenant isolation, scan deletion, mailbox credential encryption, mailbox
 scan-now behavior, Stripe Checkout/Portal/webhooks, admin aggregate redaction,
 URL detonation SSRF protections, HTML/report escaping, LLM provider wiring, and
-payment-fraud dataset tooling.
+payment-fraud, phishing, and prompt-injection dataset tooling.
 
 ## Evaluation
 
@@ -384,6 +387,8 @@ store credentials, or include API keys. It only opens:
 | [`docs/saas-architecture.md`](docs/saas-architecture.md) | SaaS users, workspaces, plan gates, and Stripe architecture. |
 | [`docs/mailbox-connection-guide.md`](docs/mailbox-connection-guide.md) | Provider mailbox setup guide, direct settings links, and OAuth/admin caveats. |
 | [`docs/payment-fraud-firewall.md`](docs/payment-fraud-firewall.md) | PayShield payment-scam workflow and SME positioning. |
+| [`docs/agent-prompt-injection.md`](docs/agent-prompt-injection.md) | AI-agent prompt-injection boundary and email safety controls. |
+| [`docs/ml-datasets.md`](docs/ml-datasets.md) | ML and evaluation dataset plan for phishing, payment scams, and agent-safety tests. |
 | [`docs/agent-payment-tool.md`](docs/agent-payment-tool.md) | CLI/MCP payment email analysis tool contract. |
 | [`docs/gemini-mcp-demo-kit.md`](docs/gemini-mcp-demo-kit.md) | Gemini MCP recording package. |
 | [`docs/MITRE_ATTACK_MAPPING.md`](docs/MITRE_ATTACK_MAPPING.md) | ATT&CK mapping with explicit gaps. |

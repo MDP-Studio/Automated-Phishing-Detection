@@ -8,6 +8,7 @@ This package contains all analyzer implementations for the phishing detection pi
 - BrandImpersonationAnalyzer: Detect visual brand impersonation
 - NLPIntentAnalyzer: Classify email intent using NLP
 - RMMLureAnalyzer: Detect remote-access installation lures
+- AgentPromptInjectionAnalyzer: Detect prompt injections targeting AI agents
 - SenderProfileAnalyzer: Track and detect sender behavior anomalies
 - AttachmentSandboxAnalyzer: Analyze attachments for malware
 """
@@ -18,6 +19,7 @@ from src.analyzers.url_detonator import URLDetonationAnalyzer
 from src.analyzers.brand_impersonation import BrandImpersonationAnalyzer
 from src.analyzers.nlp_intent import NLPIntentAnalyzer
 from src.analyzers.rmm_lure import RMMLureAnalyzer
+from src.analyzers.agent_prompt_injection import AgentPromptInjectionAnalyzer
 from src.analyzers.sender_profiling import SenderProfileAnalyzer
 from src.analyzers.attachment_sandbox import AttachmentSandboxAnalyzer
 
@@ -28,6 +30,7 @@ __all__ = [
     "BrandImpersonationAnalyzer",
     "NLPIntentAnalyzer",
     "RMMLureAnalyzer",
+    "AgentPromptInjectionAnalyzer",
     "SenderProfileAnalyzer",
     "AttachmentSandboxAnalyzer",
 ]

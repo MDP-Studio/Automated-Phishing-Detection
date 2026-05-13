@@ -25,11 +25,26 @@ The goal is not to claim impressive numbers. The goal is to make the methodology
 | **TREC public mail tracks**     | ~50k emails   | TREC 2007 spam track, ham split                    | Diverse legitimate mail          |
 | **Synthetic legitimate set**    | growing       | `tests/sample_emails/legitimate/` — hand-curated   | Reproducible negative cases      |
 
-### 1.3 Quality caveats
+### 1.3 Prompt-injection and agent-safety corpora
+
+| Corpus                          | Size (approx) | Provenance                                         | Use                              |
+| ------------------------------- | ------------- | -------------------------------------------------- | -------------------------------- |
+| **LLMail-Inject**               | ~462k rows    | Microsoft email-assistant prompt-injection challenge | Email-specific agent attack tests |
+| **AgentDojo / AgentDojo-Inspect** | varies      | Agent tool-boundary benchmark and NIST dataset entry | Tool-boundary and action-refusal tests |
+| **Lakera prompt-injection collections** | varies | Public prompt-injection and jailbreak datasets     | Extra adversarial text, kept separate from email-specific tests |
+
+These should start as eval fixtures for `agent_prompt_injection`, not as a
+single broad classifier. Train later only when false positives and false
+negatives show what the rules cannot cover.
+
+### 1.4 Quality caveats
 
 - **Nazario is biased toward older phishing.** Brand impersonation patterns from 2008 don't reflect 2024 attack tradecraft. Treat as a *recall floor*, not a tradecraft sample.
 - **Enron is biased toward American corporate English.** Legitimate transactional mail in other languages and formats is underrepresented; expect higher false positive rates on multilingual inboxes than Enron suggests.
 - **PhishTank URLs are post-hoc labeled.** Many were dead by the time of labeling. Run URL-layer evaluation against historical reputation data, not live API calls.
+- **Prompt-injection corpora are not normal email corpora.** Keep LLMail-Inject
+  and AgentDojo-style rows in a separate lane so they do not distort phishing,
+  ham, or payment-scam metrics.
 
 ---
 

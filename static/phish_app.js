@@ -79,6 +79,10 @@
     },
   };
   const phishFeatureCopy = {
+    agent_prompt_injection: {
+      name: "AI instruction safety",
+      description: "Flags hidden or direct instructions that try to control AI tools.",
+    },
     payment_rules: {
       name: "Business email compromise signals",
       description: "Urgency, impersonation, and social-engineering wording checks.",
@@ -1134,6 +1138,7 @@ ${element.innerHTML}
 
   function analyzerLabel(name) {
     const labels = {
+      agent_prompt_injection: "AI instruction safety",
       attachment_analysis: "Attachment analysis",
       attachment_sandbox: "Attachment safety check",
       brand_impersonation: "Brand impersonation",
