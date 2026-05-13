@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import itertools
 import json
 import random
 import re
@@ -182,9 +183,9 @@ def _clean_corpus_rows(clean_corpus_dir: Path, max_text_chars: int) -> Iterator[
             }
 
 
-def _limited_rows(rows: Iterator[dict], limit: Optional[int], seed: int, source_name: str) -> list[dict]:
+def _limited_rows(rows: Iterator[dict], limit: Optional[int], seed: int, source_name: str) -> Iterator[dict]:
     if limit is None or limit <= 0:
-        return list(rows)
+        return rows
     rng = random.Random(f"{seed}:{source_name}")
     sample: list[dict] = []
     seen = 0
@@ -196,7 +197,7 @@ def _limited_rows(rows: Iterator[dict], limit: Optional[int], seed: int, source_
         replace_at = rng.randrange(seen)
         if replace_at < limit:
             sample[replace_at] = row
-    return sample
+    return iter(sample)
 
 
 def prepare_prompt_injection_dataset(
@@ -234,21 +235,15 @@ def prepare_prompt_injection_dataset(
         seed,
         "clean_corpus",
     )
-    llmail_clean_rows = list(_llmail_benign_rows(llmail_dir, max_text_chars))
-    all_rows = attack_rows + clean_rows + llmail_clean_rows
-    if not attack_rows:
-        warnings.append("no LLMail attack rows were written")
-    if not clean_rows:
-        warnings.append("no Enron/SpamAssassin clean rows were written")
-    if not llmail_clean_rows:
-        warnings.append("no LLMail benign false-positive rows were written")
+    llmail_clean_rows = _llmail_benign_rows(llmail_dir, max_text_chars)
 
     by_label: Counter[str] = Counter()
     by_source: Counter[str] = Counter()
     by_split: Counter[str] = Counter()
+    row_count = 0
 
     with output_path.open("w", encoding="utf-8", newline="\n") as fh:
-        for row in all_rows:
+        for row in itertools.chain(attack_rows, clean_rows, llmail_clean_rows):
             row = dict(row)
             row["split"] = _stable_split(row["id"], seed)
             if row["label"] not in ALLOWED_LABELS:
@@ -256,7 +251,19 @@ def prepare_prompt_injection_dataset(
             by_label[row["label"]] += 1
             by_source[row["source"]] += 1
             by_split[row["split"]] += 1
+            row_count += 1
             fh.write(json.dumps(row, sort_keys=True) + "\n")
+
+    if by_source.get("llmail_attack", 0) == 0:
+        warnings.append("no LLMail attack rows were written")
+    if sum(
+        count
+        for source, count in by_source.items()
+        if source in {"enron_ham", "spamassassin_ham"}
+    ) == 0:
+        warnings.append("no Enron/SpamAssassin clean rows were written")
+    if by_source.get("llmail_benign_fp", 0) == 0:
+        warnings.append("no LLMail benign false-positive rows were written")
 
     summary_path = output_path.with_suffix(".summary.json")
     summary = PromptInjectionDatasetSummary(
@@ -264,7 +271,7 @@ def prepare_prompt_injection_dataset(
         summary_path=summary_path,
         llmail_dir=llmail_dir,
         clean_corpus_dir=clean_corpus_dir,
-        row_count=len(all_rows),
+        row_count=row_count,
         by_label=dict(sorted(by_label.items())),
         by_source=dict(sorted(by_source.items())),
         by_split=dict(sorted(by_split.items())),
