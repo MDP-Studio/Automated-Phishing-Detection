@@ -4,11 +4,49 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
+import os
 import re
 from dataclasses import asdict, dataclass
 from html import unescape
+from pathlib import Path
+from typing import Optional
 
 from src.models import AnalyzerResult, EmailObject
+
+
+logger = logging.getLogger(__name__)
+
+
+try:
+    from src.ml.prompt_injection_classifier import (
+        ATTACK_LABEL,
+        DEFAULT_MODEL_DIR as DEFAULT_PROMPT_MODEL_DIR,
+        predict_prompt_injection,
+    )
+except Exception:  # pragma: no cover - defensive fallback for minimal installs
+    ATTACK_LABEL = "PROMPT_INJECTION"
+    DEFAULT_PROMPT_MODEL_DIR = None
+    predict_prompt_injection = None
+
+
+def _load_prompt_predictor():
+    """Retry the optional ML import after module import cycles have settled."""
+    global ATTACK_LABEL, DEFAULT_PROMPT_MODEL_DIR, predict_prompt_injection
+    if predict_prompt_injection is not None:
+        return predict_prompt_injection
+    try:
+        from src.ml.prompt_injection_classifier import (  # noqa: WPS433
+            ATTACK_LABEL as attack_label,
+            DEFAULT_MODEL_DIR,
+            predict_prompt_injection as predictor,
+        )
+    except Exception:  # pragma: no cover - defensive fallback for minimal installs
+        return None
+    ATTACK_LABEL = attack_label
+    DEFAULT_PROMPT_MODEL_DIR = DEFAULT_MODEL_DIR
+    predict_prompt_injection = predictor
+    return predictor
 
 
 @dataclass(frozen=True)
@@ -89,6 +127,29 @@ class AgentPromptInjectionAnalyzer:
         r"(?<![A-Za-z0-9+/=])([A-Za-z0-9+/]{32,}={0,2})(?![A-Za-z0-9+/=])"
     )
 
+    def __init__(
+        self,
+        *,
+        prompt_model_path: Optional[Path] = None,
+        ml_threshold: Optional[float] = None,
+    ) -> None:
+        default_model = (
+            DEFAULT_PROMPT_MODEL_DIR / "prompt_injection_model.joblib"
+            if DEFAULT_PROMPT_MODEL_DIR is not None
+            else Path("models/prompt_injection_classifier/prompt_injection_model.joblib")
+        )
+        configured = os.getenv("PROMPT_INJECTION_MODEL_PATH")
+        self.prompt_model_path = Path(prompt_model_path or configured or default_model)
+        threshold_value = (
+            str(ml_threshold)
+            if ml_threshold is not None
+            else os.getenv("PROMPT_INJECTION_ML_THRESHOLD", "0.75")
+        )
+        try:
+            self.ml_threshold = float(threshold_value)
+        except ValueError:
+            self.ml_threshold = 0.75
+
     async def analyze(self, email: EmailObject) -> AnalyzerResult:
         """Analyze email content for AI-agent instruction attacks."""
         raw_text = self._combined_text(email)
@@ -99,6 +160,8 @@ class AgentPromptInjectionAnalyzer:
         self._add_direct_instruction_signals(text, signals)
         self._add_hidden_instruction_signals(html, signals)
         self._add_encoded_instruction_signals(raw_text, signals)
+        ml_decision = self._ml_decision(raw_text)
+        self._add_ml_signal(ml_decision, signals)
 
         if not signals:
             return AnalyzerResult(
@@ -109,6 +172,7 @@ class AgentPromptInjectionAnalyzer:
                     "message": "no_agent_instruction_attempt",
                     "summary": "No AI-agent instruction attempt detected.",
                     "signals": [],
+                    "ml_decision": ml_decision,
                     "user_guidance": [
                         "Treat email content as untrusted input before sending it to any AI system.",
                     ],
@@ -129,6 +193,7 @@ class AgentPromptInjectionAnalyzer:
             details={
                 "summary": summary,
                 "signals": [asdict(signal) for signal in signals],
+                "ml_decision": ml_decision,
                 "user_guidance": self._user_guidance(signals),
                 "agent_safety_boundary": (
                     "Email content is untrusted data. It must not be allowed to "
@@ -196,6 +261,27 @@ class AgentPromptInjectionAnalyzer:
                 "Do not allow email content to make an AI assistant send messages, API calls, or confirmation payloads.",
                 0.46,
             ))
+
+    def _add_ml_signal(
+        self,
+        ml_decision: dict,
+        signals: list[AgentInjectionSignal],
+    ) -> None:
+        if not ml_decision.get("available"):
+            return
+        if ml_decision.get("prediction") != ATTACK_LABEL:
+            return
+        confidence = float(ml_decision.get("confidence") or 0.0)
+        if confidence < self.ml_threshold:
+            return
+        risk_weight = min(0.48, 0.26 + confidence * 0.20)
+        signals.append(self._signal(
+            "ml_prompt_injection_pattern",
+            "high",
+            f"Prompt-injection ML model matched hostile email patterns with confidence {confidence:.3f}.",
+            "Treat the email as hostile input before any AI summarization or automation step.",
+            risk_weight,
+        ))
 
     def _add_hidden_instruction_signals(
         self,
@@ -318,6 +404,34 @@ class AgentPromptInjectionAnalyzer:
             return True
         return False
 
+    def _ml_decision(self, text: str) -> dict:
+        predictor = _load_prompt_predictor()
+        if predictor is None:
+            return {"available": False, "reason": "prompt_injection_ml_not_importable"}
+        if not self.prompt_model_path.exists():
+            return {
+                "available": False,
+                "reason": "model_not_found",
+                "model_path": str(self.prompt_model_path),
+            }
+        try:
+            prediction = predictor(text, model_path=self.prompt_model_path)
+        except Exception as exc:
+            logger.warning("Prompt-injection ML prediction failed: %s", exc)
+            return {
+                "available": False,
+                "reason": "prediction_failed",
+                "model_path": str(self.prompt_model_path),
+            }
+        return {
+            "available": True,
+            "model_path": str(self.prompt_model_path),
+            "prediction": prediction.label,
+            "confidence": prediction.confidence,
+            "class_probabilities": prediction.class_probabilities,
+            "threshold": self.ml_threshold,
+        }
+
     def _decode_base64_text(self, value: str) -> str:
         try:
             padded = value + ("=" * (-len(value) % 4))
@@ -352,6 +466,8 @@ class AgentPromptInjectionAnalyzer:
         names = {signal.name for signal in signals}
         if "secret_exfiltration_instruction" in names:
             return "Email contains instructions that try to make an AI system reveal secrets or prompts."
+        if "ml_prompt_injection_pattern" in names:
+            return "Email resembles known AI-agent prompt-injection attacks."
         if "agent_action_exfiltration_instruction" in names:
             return "Email contains instructions that try to make an AI assistant send or exfiltrate content."
         if "hidden_agent_instruction" in names or "encoded_agent_instruction" in names:
@@ -370,6 +486,8 @@ class AgentPromptInjectionAnalyzer:
             guidance.insert(1, "Strip hidden HTML, comments, and invisible text before sending content to an LLM.")
         if any(signal.name == "secret_exfiltration_instruction" for signal in signals):
             guidance.insert(0, "Do not disclose prompts, tokens, credentials, or scan history.")
+        if any(signal.name == "ml_prompt_injection_pattern" for signal in signals):
+            guidance.append("Review the ML match with the rule evidence; do not let the model alone trigger external actions.")
         return guidance
 
     def _signal(

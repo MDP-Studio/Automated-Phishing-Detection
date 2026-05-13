@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import base64
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
+import src.analyzers.agent_prompt_injection as agent_prompt_module
 from src.analyzers.agent_prompt_injection import AgentPromptInjectionAnalyzer
 from src.analyzers.result_contract import normalize_analyzer_result
 from src.config import PipelineConfig
@@ -184,6 +186,32 @@ async def test_agent_prompt_injection_detects_encoded_instruction():
         signal["name"] == "encoded_agent_instruction"
         for signal in result.details["signals"]
     )
+
+
+@pytest.mark.asyncio
+async def test_agent_prompt_injection_uses_optional_ml_signal(monkeypatch, tmp_path):
+    model_path = tmp_path / "prompt_injection_model.joblib"
+    model_path.write_text("placeholder", encoding="utf-8")
+
+    def fake_predictor(text, *, model_path):
+        return SimpleNamespace(
+            label="PROMPT_INJECTION",
+            confidence=0.91,
+            class_probabilities={"CLEAN": 0.09, "PROMPT_INJECTION": 0.91},
+        )
+
+    monkeypatch.setattr(agent_prompt_module, "predict_prompt_injection", fake_predictor)
+    monkeypatch.setattr(agent_prompt_module, "ATTACK_LABEL", "PROMPT_INJECTION")
+
+    result = await AgentPromptInjectionAnalyzer(
+        prompt_model_path=model_path,
+        ml_threshold=0.80,
+    ).analyze(_email(body="Quiet message with no direct rule trigger."))
+
+    assert result.status == "success"
+    assert result.details["ml_decision"]["available"] is True
+    signal_names = {signal["name"] for signal in result.details["signals"]}
+    assert "ml_prompt_injection_pattern" in signal_names
 
 
 @pytest.mark.asyncio

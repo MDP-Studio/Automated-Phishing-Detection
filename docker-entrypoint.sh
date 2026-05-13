@@ -2,7 +2,7 @@
 #
 # Docker entrypoint for the phishing-detection orchestrator.
 #
-# Runs as root for one job: chown the bind-mounted data and log
+# Runs as root for one job: chown the bind-mounted data, log, and model
 # directories to the runtime UID so the non-root `phishing` user can
 # write to them. On Linux hosts, bind mounts inherit the host UID/GID
 # of the source path (typically root or the host user, NEITHER of which
@@ -29,15 +29,15 @@ APP_USER="phishing"
 
 # Ensure the directories exist (idempotent) — bind mounts may have been
 # created empty, or may not exist at all on the first run.
-mkdir -p /app/data /app/logs
+mkdir -p /app/data /app/logs /app/models
 
 if [ "${ENTRYPOINT_SKIP_CHOWN:-0}" = "0" ]; then
     # Only chown if we are actually root. If the caller already runs the
     # container as a non-root user (e.g. `docker run --user`), we cannot
     # chown anyway and trying would emit confusing error messages.
     if [ "$(id -u)" = "0" ]; then
-        chown -R "${APP_UID}:${APP_GID}" /app/data /app/logs 2>/dev/null || {
-            echo "[entrypoint] WARNING: could not chown /app/data or /app/logs." >&2
+        chown -R "${APP_UID}:${APP_GID}" /app/data /app/logs /app/models 2>/dev/null || {
+            echo "[entrypoint] WARNING: could not chown /app/data, /app/logs, or /app/models." >&2
             echo "[entrypoint] If you see permission errors writing results.jsonl," >&2
             echo "[entrypoint] manually chown the host bind-mount source directories" >&2
             echo "[entrypoint] to UID ${APP_UID} or set ENTRYPOINT_SKIP_CHOWN=1." >&2

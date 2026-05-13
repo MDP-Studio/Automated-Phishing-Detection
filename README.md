@@ -53,6 +53,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   support-tool downloads.
 - AI instruction safety detection for hidden, encoded, or direct email content
   that attempts to control AI agents, tools, prompts, or secret handling.
+- Optional local prompt-injection ML model trained as a shared hostile-input
+  lane using LLMail attacks plus clean Enron/SpamAssassin mail.
 - Normalized analyzer result contract with `success`, `failed`, `timeout`,
   `skipped`, `feature_locked`, `not_configured`, `quota_exceeded`, and `cached`
   statuses.
@@ -182,6 +184,8 @@ SAAS_DB_PATH=data/saas.db
 SAAS_PUBLIC_SIGNUP_ENABLED=true
 ACCOUNTS_ENCRYPTION_KEY=
 PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor
+PROMPT_INJECTION_MODEL_PATH=models/prompt_injection_classifier/prompt_injection_model.joblib
+PROMPT_INJECTION_ML_THRESHOLD=0.75
 PHISHANALYZE_PUBLIC_URL=https://phishanalyze.mdpstudio.com.au
 PAYSHIELD_PUBLIC_URL=https://payshield.mdpstudio.com.au
 ```

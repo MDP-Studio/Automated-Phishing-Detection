@@ -40,6 +40,7 @@ models/**/*.joblib
 models/**/*.h5
 models/payment_classifier/
 models/phishing_classifier/
+models/prompt_injection_classifier/
 
 # ===== Runtime Artifacts =====
 *.log
@@ -62,6 +63,8 @@ data/corpora/
 data/eval_corpus*/
 data/ml_corpus*/
 data/payment_scam_dataset*/
+data/prompt_injection_corpus*/
+data/prompt_injection_eval/
 
 # ===== Runtime Data =====
 data/results.jsonl

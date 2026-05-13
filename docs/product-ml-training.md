@@ -63,6 +63,7 @@ Model artifacts:
 models/phishing_classifier
 models/phishanalyze_classifier_full_no_oversample
 models/payment_classifier
+models/prompt_injection_classifier
 ```
 
 These folders are intentionally ignored by Git.
@@ -139,3 +140,32 @@ Current product decision:
   fires
 - do not relabel generic prompt-injection samples as PayShield invoice fraud
   unless the email is actually payment-specific
+
+Prepare the shared ML dataset. This uses LLMail attacks as
+`PROMPT_INJECTION`, LLMail benign FP examples as `CLEAN`, and clean
+Enron/SpamAssassin mail from the full no-oversample PhishAnalyze corpus as
+`CLEAN`.
+
+```bash
+docker exec phishing-orchestrator python scripts/prompt_injection_dataset.py \
+  --llmail-dir /app/data/corpora/huggingface/microsoft__llmail-inject-challenge/data \
+  --clean-corpus-dir /app/data/eval_corpus_full_no_oversample \
+  --output /app/data/prompt_injection_corpus/prompt_injection_ml.jsonl
+```
+
+Train the shared prompt-injection classifier:
+
+```bash
+docker exec phishing-orchestrator python scripts/prompt_injection_train.py \
+  --dataset /app/data/prompt_injection_corpus/prompt_injection_ml.jsonl \
+  --output-dir /app/models/prompt_injection_classifier
+```
+
+Runtime use:
+
+- `agent_prompt_injection` still works without the model.
+- When `models/prompt_injection_classifier/prompt_injection_model.joblib`
+  exists, the analyzer uses it as an extra signal behind
+  `PROMPT_INJECTION_ML_THRESHOLD`.
+- The ML signal can explain hostile-input similarity, but it must not execute
+  tools or become the only final verdict authority.

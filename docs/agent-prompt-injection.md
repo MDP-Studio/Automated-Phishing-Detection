@@ -9,6 +9,13 @@ email content automatically.
 `agent_prompt_injection` is a free local analyzer. It does not call external
 APIs and it does not decide the phishing verdict by itself.
 
+It has two layers:
+
+- deterministic rules for obvious override, exfiltration, hidden HTML, encoded,
+  and email-assistant action attempts
+- an optional local ML model at
+  `models/prompt_injection_classifier/prompt_injection_model.joblib`
+
 It flags:
 
 - direct attempts to override scanner or assistant instructions
@@ -28,6 +35,11 @@ It flags:
 Clean emails return `skipped` so the analyzer does not dilute normal scoring.
 Detected attacks appear in the standard result contract as `AI instruction
 safety`.
+
+If the optional model is missing, the analyzer records `model_not_found` in
+`ml_decision` and continues with rules only. If the model is present, it can add
+`ml_prompt_injection_pattern` when the prediction is over
+`PROMPT_INJECTION_ML_THRESHOLD`.
 
 Routine user-facing text such as "open this link to view your invoice" is not
 enough by itself. The analyzer looks for agent, LLM, tool, hidden-instruction,
