@@ -389,6 +389,8 @@ store credentials, or include API keys. It only opens:
 | [`docs/payment-fraud-firewall.md`](docs/payment-fraud-firewall.md) | PayShield payment-scam workflow and SME positioning. |
 | [`docs/agent-prompt-injection.md`](docs/agent-prompt-injection.md) | AI-agent prompt-injection boundary and email safety controls. |
 | [`docs/ml-datasets.md`](docs/ml-datasets.md) | ML and evaluation dataset plan for phishing, payment scams, and agent-safety tests. |
+| [`docs/product-ml-training.md`](docs/product-ml-training.md) | Separate PhishAnalyze, PayShield, and prompt-injection training/eval lanes. |
+| [`docs/ml-training-runs.md`](docs/ml-training-runs.md) | Remote raw-corpus, prepared-corpus, and model-artifact run log. |
 | [`docs/agent-payment-tool.md`](docs/agent-payment-tool.md) | CLI/MCP payment email analysis tool contract. |
 | [`docs/gemini-mcp-demo-kit.md`](docs/gemini-mcp-demo-kit.md) | Gemini MCP recording package. |
 | [`docs/MITRE_ATTACK_MAPPING.md`](docs/MITRE_ATTACK_MAPPING.md) | ATT&CK mapping with explicit gaps. |

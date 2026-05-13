@@ -101,3 +101,38 @@ def test_load_phishing_ml_records_requires_valid_labels(tmp_path: Path):
 
     with pytest.raises(ValueError, match="label must be one of"):
         load_phishing_ml_records(corpus)
+
+
+def test_load_phishing_ml_records_tolerates_malformed_address_group(tmp_path: Path):
+    corpus = tmp_path / "eval_corpus"
+    corpus.mkdir(parents=True)
+    sample = corpus / "malformed_group.eml"
+    sample.write_bytes(
+        b"From: Broken Group:;\r\n"
+        b"To: analyst@example.com\r\n"
+        b"Subject: Odd but readable\r\n"
+        b"\r\n"
+        b"Please review the attached notes.\r\n"
+    )
+    with (corpus / "labels.csv").open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=["filename", "label", "source_corpus", "source_path", "sha256", "size_bytes"],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "filename": sample.name,
+                "label": "CLEAN",
+                "source_corpus": "unit_clean",
+                "source_path": sample.name,
+                "sha256": "sample",
+                "size_bytes": str(sample.stat().st_size),
+            }
+        )
+
+    records = load_phishing_ml_records(corpus)
+
+    assert records[0].label == "CLEAN"
+    assert "Subject: Odd but readable" in records[0].text
+    assert "Body:" in records[0].text

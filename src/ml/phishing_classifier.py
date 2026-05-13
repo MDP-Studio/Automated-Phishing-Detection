@@ -13,6 +13,7 @@ import random
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from email import policy
+from email.message import Message
 from email.parser import BytesParser
 from pathlib import Path
 from typing import Optional
@@ -57,11 +58,29 @@ class PhishingMLMetrics:
     by_split: dict[str, int]
 
 
+def _safe_header_value(message: Message, header: str) -> str:
+    try:
+        value = message.get(header)
+        if value:
+            return str(value)
+    except Exception:
+        pass
+    try:
+        values = [
+            str(value)
+            for key, value in message.raw_items()
+            if key.lower() == header.lower()
+        ]
+    except Exception:
+        values = []
+    return ", ".join(values)
+
+
 def _email_text_for_ml(sample_path: Path) -> str:
     message = BytesParser(policy=policy.default).parsebytes(sample_path.read_bytes())
     sections: list[str] = []
     for header in ("Subject", "From", "Reply-To", "To"):
-        value = message.get(header)
+        value = _safe_header_value(message, header)
         if value:
             sections.append(f"{header}: {value}")
 
