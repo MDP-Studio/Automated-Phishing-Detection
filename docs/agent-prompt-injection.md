@@ -16,9 +16,14 @@ It flags:
   credentials
 - instructions aimed at an AI agent or automation tool to call tools, open
   links, use a browser, delete history, change settings, or send scan contents
+- email-assistant exfiltration attempts that ask the reader or automation to
+  send a message, API call, result, payload, or confirmation signal to an
+  outside address
 - hidden HTML instructions in comments, invisible spans, hidden style blocks, or
   similar concealment patterns
 - base64-encoded instructions that decode into agent-targeting text
+- simple padded-word obfuscation seen in LLMail-style samples, such as filler
+  words inserted between action terms
 
 Clean emails return `skipped` so the analyzer does not dilute normal scoring.
 Detected attacks appear in the standard result contract as `AI instruction
@@ -26,7 +31,10 @@ safety`.
 
 Routine user-facing text such as "open this link to view your invoice" is not
 enough by itself. The analyzer looks for agent, LLM, tool, hidden-instruction,
-override, or secret-disclosure context before reporting a signal.
+override, secret-disclosure, or structured exfiltration context before
+reporting a signal. Normal invoice wording such as "email us with questions" or
+"send payment confirmation" should stay skipped unless it also contains
+automation/action-payload indicators.
 
 ## Runtime Boundary
 

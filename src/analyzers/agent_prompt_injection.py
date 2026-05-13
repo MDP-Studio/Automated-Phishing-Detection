@@ -53,6 +53,19 @@ class AgentPromptInjectionAnalyzer:
         r"\b(?:delete|modify|change|update)\s+(?:the\s+)?(?:account|settings|billing|mailbox|history|scan)\b",
         r"\b(?:send|forward|email|post|upload)\s+(?:the\s+)?(?:result|contents|conversation|secrets?|tokens?)\b",
     )
+    ACTION_EXFIL_PATTERNS = (
+        r"\bapi[_\s-]?call\b",
+        r"\bconfirmation\s+signal\b",
+        r"\b(?:send|forward|email|post|upload)\b.{0,140}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,140}\b(?:to|at)\s+[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
+        r"\b(?:send|forward|email|post|upload)\b.{0,140}\b(?:to|at)\s+[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,140}\b(?:body|content|payload|result|confirmation\s+signal)\b",
+        r"\b(?:send|forward|email|post|upload|deliver|transmit)\b.{0,260}\b(?:e-?mail|message)\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,260}\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
+        r"\b(?:send|forward|email|post|upload|deliver|transmit)\b.{0,260}\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b",
+        r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b.{0,260}\b(?:body|content|payload|result|confirmation\s+signal)\b.{0,260}\b(?:send|forward|email|post|upload|deliver|transmit)\b",
+        r"\b(?:send|forward|email|post|upload|deliver|transmit|issue)\b.{0,320}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b.{0,320}\b(?:body|content|payload|result|message|confirmation\s+signal)\b",
+        r"\b(?:send|forward|email|post|upload|deliver|transmit|issue)\b.{0,320}\b(?:body|content|payload|result|message|confirmation\s+signal)\b.{0,320}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b",
+        r"\b(?:to|recipient)\b.{0,80}\b[a-z0-9._%+-]+\s*@\s*[a-z0-9.-]+\s*\.\s*[a-z]{2,}\b.{0,180}\b(?:body|content|payload|result|message)\b",
+        r"\b(?:to|recipient)\s+(?:argument|field)\b.{0,160}\b(?:body|content|payload)\s+(?:argument|field)\b",
+    )
     SECRET_EXFIL_PATTERNS = (
         r"\breveal\s+(?:the\s+)?(?:system\s+prompt|developer\s+message|instructions|secrets?|api\s+keys?|tokens?)\b",
         r"\bprint\s+(?:the\s+)?(?:system\s+prompt|developer\s+message|secrets?|api\s+keys?|tokens?)\b",
@@ -142,10 +155,12 @@ class AgentPromptInjectionAnalyzer:
         text: str,
         signals: list[AgentInjectionSignal],
     ) -> None:
-        agent_context = self._matched_terms(text, self.AGENT_TERMS)
-        overrides = self._matched_patterns(text, self.OVERRIDE_PATTERNS)
-        tool_abuse = self._matched_patterns(text, self.TOOL_ABUSE_PATTERNS)
-        exfil = self._matched_patterns(text, self.SECRET_EXFIL_PATTERNS)
+        variants = self._analysis_text_variants(text)
+        agent_context = self._matched_terms_in_variants(variants, self.AGENT_TERMS)
+        overrides = self._matched_patterns_in_variants(variants, self.OVERRIDE_PATTERNS)
+        tool_abuse = self._matched_patterns_in_variants(variants, self.TOOL_ABUSE_PATTERNS)
+        action_exfil = self._matched_patterns_in_variants(variants, self.ACTION_EXFIL_PATTERNS)
+        exfil = self._matched_patterns_in_variants(variants, self.SECRET_EXFIL_PATTERNS)
 
         if overrides:
             signals.append(self._signal(
@@ -170,6 +185,17 @@ class AgentPromptInjectionAnalyzer:
                 f"Tool or account action instruction aimed at an agent: {tool_abuse[0]}",
                 "Do not allow email text to trigger browser, API, mailbox, billing, or deletion actions.",
                 0.32,
+            ))
+        if action_exfil and (
+            agent_context
+            or any(self._is_standalone_action_exfil(match) for match in action_exfil)
+        ):
+            signals.append(self._signal(
+                "agent_action_exfiltration_instruction",
+                "high",
+                f"Email-like action instruction found: {action_exfil[0]}",
+                "Do not allow email content to make an AI assistant send messages, API calls, or confirmation payloads.",
+                0.46,
             ))
 
     def _add_hidden_instruction_signals(
@@ -238,14 +264,24 @@ class AgentPromptInjectionAnalyzer:
 
     def _looks_like_agent_instruction(self, value: str) -> bool:
         text = unescape(re.sub(r"<[^>]+>", " ", value or "")).lower()
-        has_agent_term = bool(self._matched_terms(text, self.AGENT_TERMS))
-        has_override = bool(self._matched_patterns(text, self.OVERRIDE_PATTERNS))
-        has_tool_abuse = bool(self._matched_patterns(text, self.TOOL_ABUSE_PATTERNS))
-        has_exfil = bool(self._matched_patterns(text, self.SECRET_EXFIL_PATTERNS))
-        return has_exfil or has_override or (has_agent_term and has_tool_abuse)
+        variants = self._analysis_text_variants(text)
+        has_agent_term = bool(self._matched_terms_in_variants(variants, self.AGENT_TERMS))
+        has_override = bool(self._matched_patterns_in_variants(variants, self.OVERRIDE_PATTERNS))
+        has_tool_abuse = bool(self._matched_patterns_in_variants(variants, self.TOOL_ABUSE_PATTERNS))
+        has_action_exfil = bool(self._matched_patterns_in_variants(variants, self.ACTION_EXFIL_PATTERNS))
+        has_exfil = bool(self._matched_patterns_in_variants(variants, self.SECRET_EXFIL_PATTERNS))
+        return has_exfil or has_override or has_action_exfil or (has_agent_term and has_tool_abuse)
 
     def _matched_terms(self, text: str, terms: tuple[str, ...]) -> list[str]:
         return [term for term in terms if term in text]
+
+    def _matched_terms_in_variants(self, variants: list[str], terms: tuple[str, ...]) -> list[str]:
+        matches: list[str] = []
+        for variant in variants:
+            for term in self._matched_terms(variant, terms):
+                if term not in matches:
+                    matches.append(term)
+        return matches
 
     def _matched_patterns(self, text: str, patterns: tuple[str, ...]) -> list[str]:
         matches = []
@@ -254,6 +290,34 @@ class AgentPromptInjectionAnalyzer:
             if match:
                 matches.append(self._trim(match.group(0)))
         return matches
+
+    def _matched_patterns_in_variants(self, variants: list[str], patterns: tuple[str, ...]) -> list[str]:
+        matches: list[str] = []
+        for variant in variants:
+            for match in self._matched_patterns(variant, patterns):
+                if match not in matches:
+                    matches.append(match)
+        return matches
+
+    def _analysis_text_variants(self, text: str) -> list[str]:
+        variants = [text]
+        if len(re.findall(r"\byes\b", text)) >= 8:
+            cleaned = re.sub(r"\byes\b\s*", "", text)
+            cleaned = re.sub(r"\s+", " ", cleaned).strip()
+            if cleaned and cleaned != text:
+                variants.append(cleaned)
+        return variants
+
+    def _is_standalone_action_exfil(self, match_text: str) -> bool:
+        text = match_text.lower()
+        if "api" in text or "confirmation signal" in text:
+            return True
+        if "@" in text and any(
+            token in text
+            for token in ("body", "content", "payload", "result", "message")
+        ):
+            return True
+        return False
 
     def _decode_base64_text(self, value: str) -> str:
         try:
@@ -289,6 +353,8 @@ class AgentPromptInjectionAnalyzer:
         names = {signal.name for signal in signals}
         if "secret_exfiltration_instruction" in names:
             return "Email contains instructions that try to make an AI system reveal secrets or prompts."
+        if "agent_action_exfiltration_instruction" in names:
+            return "Email contains instructions that try to make an AI assistant send or exfiltrate content."
         if "hidden_agent_instruction" in names or "encoded_agent_instruction" in names:
             return "Email contains concealed instructions aimed at AI or automation tools."
         if risk_score >= 0.45:
