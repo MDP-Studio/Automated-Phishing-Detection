@@ -185,7 +185,7 @@ SAAS_PUBLIC_SIGNUP_ENABLED=true
 ACCOUNTS_ENCRYPTION_KEY=
 PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor
 PROMPT_INJECTION_MODEL_PATH=models/prompt_injection_classifier/prompt_injection_model.joblib
-PROMPT_INJECTION_ML_THRESHOLD=0.75
+PROMPT_INJECTION_ML_THRESHOLD=0.90
 PHISHANALYZE_PUBLIC_URL=https://phishanalyze.mdpstudio.com.au
 PAYSHIELD_PUBLIC_URL=https://payshield.mdpstudio.com.au
 ```

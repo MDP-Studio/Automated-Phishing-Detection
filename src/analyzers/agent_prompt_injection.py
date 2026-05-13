@@ -143,12 +143,12 @@ class AgentPromptInjectionAnalyzer:
         threshold_value = (
             str(ml_threshold)
             if ml_threshold is not None
-            else os.getenv("PROMPT_INJECTION_ML_THRESHOLD", "0.75")
+            else os.getenv("PROMPT_INJECTION_ML_THRESHOLD", "0.90")
         )
         try:
             self.ml_threshold = float(threshold_value)
         except ValueError:
-            self.ml_threshold = 0.75
+            self.ml_threshold = 0.90
 
     async def analyze(self, email: EmailObject) -> AnalyzerResult:
         """Analyze email content for AI-agent instruction attacks."""
