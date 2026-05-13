@@ -17,7 +17,13 @@ Remote repo:
 /home/meidie/.openclaw/workspace/Automated-Phishing-Detection
 ```
 
-Current code commit used for the dataset download and first training pass:
+Current deployed code commit for the latest prompt-injection analyzer pass:
+
+```text
+cbc018c Tighten prompt injection action matching
+```
+
+Original code commit used for the dataset download and first training pass:
 
 ```text
 3c1ffc4 Add AI-agent prompt injection checks
@@ -67,6 +73,23 @@ Sources:
 | Enron ham | 200 |
 | SpamAssassin ham | 100 |
 
+Latest training metrics:
+
+| Metric | Value |
+| --- | ---: |
+| Train rows | 400 |
+| Validation rows | 50 |
+| Test rows | 50 |
+| Test accuracy | 0.980 |
+
+Test confusion matrix:
+
+| Expected | Predicted | Count |
+| --- | --- | ---: |
+| `CLEAN` | `CLEAN` | 30 |
+| `PHISHING` | `CLEAN` | 1 |
+| `PHISHING` | `PHISHING` | 19 |
+
 ### Full No-Oversample Corpus
 
 Path:
@@ -94,6 +117,30 @@ Sources:
 | Nazario phishing | 12,009 |
 | Enron ham | 126,326 |
 | SpamAssassin ham | 4,150 |
+
+Latest training metrics:
+
+| Metric | Value |
+| --- | ---: |
+| Train rows | 113,987 |
+| Validation rows | 14,247 |
+| Test rows | 14,251 |
+| Test accuracy | 0.999 |
+
+Test confusion matrix:
+
+| Expected | Predicted | Count |
+| --- | --- | ---: |
+| `CLEAN` | `CLEAN` | 13,036 |
+| `CLEAN` | `PHISHING` | 13 |
+| `PHISHING` | `CLEAN` | 2 |
+| `PHISHING` | `PHISHING` | 1,200 |
+
+Model path:
+
+```bash
+models/phishanalyze_classifier_full_no_oversample/phishing_model.joblib
+```
 
 ## Latest PayShield Training
 
@@ -147,3 +194,30 @@ is an invoice fraud case.
 For PhishAnalyze, prompt-injection emails can be evaluated as suspicious hostile
 input, but the LLM or ML model must not become the sole verdict authority.
 
+Latest LLMail-Inject aggregate check:
+
+| Metric | Value |
+| --- | ---: |
+| Attack pool size | 461,640 |
+| Seeded attack sample | 1,000 |
+| Attack samples detected | 490 |
+| Attack detection rate | 0.490 |
+| Benign FP tests | 203 |
+| Benign FP detections | 0 |
+
+Signal counts in the seeded attack sample:
+
+| Signal | Count |
+| --- | ---: |
+| `agent_action_exfiltration_instruction` | 478 |
+| `agent_tool_abuse_instruction` | 44 |
+| `instruction_override_attempt` | 8 |
+| `encoded_agent_instruction` | 5 |
+
+Prompt-injection evaluation output is stored remotely under:
+
+```bash
+data/prompt_injection_eval/llmail_agent_prompt_injection_summary.json
+```
+
+The summary intentionally does not store raw prompt-injection email text.

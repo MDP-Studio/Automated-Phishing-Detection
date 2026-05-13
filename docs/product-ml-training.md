@@ -32,6 +32,8 @@ Use two corpus shapes:
   read from the downloaded corpora.
 
 Keep both. Do not replace the stable 500-sample slice with the full corpus.
+The 500-sample slice may be regenerated with `--clean-output`; that replaces
+only the prepared slice folder, not the raw downloaded corpora.
 
 ## Remote Paths
 
@@ -129,3 +131,11 @@ Use these datasets for hostile-input evaluation and future ML experiments.
 Do not let a prompt-injection model execute tools or decide final product
 verdicts from scratch.
 
+Current product decision:
+
+- keep PhishAnalyze and PayShield classifiers separate
+- keep prompt injection as a shared hostile-input safety lane
+- surface prompt-injection evidence in both products when the shared analyzer
+  fires
+- do not relabel generic prompt-injection samples as PayShield invoice fraud
+  unless the email is actually payment-specific
