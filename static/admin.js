@@ -8,6 +8,8 @@
   const costTierList = document.getElementById("costTierList");
   const analyzerFailureList = document.getElementById("analyzerFailureList");
   const cachedCheckList = document.getElementById("cachedCheckList");
+  const ctiTransportList = document.getElementById("ctiTransportList");
+  const paymentAssuranceList = document.getElementById("paymentAssuranceList");
   const auditList = document.getElementById("auditList");
   const adminNotice = document.getElementById("adminNotice");
   const buildLabel = document.getElementById("buildLabel");
@@ -45,6 +47,19 @@
       <div class="row">
         <strong>${escapeHtml(label(row.name))}</strong>
         <span>${escapeHtml(Number(row.count || 0).toLocaleString())}</span>
+      </div>
+    `).join("");
+  }
+
+  function renderKeyRows(element, rows, empty) {
+    if (!rows || !rows.length) {
+      element.innerHTML = `<div class="row"><strong>${escapeHtml(empty)}</strong><span>empty</span></div>`;
+      return;
+    }
+    element.innerHTML = rows.map(([name, value]) => `
+      <div class="row">
+        <strong>${escapeHtml(name)}</strong>
+        <span>${escapeHtml(value)}</span>
       </div>
     `).join("");
   }
@@ -115,6 +130,25 @@
         ...(analyzers.not_configured || []).map((row) => ({ name: `not configured ${row.name}`, count: row.count })),
       ], "No analyzer failures");
       renderRows(cachedCheckList, analyzers.cached, "No cached checks");
+      const cti = payload.cti_transport || {};
+      const taxii = cti.taxii || {};
+      const sigma = cti.sigma_conversion || {};
+      renderKeyRows(ctiTransportList, [
+        ["TAXII", `${label(taxii.status || "never_run")} · ${taxii.configured ? "configured" : "not configured"}`],
+        ["TAXII objects", Number(taxii.object_count || 0).toLocaleString()],
+        ["Sigma converter", `${label(sigma.status || "never_run")} · ${sigma.rules_converted || 0}/${sigma.rules_checked || 0}`],
+        ["Sigma failures", Number(sigma.failure_count || 0).toLocaleString()],
+      ], "No CTI transport data");
+      const assurance = payload.payment_assurance || {};
+      renderKeyRows(paymentAssuranceList, [
+        ["Status", label(assurance.status || "never_run")],
+        ["Ready", assurance.ready ? "Yes" : "No"],
+        [
+          "Real redacted",
+          `${Number(assurance.pii_free_real_redacted_total || 0).toLocaleString()}/${Number(assurance.review_target || 0).toLocaleString()}`,
+        ],
+        ["Recommendations", Number(assurance.recommendation_count || 0).toLocaleString()],
+      ], "No payment assurance data");
       renderAudit(payload.recent_audit);
       buildLabel.textContent = `Build ${payload.system && payload.system.build_sha ? payload.system.build_sha : "unknown"}`;
     } catch (error) {

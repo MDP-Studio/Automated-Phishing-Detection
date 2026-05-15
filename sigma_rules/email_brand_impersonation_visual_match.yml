@@ -4,7 +4,9 @@ status: experimental
 description: |
   Triggers when the phishing detection pipeline's brand_impersonation analyzer
   reports a perceptual-hash or SSIM match against a known brand logo on a
-  rendered phishing page that is NOT hosted on the brand's legitimate domain.
+  rendered phishing page. The analyzer applies brand-domain context before
+  emitting this high-risk score; the Sigma rule intentionally avoids dynamic
+  placeholders so downstream converters can compile it reliably.
   Strong indicator of T1656 Impersonation paired with T1036.005 Masquerading.
 references:
   - https://attack.mitre.org/techniques/T1656/
@@ -20,12 +22,7 @@ detection:
   selection:
     analyzer_results.brand_impersonation.risk_score|gte: 0.7
     analyzer_results.brand_impersonation.confidence|gte: 0.6
-  filter_legitimate_brand_host:
-    analyzer_results.brand_impersonation.details.matched_brand|expand: '%matched_brand%'
-    iocs.headers.from_address|endswith:
-      - '@%matched_brand%.com'
-      - '@%matched_brand%.co.uk'
-  condition: selection and not filter_legitimate_brand_host
+  condition: selection
 fields:
   - email_id
   - iocs.headers.from_address

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -202,7 +203,58 @@ def test_scan_history_is_tenant_scoped(tmp_path):
     assert store.list_scan_results(bob.org_id) == []
 
 
-def test_admin_overview_is_aggregate_and_redacted(tmp_path):
+def test_admin_overview_is_aggregate_and_redacted(tmp_path, monkeypatch):
+    taxii_status = tmp_path / "taxii_status.json"
+    sigma_status = tmp_path / "sigma_status.json"
+    payment_status = tmp_path / "payment_assurance.json"
+    monkeypatch.setenv("TAXII_STATUS_PATH", str(taxii_status))
+    monkeypatch.setenv("SIGMA_CONVERSION_STATUS_PATH", str(sigma_status))
+    monkeypatch.setenv("PAYMENT_ASSURANCE_STATUS_PATH", str(payment_status))
+    monkeypatch.setenv("TAXII_PASSWORD", "taxii-secret")
+    taxii_status.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "success": False,
+                "target": "https://user:taxii-secret@taxii.example.test/api/objects/?token=hidden",
+                "message": "auth failed for taxii-secret",
+                "object_count": 2,
+            }
+        ),
+        encoding="utf-8",
+    )
+    sigma_status.write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "success": True,
+                "backend": "splunk",
+                "rules_checked": 6,
+                "rules_converted": 6,
+                "query_count": 6,
+                "failure_count": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    payment_status.write_text(
+        json.dumps(
+            {
+                "status": "needs_data",
+                "ready_for_payment_assurance": False,
+                "row_count": 12,
+                "real_redacted_total": 3,
+                "pii_free_real_redacted_total": 3,
+                "review_target": 100,
+                "minimum_per_decision": 20,
+                "real_redacted_by_decision": {"VERIFY": 2, "DO_NOT_PAY": 1},
+                "by_channel": {"email": 12},
+                "recommendations": ["add more samples"],
+                "errors": [],
+            }
+        ),
+        encoding="utf-8",
+    )
     store = SaaSStore(tmp_path / "saas.db")
     context = store.create_user_with_org(email="alice@example.com", password="long-password-1")
     store.set_subscription(org_id=context.org_id, plan_slug="pro")
@@ -279,6 +331,10 @@ def test_admin_overview_is_aggregate_and_redacted(tmp_path):
     assert payload["privacy"]["raw_result_json"] is False
     assert payload["privacy"]["mailbox_credentials"] is False
     assert payload["privacy"]["secrets"] is False
+    assert payload["cti_transport"]["taxii"]["status"] == "failed"
+    assert payload["cti_transport"]["taxii"]["target"] == "https://taxii.example.test/api/objects/"
+    assert payload["cti_transport"]["sigma_conversion"]["rules_converted"] == 6
+    assert payload["payment_assurance"]["pii_free_real_redacted_total"] == 3
     assert {"name": "feature_locked", "count": 1} in payload["analyzers"]["statuses"]
     assert {"name": "cached", "count": 1} in payload["analyzers"]["statuses"]
     assert {"name": "paid_low", "count": 2} in payload["analyzers"]["cost_tiers"]
@@ -293,6 +349,8 @@ def test_admin_overview_is_aggregate_and_redacted(tmp_path):
     assert "alice@example.com" not in serialized
     assert "enc:v2:secret" not in serialized
     assert "cus_secret" not in serialized
+    assert "taxii-secret" not in serialized
+    assert "token=hidden" not in serialized
     assert "secret provider token missing" not in serialized
     assert "private sandbox failure details" not in serialized
 

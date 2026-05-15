@@ -48,6 +48,7 @@ DATASET_COLUMNS = [
     "label",
     "payment_decision",
     "scenario",
+    "channel",
     "source_type",
     "split",
     "verified_by",
@@ -72,6 +73,7 @@ ALLOWED_SCENARIOS = {
 }
 ALLOWED_SOURCE_TYPES = {"real", "public", "synthetic", "redacted", "internal"}
 ALLOWED_SPLITS = {"train", "validation", "test", "holdout", "unassigned"}
+ALLOWED_CHANNELS = {"email", "sms", "chat", "voice", "voice_transcript", "unknown"}
 PII_VALUES = {"yes", "no", "unknown"}
 
 ADDRESS_HEADERS = {"from", "to", "cc", "bcc", "reply-to", "sender", "return-path"}
@@ -181,6 +183,60 @@ class DatasetReadinessReport:
         return not self.errors and self.realish_count > 0 and not self.recommendations
 
 
+@dataclass(frozen=True)
+class PaymentAssuranceReport:
+    dataset_dir: Path
+    generated_at: str
+    row_count: int
+    review_target: int
+    minimum_per_decision: int
+    real_redacted_total: int
+    pii_free_real_redacted_total: int
+    by_source_type: dict[str, int]
+    by_payment_decision: dict[str, int]
+    real_redacted_by_decision: dict[str, int]
+    by_channel: dict[str, int]
+    real_redacted_by_channel: dict[str, int]
+    by_scenario: dict[str, int]
+    by_split: dict[str, int]
+    errors: list[str]
+    warnings: list[str]
+    recommendations: list[str]
+
+    @property
+    def ready_for_payment_assurance(self) -> bool:
+        return not self.errors and not self.recommendations
+
+    @property
+    def status(self) -> str:
+        if self.errors:
+            return "failed"
+        return "ready" if self.ready_for_payment_assurance else "needs_data"
+
+    def to_dict(self) -> dict:
+        return {
+            "status": self.status,
+            "dataset_dir": str(self.dataset_dir),
+            "generated_at": self.generated_at,
+            "row_count": self.row_count,
+            "review_target": self.review_target,
+            "minimum_per_decision": self.minimum_per_decision,
+            "real_redacted_total": self.real_redacted_total,
+            "pii_free_real_redacted_total": self.pii_free_real_redacted_total,
+            "by_source_type": self.by_source_type,
+            "by_payment_decision": self.by_payment_decision,
+            "real_redacted_by_decision": self.real_redacted_by_decision,
+            "by_channel": self.by_channel,
+            "real_redacted_by_channel": self.real_redacted_by_channel,
+            "by_scenario": self.by_scenario,
+            "by_split": self.by_split,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "recommendations": self.recommendations,
+            "ready_for_payment_assurance": self.ready_for_payment_assurance,
+        }
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as fh:
@@ -209,6 +265,7 @@ Each row in `labels.csv` has:
 - `label`: `PAYMENT_SCAM`, `LEGITIMATE_PAYMENT`, or `NON_PAYMENT`
 - `payment_decision`: expected business decision, one of `SAFE`, `VERIFY`, `DO_NOT_PAY`
 - `scenario`: e.g. `bank_detail_change`, `supplier_impersonation`, `executive_transfer`, `legitimate_invoice`
+- `channel`: `email`, `sms`, `chat`, `voice`, or `voice_transcript`
 - `source_type`: `real`, `public`, `synthetic`, `redacted`, or `internal`
 - `split`: `train`, `validation`, `test`, `holdout`, or `unassigned`
 
@@ -255,6 +312,13 @@ payment identifiers before labeling, and keeps the raw corpora out of git. Its
 default is conservative: public corpora mostly feed `VERIFY` payment-link and
 payment-notification examples, while public advisory seeds cover clearer
 `DO_NOT_PAY` BEC/payment-redirection patterns.
+
+Run this before product claims or model changes to confirm the real redacted
+payment review set is broad enough:
+
+```bash
+python scripts/payment_dataset.py assurance-report --dataset data/payment_scam_dataset
+```
 """
 
 
@@ -283,7 +347,7 @@ def _read_labels(labels_path: Path) -> list[dict[str, str]]:
 
 def _write_labels(labels_path: Path, rows: list[dict[str, str]]) -> None:
     with labels_path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=DATASET_COLUMNS)
+        writer = csv.DictWriter(fh, fieldnames=DATASET_COLUMNS, extrasaction="ignore", restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -491,6 +555,7 @@ def add_sample(
     label: str,
     payment_decision: str,
     scenario: str,
+    channel: str = "email",
     source_type: str = "real",
     split: str = "unassigned",
     verified_by: str = "",
@@ -507,6 +572,7 @@ def add_sample(
     _validate_value("label", label, ALLOWED_LABELS)
     _validate_value("payment_decision", payment_decision, ALLOWED_DECISIONS)
     _validate_value("scenario", scenario, ALLOWED_SCENARIOS)
+    _validate_value("channel", channel, ALLOWED_CHANNELS)
     _validate_value("source_type", source_type, ALLOWED_SOURCE_TYPES)
     _validate_value("split", split, ALLOWED_SPLITS)
 
@@ -523,6 +589,7 @@ def add_sample(
             "label": label,
             "payment_decision": payment_decision,
             "scenario": scenario,
+            "channel": channel,
             "source_type": source_type,
             "split": split,
             "verified_by": verified_by,
@@ -584,6 +651,7 @@ def validate_dataset(dataset_dir: Path = DEFAULT_DATASET_DIR) -> ValidationResul
             ALLOWED_DECISIONS,
         )
         _collect_value_error(errors, index, "scenario", row.get("scenario", ""), ALLOWED_SCENARIOS)
+        _collect_value_error(errors, index, "channel", _row_channel(row), ALLOWED_CHANNELS)
         _collect_value_error(errors, index, "source_type", row.get("source_type", ""), ALLOWED_SOURCE_TYPES)
         _collect_value_error(errors, index, "split", row.get("split", ""), ALLOWED_SPLITS)
         pii_value = row.get("contains_real_pii", "").strip().lower() or "unknown"
@@ -696,6 +764,163 @@ def summarize_dataset_readiness(
         warnings=validation.warnings,
         recommendations=recommendations,
     )
+
+
+def build_payment_assurance_report(
+    dataset_dir: Path = DEFAULT_DATASET_DIR,
+    *,
+    review_target: int = 100,
+    minimum_per_decision: int = 20,
+) -> PaymentAssuranceReport:
+    """
+    Summarize real/redacted payment-corpus breadth for PayShield assurance.
+
+    The report intentionally uses label metadata only. It never reads sample
+    bodies unless `validate_dataset` needs to run the PII audit for rows marked
+    as redacted or real and `contains_real_pii=no`.
+    """
+    dataset_dir = Path(dataset_dir)
+    validation = validate_dataset(dataset_dir)
+    rows = _read_labels(dataset_dir / LABELS_CSV) if (dataset_dir / LABELS_CSV).exists() else []
+
+    by_source_type = Counter(row.get("source_type", "") or "missing" for row in rows)
+    by_payment_decision = Counter(row.get("payment_decision", "") or "missing" for row in rows)
+    by_channel = Counter(_row_channel(row) for row in rows)
+    by_scenario = Counter(row.get("scenario", "") or "missing" for row in rows)
+    by_split = Counter(row.get("split", "") or "missing" for row in rows)
+
+    review_source_types = {"real", "redacted", "internal"}
+    real_redacted_rows = [
+        row for row in rows
+        if row.get("source_type") in review_source_types
+    ]
+    pii_free_real_redacted_rows = [
+        row for row in real_redacted_rows
+        if row.get("contains_real_pii", "").strip().lower() == "no"
+    ]
+    real_redacted_by_decision = Counter(
+        row.get("payment_decision", "") or "missing"
+        for row in pii_free_real_redacted_rows
+    )
+    real_redacted_by_channel = Counter(_row_channel(row) for row in pii_free_real_redacted_rows)
+
+    recommendations: list[str] = []
+    if len(pii_free_real_redacted_rows) < review_target:
+        recommendations.append(
+            f"Add {review_target - len(pii_free_real_redacted_rows)} more PII-free real/redacted/internal "
+            f"payment samples to reach the {review_target}-sample assurance target."
+        )
+
+    for decision in sorted(ALLOWED_DECISIONS):
+        count = real_redacted_by_decision.get(decision, 0)
+        if count < minimum_per_decision:
+            recommendations.append(
+                f"Add {minimum_per_decision - count} more PII-free real/redacted/internal "
+                f"{decision} samples."
+            )
+
+    if real_redacted_rows and len(pii_free_real_redacted_rows) != len(real_redacted_rows):
+        recommendations.append(
+            "Finish redaction review so all real/redacted/internal samples are marked contains_real_pii=no."
+        )
+
+    missing_splits = sorted({"train", "validation", "test"} - set(by_split))
+    if rows and missing_splits:
+        recommendations.append(
+            "Assign at least one payment sample to each core split: " + ", ".join(missing_splits)
+        )
+
+    non_email_channels = {"sms", "chat", "voice", "voice_transcript"}
+    if not (set(real_redacted_by_channel) & non_email_channels):
+        recommendations.append(
+            "Add channel-labeled SMS, chat, or voice_transcript payment samples before claiming multi-channel drift coverage."
+        )
+
+    warnings = list(validation.warnings)
+    if by_source_type.get("synthetic", 0) and not pii_free_real_redacted_rows:
+        warnings.append("Synthetic samples are present, but no PII-free real/redacted/internal assurance rows exist.")
+    if by_source_type.get("public", 0):
+        warnings.append("Public corpus rows help regression tests but do not replace real/redacted payment assurance rows.")
+
+    return PaymentAssuranceReport(
+        dataset_dir=dataset_dir,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        row_count=len(rows),
+        review_target=review_target,
+        minimum_per_decision=minimum_per_decision,
+        real_redacted_total=len(real_redacted_rows),
+        pii_free_real_redacted_total=len(pii_free_real_redacted_rows),
+        by_source_type=dict(sorted(by_source_type.items())),
+        by_payment_decision=dict(sorted(by_payment_decision.items())),
+        real_redacted_by_decision=dict(sorted(real_redacted_by_decision.items())),
+        by_channel=dict(sorted(by_channel.items())),
+        real_redacted_by_channel=dict(sorted(real_redacted_by_channel.items())),
+        by_scenario=dict(sorted(by_scenario.items())),
+        by_split=dict(sorted(by_split.items())),
+        errors=validation.errors,
+        warnings=warnings,
+        recommendations=recommendations,
+    )
+
+
+def write_payment_assurance_report(
+    report: PaymentAssuranceReport,
+    *,
+    json_output: Optional[Path] = None,
+    markdown_output: Optional[Path] = None,
+) -> tuple[Path, Path]:
+    json_path = json_output or (report.dataset_dir / REPORTS_DIR / "payment_assurance_report.json")
+    markdown_path = markdown_output or (report.dataset_dir / REPORTS_DIR / "payment_assurance_report.md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    markdown_path.write_text(_payment_assurance_markdown(report), encoding="utf-8")
+    return json_path, markdown_path
+
+
+def _payment_assurance_markdown(report: PaymentAssuranceReport) -> str:
+    lines = [
+        "# PayShield Payment Corpus Assurance",
+        "",
+        f"- Status: `{report.status}`",
+        f"- Generated: `{report.generated_at}`",
+        f"- Rows: `{report.row_count}`",
+        f"- PII-free real/redacted/internal rows: `{report.pii_free_real_redacted_total}/{report.review_target}`",
+        f"- Minimum per decision: `{report.minimum_per_decision}`",
+        "",
+        "## Real Redacted Decisions",
+        "",
+    ]
+    for decision in sorted(ALLOWED_DECISIONS):
+        lines.append(f"- `{decision}`: `{report.real_redacted_by_decision.get(decision, 0)}`")
+    lines.extend(["", "## Channels", ""])
+    for channel, count in sorted(report.by_channel.items()):
+        lines.append(f"- `{channel}`: `{count}`")
+    lines.extend(["", "## Recommendations", ""])
+    if report.recommendations:
+        lines.extend(f"- {item}" for item in report.recommendations)
+    else:
+        lines.append("- No blocking recommendations.")
+    if report.errors:
+        lines.extend(["", "## Validation Errors", ""])
+        lines.extend(f"- {item}" for item in report.errors)
+    if report.warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- {item}" for item in report.warnings)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _row_channel(row: dict[str, str]) -> str:
+    channel = (row.get("channel") or "").strip().lower()
+    if channel == "voice-transcript":
+        channel = "voice_transcript"
+    if not channel:
+        notes = (row.get("notes") or "").lower()
+        match = re.search(r"\bchannel\s*=\s*([a-z_ -]+)", notes)
+        if match:
+            channel = match.group(1).strip().replace("-", "_").replace(" ", "_")
+    return channel or "email"
 
 
 def _collect_value_error(
@@ -904,6 +1129,7 @@ def export_ml_jsonl(
                 "binary_label": "PHISHING" if row["label"] == "PAYMENT_SCAM" else "CLEAN",
                 "payment_decision": row["payment_decision"],
                 "scenario": row["scenario"],
+                "channel": _row_channel(row),
                 "source_type": row["source_type"],
                 "split": row["split"],
             }
@@ -1845,6 +2071,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--label", choices=sorted(ALLOWED_LABELS), required=True)
     add_parser.add_argument("--payment-decision", choices=sorted(ALLOWED_DECISIONS), required=True)
     add_parser.add_argument("--scenario", choices=sorted(ALLOWED_SCENARIOS), required=True)
+    add_parser.add_argument("--channel", choices=sorted(ALLOWED_CHANNELS), default="email")
     add_parser.add_argument("--source-type", choices=sorted(ALLOWED_SOURCE_TYPES), default="real")
     add_parser.add_argument("--split", choices=sorted(ALLOWED_SPLITS), default="unassigned")
     add_parser.add_argument("--verified-by", default="")
@@ -1915,6 +2142,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     readiness_parser.add_argument("--min-realish-samples", type=int, default=20)
     readiness_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
 
+    assurance_parser = subparsers.add_parser(
+        "assurance-report",
+        help="Write real/redacted payment-corpus breadth and channel drift report",
+    )
+    assurance_parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_DIR)
+    assurance_parser.add_argument("--review-target", type=int, default=100)
+    assurance_parser.add_argument("--minimum-per-decision", type=int, default=20)
+    assurance_parser.add_argument("--json-output", type=Path, default=None)
+    assurance_parser.add_argument("--markdown-output", type=Path, default=None)
+    assurance_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+
     return parser
 
 
@@ -1934,6 +2172,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             label=args.label,
             payment_decision=args.payment_decision,
             scenario=args.scenario,
+            channel=args.channel,
             source_type=args.source_type,
             split=args.split,
             verified_by=args.verified_by,
@@ -2096,6 +2335,38 @@ def main(argv: Optional[list[str]] = None) -> int:
             for recommendation in report.recommendations:
                 print(f"RECOMMEND: {recommendation}")
             print(f"Ready for product metrics: {report.ready_for_product_metrics}")
+        return 0 if not report.errors else 1
+
+    if args.command == "assurance-report":
+        report = build_payment_assurance_report(
+            args.dataset,
+            review_target=args.review_target,
+            minimum_per_decision=args.minimum_per_decision,
+        )
+        json_path, markdown_path = write_payment_assurance_report(
+            report,
+            json_output=args.json_output,
+            markdown_output=args.markdown_output,
+        )
+        if args.json:
+            print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        else:
+            print(f"Payment assurance status: {report.status}")
+            print(f"Rows: {report.row_count}")
+            print(
+                "PII-free real/redacted/internal: "
+                f"{report.pii_free_real_redacted_total}/{report.review_target}"
+            )
+            print(f"Real/redacted decisions: {report.real_redacted_by_decision}")
+            print(f"Channels: {report.by_channel}")
+            print(f"JSON report: {json_path}")
+            print(f"Markdown report: {markdown_path}")
+            for warning in report.warnings:
+                print(f"WARN: {warning}")
+            for error in report.errors:
+                print(f"ERROR: {error}")
+            for recommendation in report.recommendations:
+                print(f"RECOMMEND: {recommendation}")
         return 0 if not report.errors else 1
 
     parser.error(f"unknown command: {args.command}")

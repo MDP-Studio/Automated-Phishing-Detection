@@ -11,6 +11,7 @@ import pytest
 from src.eval.payment_dataset import (
     add_sample,
     audit_dataset_pii,
+    build_payment_assurance_report,
     export_ml_jsonl,
     export_eval_labels,
     init_dataset,
@@ -21,6 +22,7 @@ from src.eval.payment_dataset import (
     seed_synthetic_bank_change_dataset,
     summarize_dataset_readiness,
     validate_dataset,
+    write_payment_assurance_report,
 )
 
 
@@ -560,3 +562,78 @@ def test_readiness_counts_redacted_realish_samples(tmp_path: Path):
     assert report.by_source_type["redacted"] == 1
     assert any("non-synthetic examples" in item for item in report.recommendations)
     assert not report.ready_for_product_metrics
+
+
+def test_payment_assurance_report_accepts_balanced_redacted_real_channels(tmp_path: Path):
+    dataset = init_dataset(tmp_path / "payment")
+    samples = {
+        "safe": _write_eml(tmp_path / "safe_invoice.eml", "Routine invoice"),
+        "verify": _write_eml(tmp_path / "verify_invoice.eml", "Bank change notice"),
+        "do_not_pay": _write_eml(tmp_path / "do_not_pay_invoice.eml", "Urgent new BSB"),
+    }
+
+    add_sample(
+        dataset_dir=dataset,
+        source=samples["safe"],
+        label="LEGITIMATE_PAYMENT",
+        payment_decision="SAFE",
+        scenario="legitimate_invoice",
+        channel="email",
+        source_type="redacted",
+        split="train",
+        contains_real_pii="no",
+    )
+    add_sample(
+        dataset_dir=dataset,
+        source=samples["verify"],
+        label="LEGITIMATE_PAYMENT",
+        payment_decision="VERIFY",
+        scenario="legitimate_bank_change_verified",
+        channel="sms",
+        source_type="redacted",
+        split="validation",
+        contains_real_pii="no",
+    )
+    add_sample(
+        dataset_dir=dataset,
+        source=samples["do_not_pay"],
+        label="PAYMENT_SCAM",
+        payment_decision="DO_NOT_PAY",
+        scenario="bank_detail_change",
+        channel="chat",
+        source_type="redacted",
+        split="test",
+        contains_real_pii="no",
+    )
+
+    report = build_payment_assurance_report(dataset, review_target=3, minimum_per_decision=1)
+    json_path, markdown_path = write_payment_assurance_report(report)
+    serialized = json_path.read_text(encoding="utf-8") + markdown_path.read_text(encoding="utf-8")
+
+    assert report.ready_for_payment_assurance
+    assert report.status == "ready"
+    assert report.pii_free_real_redacted_total == 3
+    assert report.real_redacted_by_decision == {"DO_NOT_PAY": 1, "SAFE": 1, "VERIFY": 1}
+    assert report.by_channel == {"chat": 1, "email": 1, "sms": 1}
+    assert "Please process the attached invoice" not in serialized
+    assert samples["safe"].name not in serialized
+
+
+def test_payment_assurance_report_flags_public_only_or_synthetic_gaps(tmp_path: Path):
+    dataset = tmp_path / "payment_scam_dataset_seed"
+    seed_synthetic_bank_change_dataset(
+        dataset_dir=dataset,
+        scam_count=1,
+        legit_count=1,
+        safe_count=1,
+        seed=7,
+        clean=True,
+    )
+
+    report = build_payment_assurance_report(dataset, review_target=3, minimum_per_decision=1)
+
+    assert not report.ready_for_payment_assurance
+    assert report.status == "needs_data"
+    assert report.pii_free_real_redacted_total == 0
+    assert any("real/redacted/internal" in item for item in report.recommendations)
+    assert any("Synthetic samples" in item for item in report.warnings)

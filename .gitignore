@@ -69,6 +69,8 @@ data/prompt_injection_eval/
 # ===== Runtime Data =====
 data/results.jsonl
 data/alerts.jsonl
+data/taxii_push_status.json
+data/sigma_conversion_status.json
 data/feedback.db
 data/saas.db
 data/sender_profiles.db

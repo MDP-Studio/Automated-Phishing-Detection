@@ -68,6 +68,23 @@ Use four evaluation lanes:
    AgentDojo-style tasks where the correct result is refusing tool actions even
    when the email text asks for them.
 
+## PayShield Assurance Gate
+
+Keep PayShield payment fraud data separate from general PhishAnalyze data. Run:
+
+```bash
+python scripts/payment_dataset.py assurance-report --dataset data/payment_scam_dataset
+```
+
+before reporting product metrics, changing payment thresholds, or training a
+payment-specific model. The default acceptance target is 100 PII-free
+real/redacted/internal payment examples, with at least 20 examples for each of
+`SAFE`, `VERIFY`, and `DO_NOT_PAY`, plus channel metadata for drift reporting.
+
+Public corpora and synthetic samples can improve regression coverage, but they
+do not replace redacted real-world invoices, remittances, bank-change notices,
+and supplier-impersonation examples.
+
 ## Training Rule
 
 Start with rule-based detection and evals. Train a model only after the eval

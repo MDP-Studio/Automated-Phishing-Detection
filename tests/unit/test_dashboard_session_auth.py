@@ -385,6 +385,8 @@ def test_admin_overview_requires_token_and_uses_redacted_aggregate_api():
     assert "/static/admin.css" in page.text
     assert "/static/admin.js" in page.text
     assert "Privacy boundary" in page.text
+    assert "CTI transport" in page.text
+    assert "Payment assurance" in page.text
     assert api.status_code == 200
     payload = api.json()
     assert "totals" in payload

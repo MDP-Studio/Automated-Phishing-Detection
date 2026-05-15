@@ -87,6 +87,12 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   passkey deletion mutations when a passkey exists.
 - Signed STIX/Sigma file export manifests with Ed25519 signatures and a
   validator for hashes, signatures, STIX parsing, and Sigma structure.
+- Optional TAXII 2.1 STIX push for operator CTI sharing, with safe status
+  reporting in the private admin overview.
+- CI-backed Sigma conversion validation through pySigma and the Splunk backend
+  so exported rules are checked against a real downstream converter.
+- PayShield payment-corpus assurance reporting for redacted real-world sample
+  breadth, decision balance, and channel drift coverage.
 - `/mailbox-guide` with provider-specific setup steps and direct settings links
   for Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, Proton, AOL, and generic
   IMAP.
@@ -209,6 +215,17 @@ LLM_EVIDENCE_SUMMARY_ENABLED=true
 DEEPSEEK_API_KEY=
 ```
 
+Optional CTI sharing:
+
+```bash
+TAXII_PUSH_ENABLED=false
+TAXII_BASE_URL=
+TAXII_COLLECTION_ID=
+TAXII_OBJECTS_URL=
+TAXII_STATUS_PATH=data/taxii_push_status.json
+SIGMA_CONVERSION_STATUS_PATH=data/sigma_conversion_status.json
+```
+
 Password reset prefers Zoho Mail API direct send:
 
 ```bash
@@ -308,8 +325,9 @@ Fast documentation/count check:
 The tests cover analyzer normalization, product verdict mapping, SaaS sessions,
 CSRF, tenant isolation, scan deletion, mailbox credential encryption, mailbox
 scan-now behavior, Stripe Checkout/Portal/webhooks, admin aggregate redaction,
-URL detonation SSRF protections, HTML/report escaping, LLM provider wiring, and
-payment-fraud, phishing, and prompt-injection dataset tooling.
+TAXII status redaction, Sigma converter checks, URL detonation SSRF
+protections, HTML/report escaping, LLM provider wiring, and payment-fraud,
+phishing, and prompt-injection dataset tooling.
 
 ## Evaluation
 
@@ -338,6 +356,17 @@ includes per-channel false positives, false negatives, and errors:
 ```powershell
 .\.venv\Scripts\python.exe scripts\run_eval.py --mixed-manifest data\mixed_channel_corpus\manifest.jsonl
 ```
+
+PayShield assurance uses ignored, redacted payment samples:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\payment_dataset.py assurance-report --dataset data\payment_scam_dataset
+```
+
+See [`docs/payment-detection-assurance.md`](docs/payment-detection-assurance.md)
+for the 100-sample redacted real-world target and channel drift rules.
+See [`docs/cti-transport.md`](docs/cti-transport.md) for TAXII push and Sigma
+converter validation.
 
 ## Deployment
 

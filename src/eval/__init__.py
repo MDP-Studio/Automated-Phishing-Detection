@@ -23,12 +23,14 @@ from src.eval.corpus_prepare import PreparedCorpus, prepare_corpus
 from src.eval.failure_inspector import FailureReport, FailureRow, build_report
 from src.eval.payment_dataset import (
     MLExportSummary,
+    PaymentAssuranceReport,
     PublicCorpusPaymentSeedSummary,
     RedactionFinding,
     RedactionSummary,
     SeedSummary,
     ValidationResult,
     audit_dataset_pii,
+    build_payment_assurance_report,
     export_ml_jsonl,
     init_dataset,
     redact_eml,
@@ -36,6 +38,7 @@ from src.eval.payment_dataset import (
     seed_public_corpus_payment_examples,
     seed_synthetic_bank_change_dataset,
     validate_dataset,
+    write_payment_assurance_report,
 )
 from src.eval.payment_decision_eval import (
     PaymentDecisionEvalRow,
@@ -52,6 +55,7 @@ __all__ = [
     "PerSampleRow",
     "PaymentDecisionEvalRow",
     "PaymentDecisionEvalSummary",
+    "PaymentAssuranceReport",
     "PreparedCorpus",
     "PublicCorpusPaymentSeedSummary",
     "RedactionFinding",
@@ -61,6 +65,7 @@ __all__ = [
     "audit_dataset_pii",
     "aggregate_rows_by_channel",
     "build_report",
+    "build_payment_assurance_report",
     "export_ml_jsonl",
     "evaluate_payment_decisions",
     "init_dataset",
@@ -72,4 +77,5 @@ __all__ = [
     "seed_public_corpus_payment_examples",
     "seed_synthetic_bank_change_dataset",
     "validate_dataset",
+    "write_payment_assurance_report",
 ]

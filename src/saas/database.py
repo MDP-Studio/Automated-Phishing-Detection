@@ -1195,6 +1195,8 @@ class SaaSStore:
                 """
             )
             analyzer_stats = self._aggregate_analyzer_stats(conn)
+            ops_status = _safe_ops_status()
+            payment_assurance = _safe_payment_assurance_status()
 
             audit_rows = conn.execute(
                 """
@@ -1231,6 +1233,8 @@ class SaaSStore:
             "usage_this_month": usage_this_month,
             "feature_locks": feature_locks,
             "analyzers": analyzer_stats,
+            "cti_transport": ops_status,
+            "payment_assurance": payment_assurance,
             "recent_audit": recent_audit,
             "privacy": {
                 "raw_email_bodies": False,
@@ -1755,6 +1759,27 @@ def _counter_rows(counter: Counter[str]) -> list[dict]:
             key=lambda item: (-item[1], item[0]),
         )
     ]
+
+
+def _safe_ops_status() -> dict:
+    try:
+        from src.reporting.ops_status import cti_transport_overview
+
+        return cti_transport_overview()
+    except Exception:
+        return {
+            "taxii": {"status": "unavailable", "enabled": False, "configured": False},
+            "sigma_conversion": {"status": "unavailable"},
+        }
+
+
+def _safe_payment_assurance_status() -> dict:
+    try:
+        from src.reporting.ops_status import payment_assurance_overview
+
+        return payment_assurance_overview()
+    except Exception:
+        return {"status": "unavailable", "ready": False}
 
 
 SCHEMA_SQL = """

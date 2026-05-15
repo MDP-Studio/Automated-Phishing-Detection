@@ -105,6 +105,42 @@ feedback, SaaS user scan rows in `data/saas.db`, and sender profiles:
 37 2 * * * cd /srv/Automated-Phishing-Detection && /usr/bin/python3 main.py purge --target all >> logs/retention.log 2>&1
 ```
 
+## CTI Transport Checks
+
+STIX/Sigma file export remains the default sharing path. If a TAXII 2.1
+collection is configured, push a generated STIX bundle with:
+
+```bash
+python scripts/taxii_push.py --stix data/exports/example_iocs.json
+```
+
+The command writes a safe status file to `data/taxii_push_status.json`. The
+private admin overview shows only status, target URL without query strings,
+object count, HTTP status, and timing. It does not show TAXII credentials or
+STIX object contents.
+
+Validate Sigma converter compatibility locally before relying on a rule export:
+
+```bash
+python scripts/sigma_convert_check.py --backend splunk
+```
+
+CI runs the same check with `--require-converter` after installing pySigma and
+the Splunk backend.
+
+## PayShield Corpus Assurance
+
+Before tuning PayShield thresholds or training payment-specific ML, generate a
+redacted real-world corpus report:
+
+```bash
+python scripts/payment_dataset.py assurance-report --dataset data/payment_scam_dataset
+```
+
+The default target is 100 PII-free real/redacted/internal payment samples, with
+at least 20 examples for each payment decision. The admin overview reads only
+aggregate counts from the JSON report.
+
 ## Auth And Session Checks
 
 Production must set a high-entropy analyst token:
