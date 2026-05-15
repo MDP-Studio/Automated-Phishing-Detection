@@ -11,6 +11,9 @@ APP_CONTAINER="${APP_CONTAINER:-phishing-orchestrator}"
 TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-cloudflared-tunnel}"
 REQUIRE_TUNNEL="${REQUIRE_TUNNEL:-1}"
 TUNNEL_STABLE_SECONDS="${TUNNEL_STABLE_SECONDS:-10}"
+CTI_DOCKER_NETWORK="${CTI_DOCKER_NETWORK:-}"
+CTI_DOCKER_NETWORK_REQUIRED_SET="${CTI_DOCKER_NETWORK_REQUIRED+x}"
+CTI_DOCKER_NETWORK_REQUIRED="${CTI_DOCKER_NETWORK_REQUIRED:-0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=compose_env.sh
@@ -45,6 +48,43 @@ compose() {
     docker compose --env-file "$COMPOSE_ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+if [ -z "$CTI_DOCKER_NETWORK" ] && cti_network_from_file="$(read_env_value CTI_DOCKER_NETWORK "$APP_ENV_FILE")"; then
+    CTI_DOCKER_NETWORK="$cti_network_from_file"
+fi
+
+if [ -z "$CTI_DOCKER_NETWORK_REQUIRED_SET" ] \
+    && cti_network_required_from_file="$(read_env_value CTI_DOCKER_NETWORK_REQUIRED "$APP_ENV_FILE")"; then
+    CTI_DOCKER_NETWORK_REQUIRED="$cti_network_required_from_file"
+fi
+
+connect_cti_network() {
+    if [ -z "$CTI_DOCKER_NETWORK" ]; then
+        return 0
+    fi
+
+    if ! docker network inspect "$CTI_DOCKER_NETWORK" >/dev/null 2>&1; then
+        if [ "$CTI_DOCKER_NETWORK_REQUIRED" = "1" ]; then
+            echo "[deploy] CTI_DOCKER_NETWORK does not exist: $CTI_DOCKER_NETWORK" >&2
+            exit 1
+        fi
+        echo "[deploy] optional CTI network not found: $CTI_DOCKER_NETWORK" >&2
+        return 0
+    fi
+
+    if ! docker inspect "$APP_CONTAINER" >/dev/null 2>&1; then
+        echo "[deploy] app container not found for CTI network attach: $APP_CONTAINER" >&2
+        exit 1
+    fi
+
+    if docker inspect --format '{{json .NetworkSettings.Networks}}' "$APP_CONTAINER" | grep -Fq "\"$CTI_DOCKER_NETWORK\""; then
+        echo "[deploy] $APP_CONTAINER already connected to $CTI_DOCKER_NETWORK"
+        return 0
+    fi
+
+    docker network connect "$CTI_DOCKER_NETWORK" "$APP_CONTAINER"
+    echo "[deploy] connected $APP_CONTAINER to $CTI_DOCKER_NETWORK"
+}
+
 if [ "$REQUIRE_TUNNEL" = "1" ] \
     && [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] \
     && ! grep -q '^CLOUDFLARE_TUNNEL_TOKEN=.' "$APP_ENV_FILE" 2>/dev/null; then
@@ -64,6 +104,7 @@ export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-1}"
 
 compose pull browser-sandbox cloudflared || true
 compose up -d --build --remove-orphans
+connect_cti_network
 
 deadline=$((SECONDS + HEALTH_WAIT_SECONDS))
 while [ "$SECONDS" -lt "$deadline" ]; do

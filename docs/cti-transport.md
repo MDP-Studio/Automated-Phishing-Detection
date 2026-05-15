@@ -43,6 +43,27 @@ Environment variables:
 Prefer `TAXII_OBJECTS_URL` when a provider uses a non-standard API root. The
 status file strips query strings and embedded credentials from the target URL.
 
+## Private OpenCTI Deployment
+
+For a co-located OpenCTI stack, keep OpenCTI off the public tunnel and expose it
+only on a private Docker network. Configure APD with the service DNS name from
+that network:
+
+```bash
+TAXII_PUSH_ENABLED=true
+TAXII_OBJECTS_URL=http://opencti:8080/taxii2/root/collections/<collection-id>/objects/
+TAXII_BEARER_TOKEN=<service-account-token>
+TAXII_VERIFY_TLS=false
+CTI_DOCKER_NETWORK=opencti_internal
+CTI_DOCKER_NETWORK_REQUIRED=1
+```
+
+`scripts/docker_deploy.sh` reconnects the app container to
+`CTI_DOCKER_NETWORK` after each redeploy. Use a dedicated OpenCTI service
+account with `TAXIIAPI` access instead of the administrator token. Keep the
+OpenCTI UI behind SSH or a Cloudflare Access-protected hostname if it ever needs
+browser access.
+
 ## Sigma Conversion CI
 
 Structural Sigma validation still runs through the signed export validator.

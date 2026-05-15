@@ -119,6 +119,10 @@ private admin overview shows only status, target URL without query strings,
 object count, HTTP status, and timing. It does not show TAXII credentials or
 STIX object contents.
 
+When TAXII points to a private OpenCTI container, set `CTI_DOCKER_NETWORK` so
+`scripts/docker_deploy.sh` reconnects `phishing-orchestrator` to that internal
+network after each redeploy.
+
 Validate Sigma converter compatibility locally before relying on a rule export:
 
 ```bash

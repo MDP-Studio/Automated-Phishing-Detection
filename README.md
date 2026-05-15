@@ -222,8 +222,11 @@ TAXII_PUSH_ENABLED=false
 TAXII_BASE_URL=
 TAXII_COLLECTION_ID=
 TAXII_OBJECTS_URL=
+TAXII_BEARER_TOKEN=
 TAXII_STATUS_PATH=data/taxii_push_status.json
 SIGMA_CONVERSION_STATUS_PATH=data/sigma_conversion_status.json
+CTI_DOCKER_NETWORK=
+CTI_DOCKER_NETWORK_REQUIRED=0
 ```
 
 Password reset prefers Zoho Mail API direct send:
