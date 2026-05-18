@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)  # override=True so .env values win over empty system env vars
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, Request, Query
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from uvicorn import run
 
@@ -728,6 +728,26 @@ class PhishingDetectionApp:
             if base_url:
                 return f"{base_url}{path}"
             return path
+
+        def _public_seo_base(request: Request) -> tuple[str, str]:
+            if _is_payshield_host(request):
+                base_url = _public_base("PAYSHIELD_PUBLIC_URL") or str(request.base_url).rstrip("/")
+                return "payshield", base_url.rstrip("/")
+            base_url = _public_base("PHISHANALYZE_PUBLIC_URL") or str(request.base_url).rstrip("/")
+            return "phishanalyze", base_url.rstrip("/")
+
+        def _public_sitemap_urls(request: Request) -> list[str]:
+            product, base_url = _public_seo_base(request)
+            if product == "payshield":
+                return [
+                    f"{base_url}/",
+                    f"{base_url}/trust",
+                    f"{base_url}/mailbox-guide",
+                ]
+            return [
+                f"{base_url}/",
+                f"{base_url}/trust",
+            ]
 
         def _redirect_pay_app_to_payshield(request: Request, path: str) -> RedirectResponse | None:
             if _is_phishanalyze_host(request) and _public_base("PAYSHIELD_PUBLIC_URL"):
@@ -2674,6 +2694,46 @@ class PhishingDetectionApp:
         async def public_home(request: Request):
             """Route brand hostnames to the right public product."""
             return await product_page(request)
+
+        @app.get("/robots.txt", response_class=PlainTextResponse)
+        async def public_robots(request: Request):
+            """Serve host-aware crawler rules for public product domains."""
+            _, base_url = _public_seo_base(request)
+            return PlainTextResponse(
+                "\n".join(
+                    [
+                        "User-agent: *",
+                        "Allow: /",
+                        "",
+                        "Disallow: /admin/",
+                        "Disallow: /api/",
+                        "",
+                        f"Sitemap: {base_url}/sitemap.xml",
+                        "",
+                    ]
+                )
+            )
+
+        @app.get("/sitemap.xml")
+        async def public_sitemap(request: Request):
+            """Serve host-aware XML sitemaps for public product domains."""
+            urls = "\n".join(
+                [
+                    "  <url>\n"
+                    f"    <loc>{html.escape(url)}</loc>\n"
+                    "    <lastmod>2026-05-18</lastmod>\n"
+                    "    <changefreq>weekly</changefreq>\n"
+                    "  </url>"
+                    for url in _public_sitemap_urls(request)
+                ]
+            )
+            xml = (
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                f"{urls}\n"
+                "</urlset>\n"
+            )
+            return Response(content=xml, media_type="application/xml")
 
         @app.get("/analyze", response_class=HTMLResponse)
         async def public_analyze_page(request: Request):

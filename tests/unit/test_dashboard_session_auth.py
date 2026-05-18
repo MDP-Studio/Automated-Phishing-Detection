@@ -123,6 +123,48 @@ def test_brand_hosts_split_phishanalyze_and_payshield(monkeypatch):
     assert pay_settings.headers["location"] == "https://phishanalyze.example.test/settings"
 
 
+def test_public_robots_and_sitemap_are_host_aware(monkeypatch):
+    monkeypatch.setenv("PHISHANALYZE_PUBLIC_URL", "https://phishanalyze.example.test")
+    monkeypatch.setenv("PAYSHIELD_PUBLIC_URL", "https://payshield.example.test")
+    phish_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://phishanalyze.example.test",
+        follow_redirects=False,
+    )
+    pay_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://payshield.example.test",
+        follow_redirects=False,
+    )
+
+    phish_robots = phish_client.get("/robots.txt")
+    phish_sitemap = phish_client.get("/sitemap.xml")
+    pay_robots = pay_client.get("/robots.txt")
+    pay_sitemap = pay_client.get("/sitemap.xml")
+
+    assert phish_robots.status_code == 200
+    assert phish_robots.headers["content-type"].startswith("text/plain")
+    assert "Disallow: /admin/" in phish_robots.text
+    assert "Sitemap: https://phishanalyze.example.test/sitemap.xml" in phish_robots.text
+    assert phish_sitemap.status_code == 200
+    assert phish_sitemap.headers["content-type"].startswith("application/xml")
+    assert "https://phishanalyze.example.test/" in phish_sitemap.text
+    assert "https://phishanalyze.example.test/trust" in phish_sitemap.text
+    assert "payshield.example.test" not in phish_sitemap.text
+    assert "mailbox-guide" not in phish_sitemap.text
+
+    assert pay_robots.status_code == 200
+    assert pay_robots.headers["content-type"].startswith("text/plain")
+    assert "Disallow: /api/" in pay_robots.text
+    assert "Sitemap: https://payshield.example.test/sitemap.xml" in pay_robots.text
+    assert pay_sitemap.status_code == 200
+    assert pay_sitemap.headers["content-type"].startswith("application/xml")
+    assert "https://payshield.example.test/" in pay_sitemap.text
+    assert "https://payshield.example.test/trust" in pay_sitemap.text
+    assert "https://payshield.example.test/mailbox-guide" in pay_sitemap.text
+    assert "phishanalyze.example.test" not in pay_sitemap.text
+
+
 def test_saas_app_login_shell_uses_link_based_auth_navigation():
     client = TestClient(
         _build_app_with_token(),

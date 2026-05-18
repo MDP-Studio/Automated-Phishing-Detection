@@ -19,6 +19,7 @@ support, not a payment authorization system.
 | --- | --- | --- |
 | PhishAnalyze | `/product`, `/analyze`, `/dashboard`, `/monitor`, `/settings`, `/trust` | Introduce the scanner, upload suspicious `.eml` files, review private scan history, connect monitored mailboxes, manage simple settings, and read the PhishAnalyze trust page. |
 | PayShield | `/product`, `/app`, `/trust` | Analyze invoice and payment-related emails, see payment-risk evidence, and use PayShield-specific trust copy. |
+| Search readiness | `/robots.txt`, `/sitemap.xml` | Serve host-aware crawl instructions and sitemaps for `phishanalyze.mdpstudio.com.au` and `payshield.mdpstudio.com.au`. |
 | Admin | `/admin/*` | Private owner console for aggregate system health, API status, billing status, and operational checks. |
 
 PhishAnalyze verdicts:
