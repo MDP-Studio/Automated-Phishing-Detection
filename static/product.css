@@ -290,6 +290,7 @@ main {
 
 .workflow-band,
 .about-band,
+.guide-grid-band,
 .agent-proof-band,
 .proof-grid {
   display: grid;
@@ -396,6 +397,135 @@ main {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.55;
+}
+
+.guide-grid-band {
+  grid-template-columns: minmax(260px, 0.72fr) minmax(360px, 1fr);
+  gap: 28px;
+  align-items: start;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 32px 0;
+}
+
+.guide-grid-copy > span,
+.guide-card span,
+.guide-back {
+  color: var(--text-muted);
+}
+
+.guide-grid-copy > span {
+  color: var(--accent-light);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.guide-grid-copy h2 {
+  margin: 10px 0 12px;
+  color: var(--text-primary);
+  font-size: 32px;
+  line-height: 1.12;
+}
+
+.guide-grid-copy p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.guide-card-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.guide-card {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 16px;
+  text-decoration: none;
+}
+
+.guide-card:hover {
+  background: var(--nav-hover-bg);
+}
+
+.guide-card strong {
+  font-size: 16px;
+}
+
+.guide-card span {
+  line-height: 1.5;
+}
+
+.guide-page {
+  max-width: 880px;
+}
+
+.guide-hero {
+  padding: 60px 0 28px;
+}
+
+.guide-back {
+  display: inline-block;
+  margin-bottom: 28px;
+  text-decoration: none;
+}
+
+.guide-hero h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 48px;
+  line-height: 1.05;
+}
+
+.guide-hero p {
+  max-width: 720px;
+  margin: 18px 0 0;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1.62;
+}
+
+.guide-content {
+  display: grid;
+  gap: 14px;
+}
+
+.guide-section,
+.guide-cta {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  padding: 22px;
+}
+
+.guide-section h2,
+.guide-cta h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 22px;
+}
+
+.guide-section p,
+.guide-cta p {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  line-height: 1.62;
+}
+
+.guide-cta {
+  margin: 20px 0 60px;
+}
+
+.guide-cta .primary-action {
+  display: inline-block;
+  margin-top: 16px;
 }
 
 .agent-proof-band {
@@ -574,6 +704,7 @@ main {
   .product-hero,
   .about-band,
   .workflow-band,
+  .guide-grid-band,
   .agent-proof-band,
   .phish-proof-band,
   .proof-grid,
@@ -603,6 +734,10 @@ main {
 
   .trust-hero h1 {
     font-size: 40px;
+  }
+
+  .guide-hero h1 {
+    font-size: 36px;
   }
 }
 

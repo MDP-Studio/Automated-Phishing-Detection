@@ -736,17 +736,164 @@ class PhishingDetectionApp:
             base_url = _public_base("PHISHANALYZE_PUBLIC_URL") or str(request.base_url).rstrip("/")
             return "phishanalyze", base_url.rstrip("/")
 
+        PUBLIC_GUIDES = {
+            "phishanalyze": {
+                "email-header-analysis": {
+                    "title": "Email Header Analysis Guide",
+                    "description": "A practical guide to reading email headers before trusting a suspicious message.",
+                    "summary": "Use the original email headers to compare the visible sender, reply-to path, authentication results, and delivery hops before deciding what to do next.",
+                    "cta_href": "/analyze",
+                    "cta_label": "Scan an email",
+                    "sections": [
+                        (
+                            "Start with the original email",
+                            "Screenshots hide the header trail. Save the message as .eml when possible so the scanner can inspect sender fields, URLs, attachments, and authentication details together.",
+                        ),
+                        (
+                            "Compare From, Reply-To, and Return-Path",
+                            "Attackers often make the visible From name look familiar while replies or bounces go somewhere else. Mismatches are not always malicious, but they are worth checking before clicking or paying.",
+                        ),
+                        (
+                            "Read SPF, DKIM, and DMARC together",
+                            "Authentication results are strongest when they align with the visible sender domain. Failed, missing, or misaligned checks should push the message into manual review.",
+                        ),
+                        (
+                            "Check links outside the email client",
+                            "Hover text can lie. Expand shortened links, compare the real destination domain, and avoid signing in through a message unless you opened the service directly.",
+                        ),
+                    ],
+                },
+                "safe-eml-scanner": {
+                    "title": "Safe EML Scanner Workflow",
+                    "description": "How to inspect a suspicious .eml file without forwarding it around or opening risky links.",
+                    "summary": "A safer workflow for preserving evidence, scanning the original message, and deciding whether the email needs deletion, reporting, or escalation.",
+                    "cta_href": "/analyze",
+                    "cta_label": "Open scanner",
+                    "sections": [
+                        (
+                            "Do not click the message links",
+                            "Save the email first, then scan it. The goal is to preserve the original evidence while avoiding login pages, downloads, and tracking links inside the message.",
+                        ),
+                        (
+                            "Use a dedicated upload flow",
+                            "PhishAnalyze reads the .eml file and separates verdict, evidence, failed checks, skipped checks, and practical next steps so the result is easier to review.",
+                        ),
+                        (
+                            "Treat clean results as context, not permission",
+                            "A clean scan reduces concern, but it does not prove the email is safe forever. For payments, credentials, or urgent requests, verify through a trusted channel.",
+                        ),
+                    ],
+                },
+                "phishing-examples": {
+                    "title": "Realistic Phishing Example Patterns",
+                    "description": "Common phishing patterns students and small teams can recognize before entering credentials.",
+                    "summary": "These patterns show how malicious emails create urgency, abuse trusted brands, hide bad links, or ask an AI assistant to ignore normal safety checks.",
+                    "cta_href": "/analyze",
+                    "cta_label": "Test a sample",
+                    "sections": [
+                        (
+                            "Fake document shares",
+                            "The email claims a file, invoice, or HR document is waiting. The link usually leads to a lookalike login page or a download that starts outside the official service.",
+                        ),
+                        (
+                            "Urgent account warnings",
+                            "The message says your account, mailbox, tax profile, or bank access will be suspended. Pressure is used to reduce normal verification.",
+                        ),
+                        (
+                            "AI instruction attacks",
+                            "Some emails include hidden or explicit instructions telling automated tools to ignore policies, reveal secrets, or treat malicious content as trusted data.",
+                        ),
+                    ],
+                },
+            },
+            "payshield": {
+                "invoice-fraud-checklist": {
+                    "title": "Invoice Fraud Checklist",
+                    "description": "A before-payment checklist for invoice fraud, supplier impersonation, and bank-detail changes.",
+                    "summary": "Use this checklist before releasing money when an invoice, supplier portal notice, or bank-detail change arrives by email.",
+                    "cta_href": "/app",
+                    "cta_label": "Check a payment email",
+                    "sections": [
+                        (
+                            "Match the supplier identity",
+                            "Compare the sender domain, reply-to address, invoice branding, ABN or business identifier, payment details, and the supplier contact already saved in your records.",
+                        ),
+                        (
+                            "Pause on bank-detail changes",
+                            "Treat any changed BSB, account number, wallet address, or payment destination as high risk until confirmed through a known phone number or supplier portal opened directly.",
+                        ),
+                        (
+                            "Look for urgency and secrecy",
+                            "Invoice fraud often asks for same-day payment, quiet handling, or bypassed approval. That pressure is itself a useful risk signal.",
+                        ),
+                    ],
+                },
+                "bec-verification": {
+                    "title": "BEC Verification Workflow",
+                    "description": "A simple business email compromise workflow for finance and operations teams.",
+                    "summary": "Business email compromise is controlled by workflow discipline: hold the payment, preserve evidence, verify independently, and record the decision.",
+                    "cta_href": "/app",
+                    "cta_label": "Run PayShield",
+                    "sections": [
+                        (
+                            "Hold first, investigate second",
+                            "If the request changes payment details, asks for an unusual transfer, or claims executive urgency, hold the payment until the evidence is reviewed.",
+                        ),
+                        (
+                            "Verify out of band",
+                            "Use a known supplier phone number, saved finance contact, or official portal. Do not rely on contact details supplied inside the suspicious email thread.",
+                        ),
+                        (
+                            "Record what changed",
+                            "Capture sender details, requested payment amount, account changes, and who confirmed the request. That record helps prevent repeated attempts later.",
+                        ),
+                    ],
+                },
+                "before-you-pay": {
+                    "title": "Before You Pay Workflow",
+                    "description": "A quick payment safety workflow for invoice-heavy SMEs before money leaves the account.",
+                    "summary": "Before approving a payment, confirm the request, the supplier, and the destination through evidence instead of urgency.",
+                    "cta_href": "/app",
+                    "cta_label": "Open payment check",
+                    "sections": [
+                        (
+                            "Confirm the request belongs to the supplier",
+                            "Check whether the invoice, PO number, service history, and email domain line up with your existing supplier relationship.",
+                        ),
+                        (
+                            "Confirm the destination",
+                            "If account details are new or changed, verify through a channel you already trust. A forwarded email or copied signature is not enough.",
+                        ),
+                        (
+                            "Confirm the approval path",
+                            "A safe payment should survive normal review. If the request needs secrecy, speed, or skipped approval, treat it as a verification failure.",
+                        ),
+                    ],
+                },
+            },
+        }
+
+        def _render_public_guide_sections(guide: dict[str, object]) -> str:
+            sections = []
+            for title, body in guide["sections"]:
+                sections.append(
+                    "<section class=\"guide-section\">"
+                    f"<h2>{html.escape(str(title))}</h2>"
+                    f"<p>{html.escape(str(body))}</p>"
+                    "</section>"
+                )
+            return "\n".join(sections)
+
         def _public_sitemap_urls(request: Request) -> list[str]:
             product, base_url = _public_seo_base(request)
-            if product == "payshield":
-                return [
-                    f"{base_url}/",
-                    f"{base_url}/trust",
-                    f"{base_url}/mailbox-guide",
-                ]
+            guide_urls = [
+                f"{base_url}/guides/{slug}" for slug in PUBLIC_GUIDES[product].keys()
+            ]
             return [
                 f"{base_url}/",
                 f"{base_url}/trust",
+                f"{base_url}/mailbox-guide",
+                *guide_urls,
             ]
 
         def _redirect_pay_app_to_payshield(request: Request, path: str) -> RedirectResponse | None:
@@ -1648,6 +1795,33 @@ class PhishingDetectionApp:
                 .replace("{{BRAND_NAME}}", "PayShield" if payshield else "PhishAnalyze")
                 .replace("{{PRIMARY_LINK}}", "/app" if payshield else "/monitor")
                 .replace("{{PRIMARY_LABEL}}", "Back to app" if payshield else "Back to monitor")
+            )
+            return HTMLResponse(
+                content=_inject_shared(html_content),
+                headers={"Content-Security-Policy": STATIC_PAGE_CSP},
+            )
+
+        @app.get("/guides/{slug}", response_class=HTMLResponse)
+        async def public_guide_page(request: Request, slug: str):
+            """Serve host-aware public search guides."""
+            product, base_url = _public_seo_base(request)
+            guide = PUBLIC_GUIDES[product].get(slug)
+            if guide is None:
+                raise HTTPException(status_code=404, detail="Guide not found")
+            brand_name = "PayShield" if product == "payshield" else "PhishAnalyze"
+            brand_subtitle = "Payment scam firewall" if product == "payshield" else "Email threat scanner"
+            guide_path = Path("./templates/guide.html")
+            html_content = (
+                guide_path.read_text(encoding="utf-8")
+                .replace("{{BRAND_NAME}}", brand_name)
+                .replace("{{BRAND_SUBTITLE}}", brand_subtitle)
+                .replace("{{TITLE}}", html.escape(str(guide["title"])))
+                .replace("{{DESCRIPTION}}", html.escape(str(guide["description"])))
+                .replace("{{SUMMARY}}", html.escape(str(guide["summary"])))
+                .replace("{{CANONICAL_URL}}", f"{base_url}/guides/{slug}")
+                .replace("{{PRIMARY_LINK}}", html.escape(str(guide["cta_href"])))
+                .replace("{{PRIMARY_LABEL}}", html.escape(str(guide["cta_label"])))
+                .replace("{{GUIDE_SECTIONS}}", _render_public_guide_sections(guide))
             )
             return HTMLResponse(
                 content=_inject_shared(html_content),

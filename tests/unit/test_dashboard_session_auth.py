@@ -150,8 +150,11 @@ def test_public_robots_and_sitemap_are_host_aware(monkeypatch):
     assert phish_sitemap.headers["content-type"].startswith("application/xml")
     assert "https://phishanalyze.example.test/" in phish_sitemap.text
     assert "https://phishanalyze.example.test/trust" in phish_sitemap.text
+    assert "https://phishanalyze.example.test/mailbox-guide" in phish_sitemap.text
+    assert "https://phishanalyze.example.test/guides/email-header-analysis" in phish_sitemap.text
+    assert "https://phishanalyze.example.test/guides/safe-eml-scanner" in phish_sitemap.text
+    assert "https://phishanalyze.example.test/guides/phishing-examples" in phish_sitemap.text
     assert "payshield.example.test" not in phish_sitemap.text
-    assert "mailbox-guide" not in phish_sitemap.text
 
     assert pay_robots.status_code == 200
     assert pay_robots.headers["content-type"].startswith("text/plain")
@@ -162,7 +165,41 @@ def test_public_robots_and_sitemap_are_host_aware(monkeypatch):
     assert "https://payshield.example.test/" in pay_sitemap.text
     assert "https://payshield.example.test/trust" in pay_sitemap.text
     assert "https://payshield.example.test/mailbox-guide" in pay_sitemap.text
+    assert "https://payshield.example.test/guides/invoice-fraud-checklist" in pay_sitemap.text
+    assert "https://payshield.example.test/guides/bec-verification" in pay_sitemap.text
+    assert "https://payshield.example.test/guides/before-you-pay" in pay_sitemap.text
     assert "phishanalyze.example.test" not in pay_sitemap.text
+
+
+def test_public_growth_guides_are_host_aware(monkeypatch):
+    monkeypatch.setenv("PHISHANALYZE_PUBLIC_URL", "https://phishanalyze.example.test")
+    monkeypatch.setenv("PAYSHIELD_PUBLIC_URL", "https://payshield.example.test")
+    phish_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://phishanalyze.example.test",
+        follow_redirects=False,
+    )
+    pay_client = TestClient(
+        _build_app_with_token(),
+        base_url="https://payshield.example.test",
+        follow_redirects=False,
+    )
+
+    phish_guide = phish_client.get("/guides/email-header-analysis")
+    pay_guide = pay_client.get("/guides/invoice-fraud-checklist")
+    wrong_brand = phish_client.get("/guides/invoice-fraud-checklist")
+
+    assert phish_guide.status_code == 200
+    assert "Email Header Analysis Guide - PhishAnalyze" in phish_guide.text
+    assert 'href="https://phishanalyze.example.test/guides/email-header-analysis"' in phish_guide.text
+    assert "PayShield" not in phish_guide.text
+    assert "/static/product.css" in phish_guide.text
+    assert pay_guide.status_code == 200
+    assert "Invoice Fraud Checklist - PayShield" in pay_guide.text
+    assert 'href="https://payshield.example.test/guides/invoice-fraud-checklist"' in pay_guide.text
+    assert "PhishAnalyze" not in pay_guide.text
+    assert "/static/product.css" in pay_guide.text
+    assert wrong_brand.status_code == 404
 
 
 def test_saas_app_login_shell_uses_link_based_auth_navigation():

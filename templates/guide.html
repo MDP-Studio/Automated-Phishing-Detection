@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}} - {{BRAND_NAME}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="canonical" href="{{CANONICAL_URL}}">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{{TITLE}} - {{BRAND_NAME}}">
+  <meta property="og:description" content="{{DESCRIPTION}}">
+  <meta property="og:url" content="{{CANONICAL_URL}}">
+  <meta property="og:site_name" content="{{BRAND_NAME}}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{TITLE}} - {{BRAND_NAME}}">
+  <meta name="twitter:description" content="{{DESCRIPTION}}">
+  <link rel="stylesheet" href="/static/product.css">
+</head>
+<body>
+  <header class="product-topbar">
+    <a class="brand" href="/product" aria-label="{{BRAND_NAME}} product home">
+      <span class="brand-main">{{BRAND_NAME}}</span>
+      <span class="brand-sub">{{BRAND_SUBTITLE}}</span>
+    </a>
+    <nav class="product-nav" aria-label="Public navigation">
+      <a href="/product">Product</a>
+      <a href="/trust">Trust</a>
+      <a class="nav-cta" href="{{PRIMARY_LINK}}">{{PRIMARY_LABEL}}</a>
+    </nav>
+  </header>
+
+  <main class="product-page guide-page" itemscope itemtype="https://schema.org/Article">
+    <section class="guide-hero">
+      <a class="guide-back" href="/product">Back to product</a>
+      <h1 itemprop="headline">{{TITLE}}</h1>
+      <p itemprop="description">{{SUMMARY}}</p>
+    </section>
+
+    <div class="guide-content" itemprop="articleBody">
+      {{GUIDE_SECTIONS}}
+    </div>
+
+    <section class="guide-cta">
+      <h2>Check the message before trusting it</h2>
+      <p>{{BRAND_NAME}} turns the original email into a verdict, evidence, and next steps so the decision is not based on urgency alone.</p>
+      <a class="primary-action" href="{{PRIMARY_LINK}}">{{PRIMARY_LABEL}}</a>
+    </section>
+  </main>
+</body>
+</html>
