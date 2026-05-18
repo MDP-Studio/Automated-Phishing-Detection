@@ -47,6 +47,10 @@ before `payment_fraud` and classifies messages as `invoice`,
 `non_payment` continues to the full payment-risk analyzer. SaaS mailbox
 scan-now also uses the same gate before creating a scan job, so obvious
 non-payment inbox messages are skipped rather than stored in PayShield history.
+If `PAYMENT_RELEVANCE_MODEL_PATH` points to a trained model, the relevance
+analyzer adds an `ml_sidecar` in monitor mode. It reports prediction,
+confidence, class probabilities, and rule disagreement, but rules still decide
+`label`, `should_scan`, skip behavior, and PayShield display decisions.
 
 The pipeline uses the payment decision as a business-aware override:
 
@@ -101,6 +105,7 @@ python scripts/payment_dataset.py add \
   --source path/to/redacted-sample.eml \
   --label PAYMENT_SCAM \
   --payment-decision DO_NOT_PAY \
+  --payment-relevance bank_detail_change \
   --scenario bank_detail_change \
   --source-type redacted \
   --split train \
@@ -113,15 +118,18 @@ Validate and export generic eval labels:
 
 ```bash
 python scripts/payment_dataset.py validate --dataset data/payment_scam_dataset
+python scripts/payment_dataset.py prelabel-relevance --dataset data/payment_scam_dataset
 python scripts/payment_dataset.py export-eval-labels --dataset data/payment_scam_dataset
 python scripts/payment_dataset.py export-ml-jsonl --dataset data/payment_scam_dataset
 python scripts/payment_dataset.py readiness --dataset data/payment_scam_dataset
+python scripts/payment_relevance_eval.py --dataset data/payment_scam_dataset
 python scripts/payment_eval.py --dataset data/payment_scam_dataset
 python scripts/payment_eval.py \
   --dataset data/payment_scam_dataset \
   --split holdout \
   --output-prefix data/payment_scam_dataset/reports/payment_holdout_eval
 python scripts/payment_train.py --dataset data/payment_scam_dataset
+python scripts/payment_train.py --dataset data/payment_scam_dataset --target payment_relevance
 python scripts/payment_demo.py --dataset data/payment_scam_dataset
 ```
 
@@ -142,14 +150,25 @@ the sample outside PayShield's payment workflow. Reports include accuracy by
 source type and split, and `--split holdout` can be used for the public-derived
 holdout set.
 
+`prelabel-relevance` fills the `payment_relevance` column from the current
+rules and writes `reports/payment_relevance_review.csv`. Manually review rows
+marked `skip_candidate`, `unknown`, `low_confidence`, or `label_disagreement`
+before treating those labels as ML ground truth.
+
+`payment_relevance_eval.py` writes JSON, CSV, and Markdown reports for
+relevance labels and should-scan routing. The false-negative count is the key
+guardrail because a false negative means a payment-related sample would be
+skipped by the rules gate.
+
 `payment_train.py` trains and tests a TF-IDF + logistic regression baseline on
 the exported ML JSONL. It writes ignored model artifacts and metrics under
 `models/payment_classifier/`. Rows marked `split=holdout` are excluded from
-training and reported separately. When the payment-decision model exists, the
-payment analyzer includes an `ml_decision` sidecar so analysts can compare the
-rules decision against the model prediction without letting synthetic-only ML
-override payment release. Treat synthetic-only accuracy as a plumbing check, not
-a production metric.
+training and reported separately. The default target is `payment_decision`; use
+`--target payment_relevance` for the relevance sidecar. When the
+payment-decision or payment-relevance model exists, the analyzers include
+monitor sidecars so analysts can compare rules against model predictions
+without letting synthetic-only ML override payment release or skip behavior.
+Treat synthetic-only accuracy as a plumbing check, not a production metric.
 
 `payment_demo.py` prints one compact expected-vs-predicted table across `SAFE`,
 `VERIFY`, and `DO_NOT_PAY`, preferring PII-free redacted/public rows over
@@ -237,9 +256,11 @@ Label rules:
 - `PAYMENT_SCAM`: confirmed malicious, red-team generated, or synthetic attack sample.
 - `LEGITIMATE_PAYMENT`: real or synthetic normal invoice, remittance, statement, or verified bank-detail change.
 - `NON_PAYMENT`: normal clean business mail with no payment context.
+- `payment_decision=NOT_PAYMENT_SPECIFIC`: not part of PayShield's payment workflow.
 - `payment_decision=DO_NOT_PAY`: payment must be blocked.
 - `payment_decision=VERIFY`: payment can continue only after out-of-band supplier or executive verification.
 - `payment_decision=SAFE`: no material payment-risk signal is expected.
+- `payment_relevance=non_payment`: can be skipped by rules today, so review this label carefully.
 
 ## Product Positioning
 

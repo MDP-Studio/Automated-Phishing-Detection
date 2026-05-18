@@ -23,7 +23,11 @@ def main() -> int:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_DIR)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_MODEL_DIR)
     parser.add_argument("--ml-jsonl", type=Path, default=None)
-    parser.add_argument("--target", choices=["payment_decision", "binary_label"], default="payment_decision")
+    parser.add_argument(
+        "--target",
+        choices=["payment_decision", "binary_label", "payment_relevance"],
+        default="payment_decision",
+    )
     args = parser.parse_args()
 
     metrics = train_payment_classifier(

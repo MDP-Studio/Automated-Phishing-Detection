@@ -81,6 +81,7 @@ async def test_agent_payment_tool_reports_non_payment_without_body_leak(tmp_path
 
     assert payload["decision"] == "NOT_PAYMENT_SPECIFIC"
     assert payload["payment_relevance"]["label"] == "non_payment"
+    assert "model_path" not in json.dumps(payload["payment_relevance"])
     assert payload["safety"]["body_returned"] is False
     assert "roadmap notes" not in serialized
     assert '"raw_headers":' not in serialized

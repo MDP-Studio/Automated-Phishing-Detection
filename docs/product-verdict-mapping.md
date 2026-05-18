@@ -32,6 +32,10 @@ When the payment-relevance gate skips a clear non-payment email, PayShield shows
 `NOT_PAYMENT_SPECIFIC` instead of presenting it as a safe invoice or payment
 request.
 
+If the payment relevance ML sidecar is configured, it remains monitor-only.
+Product verdicts still come from the rules-derived relevance gate and
+`payment_fraud` decision, not from the sidecar prediction.
+
 ## LLM Summary Boundary
 
 LLM-backed checks explain structured analyzer evidence only. They do not replace

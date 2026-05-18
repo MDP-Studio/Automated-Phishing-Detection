@@ -9,12 +9,16 @@ merge them into one generic classifier.
 | --- | --- | --- |
 | PhishAnalyze | `CLEAN` vs `PHISHING` baseline | Broad suspicious-email detection needs phishing, spam, and ham corpora. |
 | PayShield | `SAFE`, `VERIFY`, `DO_NOT_PAY` | Payment decision support needs invoice, bank-change, BEC, and supplier-risk labels. |
+| PayShield relevance | `invoice`, `payment_request`, `bank_detail_change`, `receipt`, `billing_notice`, `non_payment`, `unknown` | Mailbox triage needs a high-recall payment relevance target before payment-risk decisions. |
 | Shared prompt-injection safety | Analyzer/eval lane, not product verdict authority | Prompt-injection content is hostile input that both products must surface, but it should not replace product-specific labels. |
 
 PhishAnalyze answers: "is this suspicious or phishing?"
 
 PayShield answers: "should finance continue normal checks, verify out of band,
 or pause payment?"
+
+PayShield relevance answers: "is this message payment-related enough to send
+to the PayShield analyzers?"
 
 The prompt-injection lane answers: "is the email trying to control AI tools,
 prompts, secrets, browser actions, mailbox actions, or account state?"
@@ -118,6 +122,26 @@ docker exec phishing-orchestrator python scripts/payment_train.py \
   --dataset /app/data/payment_scam_dataset \
   --output-dir /app/models/payment_classifier
 ```
+
+Pre-label and train the PayShield relevance monitor model:
+
+```bash
+docker exec phishing-orchestrator python scripts/payment_dataset.py prelabel-relevance \
+  --dataset /app/data/payment_scam_dataset
+
+docker exec phishing-orchestrator python scripts/payment_relevance_eval.py \
+  --dataset /app/data/payment_scam_dataset
+
+docker exec phishing-orchestrator python scripts/payment_train.py \
+  --dataset /app/data/payment_scam_dataset \
+  --output-dir /app/models/payment_classifier \
+  --target payment_relevance
+```
+
+Manually review `/app/data/payment_scam_dataset/reports/payment_relevance_review.csv`
+before treating rule prelabels as ground truth. The relevance model is
+monitor-only at runtime through `PAYMENT_RELEVANCE_MODEL_PATH`; rules still own
+skip decisions until false negatives are proven very low on reviewed data.
 
 ## Prompt-Injection Coverage
 

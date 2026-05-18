@@ -24,6 +24,7 @@ from src.eval.failure_inspector import FailureReport, FailureRow, build_report
 from src.eval.payment_dataset import (
     MLExportSummary,
     PaymentAssuranceReport,
+    PaymentRelevancePrelabelSummary,
     PublicCorpusPaymentSeedSummary,
     RedactionFinding,
     RedactionSummary,
@@ -33,6 +34,7 @@ from src.eval.payment_dataset import (
     build_payment_assurance_report,
     export_ml_jsonl,
     init_dataset,
+    prelabel_payment_relevance,
     redact_eml,
     scan_redaction_findings,
     seed_public_corpus_payment_examples,
@@ -45,6 +47,11 @@ from src.eval.payment_decision_eval import (
     PaymentDecisionEvalSummary,
     evaluate_payment_decisions,
 )
+from src.eval.payment_relevance_eval import (
+    PaymentRelevanceEvalRow,
+    PaymentRelevanceEvalSummary,
+    evaluate_payment_relevance,
+)
 
 __all__ = [
     "AggregateMetrics",
@@ -56,6 +63,9 @@ __all__ = [
     "PaymentDecisionEvalRow",
     "PaymentDecisionEvalSummary",
     "PaymentAssuranceReport",
+    "PaymentRelevanceEvalRow",
+    "PaymentRelevanceEvalSummary",
+    "PaymentRelevancePrelabelSummary",
     "PreparedCorpus",
     "PublicCorpusPaymentSeedSummary",
     "RedactionFinding",
@@ -68,8 +78,10 @@ __all__ = [
     "build_payment_assurance_report",
     "export_ml_jsonl",
     "evaluate_payment_decisions",
+    "evaluate_payment_relevance",
     "init_dataset",
     "prepare_corpus",
+    "prelabel_payment_relevance",
     "redact_eml",
     "run_eval",
     "run_mixed_channel_eval",

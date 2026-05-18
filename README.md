@@ -192,6 +192,7 @@ ACCOUNTS_ENCRYPTION_KEY=
 PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor
 PROMPT_INJECTION_MODEL_PATH=models/prompt_injection_classifier/prompt_injection_model.joblib
 PROMPT_INJECTION_ML_THRESHOLD=0.90
+PAYMENT_RELEVANCE_MODEL_PATH=models/payment_classifier/payment_relevance_model.joblib
 PHISHANALYZE_PUBLIC_URL=https://phishanalyze.mdpstudio.com.au
 PAYSHIELD_PUBLIC_URL=https://payshield.mdpstudio.com.au
 ```
@@ -364,6 +365,9 @@ PayShield assurance uses ignored, redacted payment samples:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\payment_dataset.py assurance-report --dataset data\payment_scam_dataset
+.\.venv\Scripts\python.exe scripts\payment_dataset.py prelabel-relevance --dataset data\payment_scam_dataset
+.\.venv\Scripts\python.exe scripts\payment_train.py --dataset data\payment_scam_dataset --target payment_relevance
+.\.venv\Scripts\python.exe scripts\payment_relevance_eval.py --dataset data\payment_scam_dataset
 ```
 
 See [`docs/payment-detection-assurance.md`](docs/payment-detection-assurance.md)

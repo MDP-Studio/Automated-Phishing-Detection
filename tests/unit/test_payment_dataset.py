@@ -15,6 +15,7 @@ from src.eval.payment_dataset import (
     export_ml_jsonl,
     export_eval_labels,
     init_dataset,
+    prelabel_payment_relevance,
     redact_eml,
     scan_redaction_findings,
     seed_public_corpus_payment_examples,
@@ -150,13 +151,14 @@ def test_add_sample_validates_and_exports_eval_labels(tmp_path: Path):
     with (dataset / "labels.csv").open("r", encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     assert rows[0]["payment_decision"] == "DO_NOT_PAY"
+    assert rows[0]["payment_relevance"] == ""
 
 
 def test_validate_catches_missing_file_and_bad_label(tmp_path: Path):
     dataset = init_dataset(tmp_path / "payment")
     (dataset / "labels.csv").write_text(
-        "filename,label,payment_decision,scenario,source_type,split,verified_by,contains_real_pii,notes\n"
-        "missing.eml,BAD,SAFE,non_payment,real,train,,,bad\n",
+        "filename,label,payment_decision,payment_relevance,scenario,channel,source_type,split,verified_by,contains_real_pii,notes\n"
+        "missing.eml,BAD,SAFE,non_payment,non_payment,email,real,train,,,bad\n",
         encoding="utf-8",
     )
 
@@ -234,6 +236,7 @@ def test_seed_synthetic_bank_change_dataset_creates_balanced_seed(tmp_path: Path
     assert {row["source_type"] for row in rows} == {"synthetic"}
     assert {row["contains_real_pii"] for row in rows} == {"no"}
     assert {row["payment_decision"] for row in rows} == {"DO_NOT_PAY", "VERIFY"}
+    assert {row["payment_relevance"] for row in rows} == {"bank_detail_change"}
     assert all((dataset / "samples" / row["filename"]).exists() for row in rows)
 
 
@@ -255,6 +258,7 @@ def test_seed_synthetic_can_add_safe_invoice_class(tmp_path: Path):
     with (dataset / "labels.csv").open("r", encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     assert {row["payment_decision"] for row in rows} == {"DO_NOT_PAY", "SAFE", "VERIFY"}
+    assert {row["payment_relevance"] for row in rows} == {"bank_detail_change", "invoice"}
     safe_rows = [row for row in rows if row["payment_decision"] == "SAFE"]
     assert {row["scenario"] for row in safe_rows} == {"legitimate_invoice"}
     assert {row["label"] for row in safe_rows} == {"LEGITIMATE_PAYMENT"}
@@ -283,6 +287,12 @@ def test_seed_public_advisory_payment_examples_adds_realish_decisions(tmp_path: 
     assert {row["source_type"] for row in rows} == {"public"}
     assert {row["contains_real_pii"] for row in rows} == {"no"}
     assert {row["payment_decision"] for row in rows} == {"DO_NOT_PAY", "VERIFY"}
+    assert {row["payment_relevance"] for row in rows} <= {
+        "bank_detail_change",
+        "invoice",
+        "payment_request",
+        "receipt",
+    }
     assert {row["label"] for row in rows} == {"LEGITIMATE_PAYMENT", "PAYMENT_SCAM"}
     assert {row["split"] for row in rows} == {"holdout", "train", "validation", "test"}
 
@@ -316,6 +326,7 @@ def test_seed_public_corpus_payment_examples_mines_redacted_payment_language(tmp
     assert {row["contains_real_pii"] for row in rows} == {"no"}
     assert {row["label"] for row in rows} == {"PAYMENT_SCAM"}
     assert {row["payment_decision"] for row in rows} == {"DO_NOT_PAY", "VERIFY"}
+    assert {row["payment_relevance"] for row in rows} <= {"bank_detail_change", "invoice"}
 
     sample_text = "\n".join(
         (dataset / "samples" / row["filename"]).read_text(encoding="utf-8")
@@ -501,7 +512,57 @@ def test_export_ml_jsonl_writes_redacted_training_rows(tmp_path: Path):
     assert len(rows) == 4
     assert {row["binary_label"] for row in rows} == {"PHISHING", "CLEAN"}
     assert {row["payment_decision"] for row in rows} == {"DO_NOT_PAY", "VERIFY"}
+    assert {row["payment_relevance"] for row in rows} == {"bank_detail_change"}
     assert all(row["text"] for row in rows)
+
+
+def test_prelabel_payment_relevance_writes_labels_and_review_queue(tmp_path: Path):
+    dataset = init_dataset(tmp_path / "payment_scam_dataset_seed")
+    invoice = _write_eml(tmp_path / "invoice.eml", "Invoice INV-100")
+    non_payment = _write_eml(tmp_path / "planning.eml", "Planning notes")
+    non_payment.write_text(
+        "\n".join(
+            [
+                "From: lead@example.com",
+                "To: team@example.com",
+                "Subject: Planning notes",
+                "",
+                "Please bring your quarterly roadmap notes to the planning session tomorrow.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    add_sample(
+        dataset_dir=dataset,
+        source=invoice,
+        label="LEGITIMATE_PAYMENT",
+        payment_decision="SAFE",
+        scenario="legitimate_invoice",
+        source_type="synthetic",
+        split="train",
+        contains_real_pii="no",
+    )
+    add_sample(
+        dataset_dir=dataset,
+        source=non_payment,
+        label="NON_PAYMENT",
+        payment_decision="NOT_PAYMENT_SPECIFIC",
+        scenario="non_payment",
+        source_type="synthetic",
+        split="test",
+        contains_real_pii="no",
+    )
+
+    summary = prelabel_payment_relevance(dataset)
+
+    with (dataset / "labels.csv").open("r", encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert summary.labeled_count == 2
+    assert {row["payment_relevance"] for row in rows} == {"invoice", "non_payment"}
+    review_text = summary.review_path.read_text(encoding="utf-8")
+    assert "skip_candidate" in review_text
+    assert "roadmap notes" not in review_text
 
 
 def test_export_ml_jsonl_refuses_rows_not_marked_pii_free(tmp_path: Path):

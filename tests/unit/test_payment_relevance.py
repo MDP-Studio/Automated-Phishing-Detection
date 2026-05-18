@@ -130,3 +130,66 @@ async def test_short_sparse_email_stays_unknown_and_scannable():
 
     assert result.details["label"] == "unknown"
     assert result.details["should_scan"] is True
+
+
+@pytest.mark.asyncio
+async def test_relevance_ml_sidecar_does_not_override_non_payment_skip(tmp_path, monkeypatch):
+    model_path = tmp_path / "payment_relevance_model.joblib"
+    model_path.write_bytes(b"placeholder")
+
+    class FakePrediction:
+        label = "invoice"
+        confidence = 0.99
+        class_probabilities = {"invoice": 0.99, "non_payment": 0.01}
+
+    def fake_predictor(text, *, model_path):
+        return FakePrediction()
+
+    monkeypatch.setattr(
+        "src.analyzers.payment_relevance._load_payment_relevance_predictor",
+        lambda: fake_predictor,
+    )
+    analyzer = PaymentRelevanceAnalyzer(relevance_model_path=model_path)
+    email = make_email(
+        "Team planning reminder",
+        "Hi team, please bring your quarterly roadmap notes to the meeting tomorrow.",
+    )
+
+    result = await analyzer.analyze(email)
+
+    assert result.details["label"] == "non_payment"
+    assert result.details["should_scan"] is False
+    assert result.details["ml_sidecar"]["available"] is True
+    assert result.details["ml_sidecar"]["mode"] == "monitor"
+    assert result.details["ml_sidecar"]["authority"] == "rules"
+    assert result.details["ml_sidecar"]["prediction"] == "invoice"
+    assert result.details["ml_sidecar"]["would_change_skip_decision"] is True
+    assert "model_path" not in result.details["ml_sidecar"]
+
+
+@pytest.mark.asyncio
+async def test_relevance_ml_sidecar_cannot_skip_rules_scannable_unknown(tmp_path, monkeypatch):
+    model_path = tmp_path / "payment_relevance_model.joblib"
+    model_path.write_bytes(b"placeholder")
+
+    class FakePrediction:
+        label = "non_payment"
+        confidence = 0.98
+        class_probabilities = {"invoice": 0.02, "non_payment": 0.98}
+
+    def fake_predictor(text, *, model_path):
+        return FakePrediction()
+
+    monkeypatch.setattr(
+        "src.analyzers.payment_relevance._load_payment_relevance_predictor",
+        lambda: fake_predictor,
+    )
+    analyzer = PaymentRelevanceAnalyzer(relevance_model_path=model_path)
+    email = make_email("FYI", "See attached.")
+
+    result = await analyzer.analyze(email)
+
+    assert result.details["label"] == "unknown"
+    assert result.details["should_scan"] is True
+    assert result.details["ml_sidecar"]["prediction"] == "non_payment"
+    assert result.details["ml_sidecar"]["would_change_skip_decision"] is True

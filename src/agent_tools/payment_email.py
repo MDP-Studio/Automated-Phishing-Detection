@@ -109,6 +109,21 @@ def _sanitized_ml_decision(details: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _sanitized_payment_relevance(details: dict[str, Any]) -> dict[str, Any]:
+    relevance = details.get("payment_relevance")
+    if not isinstance(relevance, dict):
+        return {}
+    sanitized = dict(relevance)
+    sidecar = sanitized.get("ml_sidecar")
+    if isinstance(sidecar, dict):
+        sanitized["ml_sidecar"] = {
+            key: value
+            for key, value in sidecar.items()
+            if key not in {"model_path", "input_text", "raw_text", "raw_headers"}
+        }
+    return sanitized
+
+
 def _email_metadata(email: EmailObject) -> dict[str, Any]:
     return {
         "email_id": email.email_id,
@@ -213,7 +228,7 @@ async def analyze_payment_email_file(
         "signals": signals,
         "extracted_payment_fields": details.get("extracted_payment_fields") or {},
         "verification_steps": details.get("verification_steps") or [],
-        "payment_relevance": details.get("payment_relevance") or {},
+        "payment_relevance": _sanitized_payment_relevance(details),
         "ml_decision": _sanitized_ml_decision(details),
         "safety": {
             "body_returned": False,

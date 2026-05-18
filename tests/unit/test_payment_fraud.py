@@ -63,6 +63,8 @@ async def test_no_payment_context_returns_safe():
     assert result.status == "skipped"
     assert result.details["message"] == "not_payment_related"
     assert result.details["payment_relevance"]["label"] == "non_payment"
+    assert result.details["payment_relevance"]["ml_sidecar"]["authority"] == "rules"
+    assert "model_path" not in result.details["payment_relevance"]["ml_sidecar"]
     assert result.risk_score == 0.0
     assert result.details["signals"] == []
 

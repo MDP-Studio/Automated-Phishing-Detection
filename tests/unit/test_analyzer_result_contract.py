@@ -85,6 +85,7 @@ def test_payment_relevance_contract_is_advisory_and_free():
             "label": "non_payment",
             "should_scan": False,
             "summary": "No payment context was detected.",
+            "ml_sidecar": {"available": False, "mode": "monitor", "authority": "rules"},
         },
         risk_contribution=0.0,
     )
@@ -96,6 +97,7 @@ def test_payment_relevance_contract_is_advisory_and_free():
     assert payload["cost_tier"] == "free_local"
     assert payload["risk_contribution"] == 0.0
     assert payload["details"]["should_scan"] is False
+    assert payload["details"]["ml_sidecar"]["authority"] == "rules"
 
 
 def test_nested_api_client_cache_marker_promotes_cached_status():

@@ -47,6 +47,7 @@ DATASET_COLUMNS = [
     "filename",
     "label",
     "payment_decision",
+    "payment_relevance",
     "scenario",
     "channel",
     "source_type",
@@ -57,7 +58,17 @@ DATASET_COLUMNS = [
 ]
 
 ALLOWED_LABELS = {"PAYMENT_SCAM", "LEGITIMATE_PAYMENT", "NON_PAYMENT"}
-ALLOWED_DECISIONS = {"SAFE", "VERIFY", "DO_NOT_PAY"}
+ALLOWED_DECISIONS = {"NOT_PAYMENT_SPECIFIC", "SAFE", "VERIFY", "DO_NOT_PAY"}
+PAYMENT_DECISION_ASSURANCE_TARGETS = {"SAFE", "VERIFY", "DO_NOT_PAY"}
+ALLOWED_PAYMENT_RELEVANCE_LABELS = {
+    "invoice",
+    "payment_request",
+    "bank_detail_change",
+    "receipt",
+    "billing_notice",
+    "non_payment",
+    "unknown",
+}
 ALLOWED_SCENARIOS = {
     "bank_detail_change",
     "supplier_impersonation",
@@ -146,6 +157,17 @@ class RedactionSummary:
 class MLExportSummary:
     output_path: Path
     row_count: int
+
+
+@dataclass(frozen=True)
+class PaymentRelevancePrelabelSummary:
+    dataset_dir: Path
+    labels_path: Path
+    review_path: Path
+    labeled_count: int
+    skipped_count: int
+    review_count: int
+    parse_errors: int
 
 
 @dataclass(frozen=True)
@@ -263,7 +285,8 @@ and legitimate payment email examples.
 Each row in `labels.csv` has:
 
 - `label`: `PAYMENT_SCAM`, `LEGITIMATE_PAYMENT`, or `NON_PAYMENT`
-- `payment_decision`: expected business decision, one of `SAFE`, `VERIFY`, `DO_NOT_PAY`
+- `payment_decision`: expected business decision, one of `NOT_PAYMENT_SPECIFIC`, `SAFE`, `VERIFY`, `DO_NOT_PAY`
+- `payment_relevance`: `invoice`, `payment_request`, `bank_detail_change`, `receipt`, `billing_notice`, `non_payment`, or `unknown`
 - `scenario`: e.g. `bank_detail_change`, `supplier_impersonation`, `executive_transfer`, `legitimate_invoice`
 - `channel`: `email`, `sms`, `chat`, `voice`, or `voice_transcript`
 - `source_type`: `real`, `public`, `synthetic`, `redacted`, or `internal`
@@ -318,6 +341,13 @@ payment review set is broad enough:
 
 ```bash
 python scripts/payment_dataset.py assurance-report --dataset data/payment_scam_dataset
+```
+
+Pre-label payment relevance with the current rules, then manually review the
+borderline queue before using it as ML ground truth:
+
+```bash
+python scripts/payment_dataset.py prelabel-relevance --dataset data/payment_scam_dataset
 ```
 """
 
@@ -555,6 +585,7 @@ def add_sample(
     label: str,
     payment_decision: str,
     scenario: str,
+    payment_relevance: str = "",
     channel: str = "email",
     source_type: str = "real",
     split: str = "unassigned",
@@ -571,6 +602,8 @@ def add_sample(
 
     _validate_value("label", label, ALLOWED_LABELS)
     _validate_value("payment_decision", payment_decision, ALLOWED_DECISIONS)
+    if payment_relevance:
+        _validate_value("payment_relevance", payment_relevance, ALLOWED_PAYMENT_RELEVANCE_LABELS)
     _validate_value("scenario", scenario, ALLOWED_SCENARIOS)
     _validate_value("channel", channel, ALLOWED_CHANNELS)
     _validate_value("source_type", source_type, ALLOWED_SOURCE_TYPES)
@@ -588,6 +621,7 @@ def add_sample(
             "filename": filename,
             "label": label,
             "payment_decision": payment_decision,
+            "payment_relevance": payment_relevance,
             "scenario": scenario,
             "channel": channel,
             "source_type": source_type,
@@ -650,6 +684,17 @@ def validate_dataset(dataset_dir: Path = DEFAULT_DATASET_DIR) -> ValidationResul
             row.get("payment_decision", ""),
             ALLOWED_DECISIONS,
         )
+        payment_relevance = _row_payment_relevance(row)
+        if payment_relevance:
+            _collect_value_error(
+                errors,
+                index,
+                "payment_relevance",
+                payment_relevance,
+                ALLOWED_PAYMENT_RELEVANCE_LABELS,
+            )
+        else:
+            warnings.append(f"row {index}: missing payment_relevance; run prelabel-relevance then review")
         _collect_value_error(errors, index, "scenario", row.get("scenario", ""), ALLOWED_SCENARIOS)
         _collect_value_error(errors, index, "channel", _row_channel(row), ALLOWED_CHANNELS)
         _collect_value_error(errors, index, "source_type", row.get("source_type", ""), ALLOWED_SOURCE_TYPES)
@@ -659,6 +704,12 @@ def validate_dataset(dataset_dir: Path = DEFAULT_DATASET_DIR) -> ValidationResul
 
         if row.get("label") == "PAYMENT_SCAM" and row.get("payment_decision") == "SAFE":
             errors.append(f"row {index}: PAYMENT_SCAM cannot have SAFE payment_decision")
+        if row.get("label") == "NON_PAYMENT" and row.get("payment_decision") != "NOT_PAYMENT_SPECIFIC":
+            errors.append(f"row {index}: NON_PAYMENT must use NOT_PAYMENT_SPECIFIC payment_decision")
+        if row.get("payment_decision") == "NOT_PAYMENT_SPECIFIC" and row.get("label") != "NON_PAYMENT":
+            errors.append(f"row {index}: NOT_PAYMENT_SPECIFIC must use NON_PAYMENT label")
+        if payment_relevance == "non_payment" and row.get("payment_decision") != "NOT_PAYMENT_SPECIFIC":
+            warnings.append(f"row {index}: non_payment relevance usually maps to NOT_PAYMENT_SPECIFIC")
         if row.get("label") == "NON_PAYMENT" and row.get("scenario") != "non_payment":
             warnings.append(f"row {index}: NON_PAYMENT usually uses scenario non_payment")
         if (
@@ -728,7 +779,7 @@ def summarize_dataset_readiness(
             "Mark non-synthetic samples contains_real_pii=no only after redaction audit passes."
         )
 
-    missing_decisions = sorted(ALLOWED_DECISIONS - set(by_payment_decision))
+    missing_decisions = sorted(PAYMENT_DECISION_ASSURANCE_TARGETS - set(by_payment_decision))
     if missing_decisions:
         recommendations.append(
             "Add examples for missing payment decisions: " + ", ".join(missing_decisions)
@@ -738,7 +789,7 @@ def summarize_dataset_readiness(
         row.get("payment_decision", "")
         for row in realish_rows
     }
-    missing_realish_decisions = sorted(ALLOWED_DECISIONS - realish_decisions)
+    missing_realish_decisions = sorted(PAYMENT_DECISION_ASSURANCE_TARGETS - realish_decisions)
     if realish_rows and missing_realish_decisions:
         recommendations.append(
             "Add non-synthetic examples for payment decisions: "
@@ -811,7 +862,7 @@ def build_payment_assurance_report(
             f"payment samples to reach the {review_target}-sample assurance target."
         )
 
-    for decision in sorted(ALLOWED_DECISIONS):
+    for decision in sorted(PAYMENT_DECISION_ASSURANCE_TARGETS):
         count = real_redacted_by_decision.get(decision, 0)
         if count < minimum_per_decision:
             recommendations.append(
@@ -891,7 +942,7 @@ def _payment_assurance_markdown(report: PaymentAssuranceReport) -> str:
         "## Real Redacted Decisions",
         "",
     ]
-    for decision in sorted(ALLOWED_DECISIONS):
+    for decision in sorted(PAYMENT_DECISION_ASSURANCE_TARGETS):
         lines.append(f"- `{decision}`: `{report.real_redacted_by_decision.get(decision, 0)}`")
     lines.extend(["", "## Channels", ""])
     for channel, count in sorted(report.by_channel.items()):
@@ -921,6 +972,10 @@ def _row_channel(row: dict[str, str]) -> str:
         if match:
             channel = match.group(1).strip().replace("-", "_").replace(" ", "_")
     return channel or "email"
+
+
+def _row_payment_relevance(row: dict[str, str]) -> str:
+    return (row.get("payment_relevance") or "").strip().lower().replace("-", "_")
 
 
 def _collect_value_error(
@@ -1128,6 +1183,7 @@ def export_ml_jsonl(
                 "label": row["label"],
                 "binary_label": "PHISHING" if row["label"] == "PAYMENT_SCAM" else "CLEAN",
                 "payment_decision": row["payment_decision"],
+                "payment_relevance": _row_payment_relevance(row),
                 "scenario": row["scenario"],
                 "channel": _row_channel(row),
                 "source_type": row["source_type"],
@@ -1135,6 +1191,126 @@ def export_ml_jsonl(
             }
             fh.write(json.dumps(record, sort_keys=True) + "\n")
     return MLExportSummary(output_path=output, row_count=len(rows))
+
+
+def _prelabel_review_reason(label: str, confidence: float, should_scan: bool, threshold: float) -> str:
+    reasons = []
+    if not should_scan:
+        reasons.append("skip_candidate")
+    if label == "unknown":
+        reasons.append("unknown")
+    if confidence < threshold:
+        reasons.append("low_confidence")
+    return ";".join(reasons)
+
+
+def prelabel_payment_relevance(
+    dataset_dir: Path = DEFAULT_DATASET_DIR,
+    *,
+    overwrite: bool = False,
+    review_threshold: float = 0.88,
+) -> PaymentRelevancePrelabelSummary:
+    """
+    Fill payment_relevance labels from the current rules and write a review CSV.
+
+    The CSV is the manual review queue for labels that could affect skip
+    behavior later: non-payment skip candidates, unknowns, low-confidence rows,
+    parse errors, and rule/label disagreements.
+    """
+    dataset_dir = init_dataset(dataset_dir)
+    labels_path = dataset_dir / LABELS_CSV
+    review_path = dataset_dir / REPORTS_DIR / "payment_relevance_review.csv"
+    rows = _read_labels(labels_path)
+
+    from src.analyzers.payment_relevance import PaymentRelevanceAnalyzer
+    from src.extractors.eml_parser import EMLParser
+
+    parser = EMLParser()
+    analyzer = PaymentRelevanceAnalyzer()
+    labeled_count = 0
+    skipped_count = 0
+    parse_errors = 0
+    review_rows: list[dict[str, str]] = []
+
+    for row in rows:
+        current_label = _row_payment_relevance(row)
+        if current_label and not overwrite:
+            skipped_count += 1
+            continue
+
+        filename = row.get("filename", "")
+        sample_path = dataset_dir / SAMPLES_DIR / filename
+        try:
+            email = parser.parse_file(sample_path)
+        except Exception:
+            email = None
+        if email is None:
+            parse_errors += 1
+            review_rows.append({
+                "filename": filename,
+                "current_payment_relevance": current_label,
+                "rule_payment_relevance": "",
+                "confidence": "",
+                "should_scan": "",
+                "review_reason": "parse_error",
+                "summary": "Sample could not be parsed.",
+            })
+            continue
+
+        analysis = analyzer.classify(email)
+        rule_label = analysis.label.value
+        confidence = round(float(analysis.confidence), 3)
+        row["payment_relevance"] = rule_label
+        labeled_count += 1
+
+        review_reason = _prelabel_review_reason(
+            rule_label,
+            confidence,
+            analysis.should_scan,
+            review_threshold,
+        )
+        if current_label and current_label != rule_label:
+            review_reason = ";".join(
+                item for item in [review_reason, "label_disagreement"] if item
+            )
+        if review_reason:
+            review_rows.append({
+                "filename": filename,
+                "current_payment_relevance": current_label,
+                "rule_payment_relevance": rule_label,
+                "confidence": f"{confidence:.3f}",
+                "should_scan": str(bool(analysis.should_scan)).lower(),
+                "review_reason": review_reason,
+                "summary": analysis.summary,
+            })
+
+    _write_labels(labels_path, rows)
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    with review_path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=[
+                "filename",
+                "current_payment_relevance",
+                "rule_payment_relevance",
+                "confidence",
+                "should_scan",
+                "review_reason",
+                "summary",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(review_rows)
+
+    return PaymentRelevancePrelabelSummary(
+        dataset_dir=dataset_dir,
+        labels_path=labels_path,
+        review_path=review_path,
+        labeled_count=labeled_count,
+        skipped_count=skipped_count,
+        review_count=len(review_rows),
+        parse_errors=parse_errors,
+    )
 
 
 def _assert_safe_clean_target(dataset_dir: Path) -> None:
@@ -1156,6 +1332,21 @@ def _split_for_index(index: int, total: int) -> str:
     if ratio < 0.9:
         return "validation"
     return "test"
+
+
+def _payment_relevance_for_scenario(scenario: str) -> str:
+    scenario = (scenario or "").strip().lower()
+    if scenario in {"bank_detail_change", "supplier_impersonation", "legitimate_bank_change_verified"}:
+        return "bank_detail_change"
+    if scenario in {"overdue_invoice", "fake_invoice_attachment", "legitimate_invoice"}:
+        return "invoice"
+    if scenario in {"executive_transfer", "payment_portal_link"}:
+        return "payment_request"
+    if scenario == "legitimate_remittance":
+        return "receipt"
+    if scenario == "non_payment":
+        return "non_payment"
+    return "unknown"
 
 
 def _synthetic_message(
@@ -1613,6 +1804,7 @@ def seed_public_corpus_payment_examples(
                 source=redacted_source,
                 label="PAYMENT_SCAM",
                 payment_decision=decision,
+                payment_relevance=_payment_relevance_for_scenario(scenario),
                 scenario=scenario,
                 source_type="public",
                 split=_split_for_index(written_counts[decision], max(1, requested[decision])),
@@ -1899,6 +2091,7 @@ def seed_public_advisory_payment_examples(
             source=source,
             label="PAYMENT_SCAM",
             payment_decision="DO_NOT_PAY",
+            payment_relevance=_payment_relevance_for_scenario(case["scenario"]),
             scenario=case["scenario"],
             source_type="public",
             split=_split_for_index(index, do_not_pay_count),
@@ -1917,6 +2110,7 @@ def seed_public_advisory_payment_examples(
             source=source,
             label="PAYMENT_SCAM",
             payment_decision="DO_NOT_PAY",
+            payment_relevance=_payment_relevance_for_scenario(case["scenario"]),
             scenario=case["scenario"],
             source_type="public",
             split="holdout",
@@ -1934,6 +2128,7 @@ def seed_public_advisory_payment_examples(
             source=source,
             label="LEGITIMATE_PAYMENT",
             payment_decision="VERIFY",
+            payment_relevance=_payment_relevance_for_scenario(case["scenario"]),
             scenario=case["scenario"],
             source_type="public",
             split=_split_for_index(index, verify_count),
@@ -1952,6 +2147,7 @@ def seed_public_advisory_payment_examples(
             source=source,
             label="LEGITIMATE_PAYMENT",
             payment_decision="VERIFY",
+            payment_relevance=_payment_relevance_for_scenario(case["scenario"]),
             scenario=case["scenario"],
             source_type="public",
             split="holdout",
@@ -2001,6 +2197,7 @@ def seed_synthetic_bank_change_dataset(
             source=source,
             label="PAYMENT_SCAM",
             payment_decision="DO_NOT_PAY",
+            payment_relevance="bank_detail_change",
             scenario="bank_detail_change",
             source_type="synthetic",
             split=_split_for_index(index, scam_count),
@@ -2018,6 +2215,7 @@ def seed_synthetic_bank_change_dataset(
             source=source,
             label="LEGITIMATE_PAYMENT",
             payment_decision="VERIFY",
+            payment_relevance="bank_detail_change",
             scenario="legitimate_bank_change_verified",
             source_type="synthetic",
             split=_split_for_index(index, legit_count),
@@ -2035,6 +2233,7 @@ def seed_synthetic_bank_change_dataset(
             source=source,
             label="LEGITIMATE_PAYMENT",
             payment_decision="SAFE",
+            payment_relevance="invoice",
             scenario="legitimate_invoice",
             source_type="synthetic",
             split=_split_for_index(index, safe_count),
@@ -2070,6 +2269,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--source", type=Path, required=True)
     add_parser.add_argument("--label", choices=sorted(ALLOWED_LABELS), required=True)
     add_parser.add_argument("--payment-decision", choices=sorted(ALLOWED_DECISIONS), required=True)
+    add_parser.add_argument("--payment-relevance", choices=sorted(ALLOWED_PAYMENT_RELEVANCE_LABELS), default="")
     add_parser.add_argument("--scenario", choices=sorted(ALLOWED_SCENARIOS), required=True)
     add_parser.add_argument("--channel", choices=sorted(ALLOWED_CHANNELS), default="email")
     add_parser.add_argument("--source-type", choices=sorted(ALLOWED_SOURCE_TYPES), default="real")
@@ -2134,6 +2334,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ml_parser.add_argument("--output", type=Path, default=None)
     ml_parser.add_argument("--allow-pii", action="store_true", help="Allow export of rows not marked PII-free")
 
+    prelabel_parser = subparsers.add_parser(
+        "prelabel-relevance",
+        help="Pre-label payment_relevance with current rules and write a manual review queue",
+    )
+    prelabel_parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_DIR)
+    prelabel_parser.add_argument("--overwrite", action="store_true")
+    prelabel_parser.add_argument("--review-threshold", type=float, default=0.88)
+
     readiness_parser = subparsers.add_parser(
         "readiness",
         help="Summarize dataset balance, source quality, and real-sample readiness",
@@ -2171,6 +2379,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             source=args.source,
             label=args.label,
             payment_decision=args.payment_decision,
+            payment_relevance=args.payment_relevance,
             scenario=args.scenario,
             channel=args.channel,
             source_type=args.source_type,
@@ -2297,6 +2506,21 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"Wrote ML JSONL: {summary.output_path}")
         print(f"  rows: {summary.row_count}")
         return 0
+
+    if args.command == "prelabel-relevance":
+        summary = prelabel_payment_relevance(
+            dataset_dir=args.dataset,
+            overwrite=args.overwrite,
+            review_threshold=args.review_threshold,
+        )
+        print(f"Pre-labeled payment relevance at {summary.dataset_dir}")
+        print(f"  labeled rows:  {summary.labeled_count}")
+        print(f"  skipped rows:  {summary.skipped_count}")
+        print(f"  review rows:   {summary.review_count}")
+        print(f"  parse errors:  {summary.parse_errors}")
+        print(f"  labels:        {summary.labels_path}")
+        print(f"  review queue:  {summary.review_path}")
+        return 0 if summary.parse_errors == 0 else 1
 
     if args.command == "readiness":
         report = summarize_dataset_readiness(

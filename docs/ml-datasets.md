@@ -80,6 +80,10 @@ before reporting product metrics, changing payment thresholds, or training a
 payment-specific model. The default acceptance target is 100 PII-free
 real/redacted/internal payment examples, with at least 20 examples for each of
 `SAFE`, `VERIFY`, and `DO_NOT_PAY`, plus channel metadata for drift reporting.
+For payment relevance ML, first run `payment_dataset.py prelabel-relevance`,
+review `reports/payment_relevance_review.csv`, then evaluate with
+`payment_relevance_eval.py`. The relevance model must remain monitor-only until
+reviewed false negatives are very low.
 
 Public corpora and synthetic samples can improve regression coverage, but they
 do not replace redacted real-world invoices, remittances, bank-change notices,

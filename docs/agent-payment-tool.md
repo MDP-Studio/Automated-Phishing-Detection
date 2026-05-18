@@ -12,6 +12,9 @@ It wraps the existing payment relevance and `payment_fraud` analyzers and
 returns structured evidence without exposing full email bodies, raw headers, or
 attachment content. Clear non-payment messages return `NOT_PAYMENT_SPECIFIC` so
 agents do not treat them as safe payment requests.
+If relevance ML is configured, the returned `payment_relevance.ml_sidecar` is
+sanitized and monitor-only. It does not include local model paths, raw text, raw
+headers, or authority over skip behavior.
 The companion mailbox guide tool returns setup instructions only. It never
 accepts mailbox passwords or stores credentials.
 

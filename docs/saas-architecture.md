@@ -56,6 +56,9 @@ Implemented foundation:
   `payment_relevance` prefilter before deep analysis. Clear non-payment
   messages are skipped and only counted in the response; payment-related or
   uncertain messages are analyzed and stored as tenant-scoped scan results.
+  When a relevance ML model is configured, its sidecar remains monitor-only;
+  scan-now still uses the rules result for skip decisions and does not return
+  raw model input or local model paths.
 - `/trust` documents the customer-facing privacy boundary, analyzer visibility,
   deletion controls, and the separation between normal accounts and private
   admin pages. The route is hostname-aware: PhishAnalyze renders email-analysis

@@ -11,13 +11,24 @@ set, then train or tune only after the evidence shows a clear gap.
 
 Required label fields include:
 
-- `payment_decision`: `SAFE`, `VERIFY`, or `DO_NOT_PAY`
+- `payment_decision`: `NOT_PAYMENT_SPECIFIC`, `SAFE`, `VERIFY`, or `DO_NOT_PAY`
+- `payment_relevance`: `invoice`, `payment_request`, `bank_detail_change`,
+  `receipt`, `billing_notice`, `non_payment`, or `unknown`
 - `scenario`: payment context such as `bank_detail_change` or `legitimate_invoice`
 - `channel`: `email`, `sms`, `chat`, `voice`, or `voice_transcript`
 - `source_type`: `real`, `redacted`, `internal`, `public`, or `synthetic`
 - `contains_real_pii`: must be `no` before ML export or assurance claims
 
 Older label files without `channel` are still accepted and treated as email.
+Older label files without `payment_relevance` can be pre-labeled with:
+
+```bash
+python scripts/payment_dataset.py prelabel-relevance --dataset data/payment_scam_dataset
+```
+
+Review `reports/payment_relevance_review.csv` before using prelabels for model
+training. `skip_candidate` rows need special care because they teach the model
+what could later be skipped.
 
 ## Assurance Report
 

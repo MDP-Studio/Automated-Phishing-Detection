@@ -32,6 +32,7 @@ class PaymentMLRecord:
     label: str
     binary_label: str
     payment_decision: str
+    payment_relevance: str
     scenario: str
     source_type: str
     split: str
@@ -62,6 +63,13 @@ class PaymentMLPrediction:
     class_probabilities: dict[str, float]
 
 
+@dataclass(frozen=True)
+class PaymentRelevanceMLPrediction:
+    label: str
+    confidence: float
+    class_probabilities: dict[str, float]
+
+
 def load_payment_ml_records(path: Path) -> list[PaymentMLRecord]:
     records: list[PaymentMLRecord] = []
     with Path(path).open("r", encoding="utf-8") as fh:
@@ -76,6 +84,7 @@ def load_payment_ml_records(path: Path) -> list[PaymentMLRecord]:
                     label=row["label"],
                     binary_label=row["binary_label"],
                     payment_decision=row["payment_decision"],
+                    payment_relevance=row.get("payment_relevance", ""),
                     scenario=row["scenario"],
                     source_type=row["source_type"],
                     split=row.get("split") or "unassigned",
@@ -88,14 +97,17 @@ def _records_for_split(records: list[PaymentMLRecord], split: str) -> list[Payme
     return [record for record in records if record.split == split]
 
 
-def _fallback_split(records: list[PaymentMLRecord]) -> tuple[list[PaymentMLRecord], list[PaymentMLRecord], list[PaymentMLRecord]]:
+def _fallback_split(
+    records: list[PaymentMLRecord],
+    target: str = "payment_decision",
+) -> tuple[list[PaymentMLRecord], list[PaymentMLRecord], list[PaymentMLRecord]]:
     ordered = sorted(records, key=lambda record: record.filename)
     train: list[PaymentMLRecord] = []
     validation: list[PaymentMLRecord] = []
     test: list[PaymentMLRecord] = []
     by_class: dict[str, list[PaymentMLRecord]] = {}
     for record in ordered:
-        by_class.setdefault(record.payment_decision, []).append(record)
+        by_class.setdefault(_target_value(record, target), []).append(record)
     for class_records in by_class.values():
         total = len(class_records)
         for index, record in enumerate(class_records):
@@ -109,25 +121,34 @@ def _fallback_split(records: list[PaymentMLRecord]) -> tuple[list[PaymentMLRecor
     return train, validation, test
 
 
-def split_records(records: list[PaymentMLRecord]) -> tuple[list[PaymentMLRecord], list[PaymentMLRecord], list[PaymentMLRecord]]:
+def split_records(
+    records: list[PaymentMLRecord],
+    target: str = "payment_decision",
+) -> tuple[list[PaymentMLRecord], list[PaymentMLRecord], list[PaymentMLRecord]]:
     train = _records_for_split(records, "train")
     validation = _records_for_split(records, "validation")
     test = _records_for_split(records, "test")
     if train and test:
         return train, validation, test
-    return _fallback_split(records)
+    return _fallback_split(records, target)
 
 
 def holdout_records(records: list[PaymentMLRecord]) -> list[PaymentMLRecord]:
     return _records_for_split(records, "holdout")
 
 
-def _target_values(records: list[PaymentMLRecord], target: str) -> list[str]:
+def _target_value(record: PaymentMLRecord, target: str) -> str:
     if target == "payment_decision":
-        return [record.payment_decision for record in records]
+        return record.payment_decision
     if target == "binary_label":
-        return [record.binary_label for record in records]
-    raise ValueError("target must be payment_decision or binary_label")
+        return record.binary_label
+    if target == "payment_relevance":
+        return record.payment_relevance
+    raise ValueError("target must be payment_decision, binary_label, or payment_relevance")
+
+
+def _target_values(records: list[PaymentMLRecord], target: str) -> list[str]:
+    return [_target_value(record, target) for record in records]
 
 
 def _texts(records: list[PaymentMLRecord]) -> list[str]:
@@ -176,6 +197,23 @@ def predict_payment_decision(
     *,
     model_path: Path = DEFAULT_MODEL_DIR / "payment_decision_model.joblib",
 ) -> PaymentMLPrediction:
+    return _predict_text(text, model_path=model_path)
+
+
+def predict_payment_relevance(
+    text: str,
+    *,
+    model_path: Path = DEFAULT_MODEL_DIR / "payment_relevance_model.joblib",
+) -> PaymentRelevanceMLPrediction:
+    prediction = _predict_text(text, model_path=model_path)
+    return PaymentRelevanceMLPrediction(
+        label=prediction.decision,
+        confidence=prediction.confidence,
+        class_probabilities=prediction.class_probabilities,
+    )
+
+
+def _predict_text(text: str, *, model_path: Path) -> PaymentMLPrediction:
     model = joblib.load(model_path)
     prediction = str(model.predict([text])[0])
     probabilities: dict[str, float] = {}
@@ -207,10 +245,15 @@ def train_payment_classifier(
     records = load_payment_ml_records(ml_jsonl)
     if not records:
         raise ValueError("payment ML dataset has no rows")
+    if target == "payment_relevance" and any(not record.payment_relevance for record in records):
+        raise ValueError(
+            "payment_relevance target needs labels; run scripts/payment_dataset.py prelabel-relevance "
+            "and manually review the borderline queue first"
+        )
 
     holdout = holdout_records(records)
     trainable_records = [record for record in records if record.split != "holdout"]
-    train, validation, test = split_records(trainable_records)
+    train, validation, test = split_records(trainable_records, target=target)
     if not train or not test:
         raise ValueError("payment ML dataset needs train and test rows")
 

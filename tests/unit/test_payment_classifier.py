@@ -14,6 +14,7 @@ from src.eval.payment_dataset import (
 from src.ml.payment_classifier import (
     load_payment_ml_records,
     predict_payment_decision,
+    predict_payment_relevance,
     split_records,
     train_payment_classifier,
 )
@@ -71,6 +72,33 @@ def test_train_binary_classifier_on_seed_dataset(tmp_path: Path):
 
     assert metrics.classes == ["CLEAN", "PHISHING"]
     assert metrics.test_accuracy == 1.0
+
+
+def test_train_payment_relevance_classifier_on_seed_dataset(tmp_path: Path):
+    dataset = tmp_path / "payment_scam_dataset_seed"
+    seed_synthetic_bank_change_dataset(
+        dataset_dir=dataset,
+        scam_count=10,
+        legit_count=10,
+        safe_count=10,
+        seed=1337,
+        clean=True,
+    )
+
+    metrics = train_payment_classifier(
+        dataset_dir=dataset,
+        output_dir=tmp_path / "model",
+        target="payment_relevance",
+    )
+
+    assert metrics.classes == ["bank_detail_change", "invoice"]
+    assert metrics.model_path.name == "payment_relevance_model.joblib"
+    prediction = predict_payment_relevance(
+        "Subject: Routine invoice\n\nInvoice INV-7100 for normal approval.",
+        model_path=metrics.model_path,
+    )
+    assert prediction.label in {"bank_detail_change", "invoice"}
+    assert set(prediction.class_probabilities) == {"bank_detail_change", "invoice"}
 
 
 def test_train_payment_classifier_requires_rows(tmp_path: Path):

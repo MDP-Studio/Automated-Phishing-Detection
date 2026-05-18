@@ -4,7 +4,8 @@ Benchmark LLM providers for payment-scam decisions.
 
 The benchmark is intentionally separate from the full phishing pipeline. The
 pipeline's payment rules can mask model differences, while this script measures
-the LLM decision layer directly on SAFE / VERIFY / DO_NOT_PAY labels.
+the LLM decision layer directly on NOT_PAYMENT_SPECIFIC / SAFE / VERIFY /
+DO_NOT_PAY labels.
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ except Exception:  # pragma: no cover - python-dotenv is in requirements.
     load_dotenv = None
 
 
-DECISIONS = ("SAFE", "VERIFY", "DO_NOT_PAY")
+DECISIONS = ("NOT_PAYMENT_SPECIFIC", "SAFE", "VERIFY", "DO_NOT_PAY")
 DEFAULT_SOURCE_TYPES = ("public", "redacted", "synthetic")
 DEFAULT_SPLITS = ("holdout",)
 
@@ -372,13 +373,15 @@ def build_prompt(sample: PaymentSample) -> str:
     return f"""You classify payment-risk emails for an accounts-payable firewall.
 
 Return JSON only. Use exactly one decision:
-- SAFE: normal or non-payment email; no payment hold is needed.
+- NOT_PAYMENT_SPECIFIC: normal clean mail with no invoice, billing, receipt, bank-detail, or payment-request context.
+- SAFE: normal payment email; no payment hold is needed.
 - VERIFY: payment, invoice, supplier, portal, or account activity that needs out-of-band verification before money moves.
 - DO_NOT_PAY: block payment release because the email shows bank-detail changes, payment redirection, urgent executive transfer pressure, approval bypass language, or a likely malicious payment portal.
 
 Bias rules:
 - If payment risk is ambiguous, choose VERIFY.
 - If the email asks for new bank details, a changed account, a wire transfer, or an urgent executive payment, choose DO_NOT_PAY.
+- If it has no payment context, choose NOT_PAYMENT_SPECIFIC.
 - If it is a normal invoice/remittance with no risky change, pressure, or suspicious portal, choose SAFE.
 
 Email:
@@ -389,7 +392,7 @@ Body:
 {sample.body}
 
 Return this exact shape:
-{{"decision":"SAFE|VERIFY|DO_NOT_PAY","confidence":0.0,"reasoning":"short reason"}}
+{{"decision":"NOT_PAYMENT_SPECIFIC|SAFE|VERIFY|DO_NOT_PAY","confidence":0.0,"reasoning":"short reason"}}
 """
 
 

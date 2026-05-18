@@ -538,6 +538,7 @@ def test_mailbox_scan_now_skips_clear_non_payment_mail(tmp_path, monkeypatch):
     assert payload["analyzed"] == 1
     assert payload["skipped_non_payment"] == 1
     assert payload["skipped_results"][0]["payment_relevance"]["label"] == "non_payment"
+    assert "ml_sidecar" not in payload["skipped_results"][0]["payment_relevance"]
     assert payload["results"][0]["subject"] == "Invoice INV-200"
     assert len(history.json()["results"]) == 1
     assert "Bring your roadmap notes" not in serialized

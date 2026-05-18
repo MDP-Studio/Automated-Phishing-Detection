@@ -305,7 +305,8 @@ class PaymentFraudAnalyzer:
 
         try:
             text = self._combined_text(email)
-            relevance = PaymentRelevanceAnalyzer().classify(email)
+            relevance_analyzer = PaymentRelevanceAnalyzer()
+            relevance = relevance_analyzer.classify(email)
             fields = self._extract_payment_fields(text)
             attachments = email.attachments if hasattr(email, "attachments") else []
             invoice_attachments = self._invoice_attachment_names(attachments)
@@ -313,8 +314,7 @@ class PaymentFraudAnalyzer:
 
             payment_context = bool(payment_terms or fields["has_payment_fields"] or invoice_attachments)
             if not relevance.should_scan:
-                relevance_details = asdict(relevance)
-                relevance_details["label"] = relevance.label.value
+                relevance_details = relevance_analyzer.details_for(email, relevance)
                 return AnalyzerResult(
                     analyzer_name=analyzer_name,
                     risk_score=0.0,

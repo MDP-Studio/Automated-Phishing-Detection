@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import re
+import logging
+import os
 from dataclasses import asdict
 from html import unescape
+from pathlib import Path
+from typing import Optional
 
 from src.models import (
     AnalyzerResult,
@@ -13,6 +17,34 @@ from src.models import (
     PaymentRelevanceAnalysis,
     PaymentRelevanceLabel,
 )
+
+
+logger = logging.getLogger(__name__)
+
+try:
+    from src.ml.payment_classifier import (
+        DEFAULT_MODEL_DIR as DEFAULT_PAYMENT_MODEL_DIR,
+        predict_payment_relevance,
+    )
+except Exception:  # pragma: no cover - optional ML dependencies may be absent.
+    DEFAULT_PAYMENT_MODEL_DIR = None
+    predict_payment_relevance = None
+
+
+def _load_payment_relevance_predictor():
+    global DEFAULT_PAYMENT_MODEL_DIR, predict_payment_relevance
+    if predict_payment_relevance is not None:
+        return predict_payment_relevance
+    try:
+        from src.ml.payment_classifier import (
+            DEFAULT_MODEL_DIR,
+            predict_payment_relevance as predictor,
+        )
+    except Exception:
+        return None
+    DEFAULT_PAYMENT_MODEL_DIR = DEFAULT_MODEL_DIR
+    predict_payment_relevance = predictor
+    return predictor
 
 
 class PaymentRelevanceAnalyzer:
@@ -113,6 +145,15 @@ class PaymentRelevanceAnalyzer:
         re.IGNORECASE,
     )
 
+    def __init__(self, relevance_model_path: Optional[Path] = None) -> None:
+        default_model = (
+            DEFAULT_PAYMENT_MODEL_DIR / "payment_relevance_model.joblib"
+            if DEFAULT_PAYMENT_MODEL_DIR is not None
+            else Path("models/payment_classifier/payment_relevance_model.joblib")
+        )
+        configured = os.getenv("PAYMENT_RELEVANCE_MODEL_PATH")
+        self.relevance_model_path = Path(relevance_model_path or configured or default_model)
+
     async def analyze(
         self,
         email: EmailObject,
@@ -120,13 +161,7 @@ class PaymentRelevanceAnalyzer:
         extracted_urls: list | None = None,
     ) -> AnalyzerResult:
         analysis = self.classify(email)
-        details = asdict(analysis)
-        details["label"] = analysis.label.value
-        details["message"] = "payment_relevance_classified"
-        details["ml_sidecar"] = {
-            "available": False,
-            "reason": "no_payment_relevance_model_configured",
-        }
+        details = self.details_for(email, analysis)
         return AnalyzerResult(
             analyzer_name="payment_relevance",
             risk_score=0.0,
@@ -142,6 +177,18 @@ class PaymentRelevanceAnalyzer:
                 ],
             ],
         )
+
+    def details_for(
+        self,
+        email: EmailObject,
+        analysis: PaymentRelevanceAnalysis | None = None,
+    ) -> dict:
+        analysis = analysis or self.classify(email)
+        details = asdict(analysis)
+        details["label"] = analysis.label.value
+        details["message"] = "payment_relevance_classified"
+        details["ml_sidecar"] = self._ml_sidecar(email, analysis)
+        return details
 
     def classify(self, email: EmailObject) -> PaymentRelevanceAnalysis:
         text = self._combined_text(email)
@@ -249,6 +296,51 @@ class PaymentRelevanceAnalyzer:
             [],
         )
 
+    def _ml_sidecar(self, email: EmailObject, rules_analysis: PaymentRelevanceAnalysis) -> dict:
+        predictor = _load_payment_relevance_predictor()
+        if predictor is None:
+            return {
+                "available": False,
+                "mode": "monitor",
+                "authority": "rules",
+                "reason": "payment_relevance_ml_not_importable",
+            }
+        if not self.relevance_model_path.exists():
+            return {
+                "available": False,
+                "mode": "monitor",
+                "authority": "rules",
+                "reason": "model_not_found",
+            }
+        try:
+            prediction = predictor(
+                self._ml_text(email),
+                model_path=self.relevance_model_path,
+            )
+        except Exception as exc:
+            logger.warning("Payment relevance ML prediction failed: %s", exc)
+            return {
+                "available": False,
+                "mode": "monitor",
+                "authority": "rules",
+                "reason": "prediction_failed",
+            }
+
+        model_should_scan = str(prediction.label) != PaymentRelevanceLabel.NON_PAYMENT.value
+        return {
+            "available": True,
+            "mode": "monitor",
+            "authority": "rules",
+            "prediction": prediction.label,
+            "confidence": prediction.confidence,
+            "class_probabilities": prediction.class_probabilities,
+            "rules_label": rules_analysis.label.value,
+            "rules_should_scan": rules_analysis.should_scan,
+            "model_should_scan": model_should_scan,
+            "disagrees_with_rules": prediction.label != rules_analysis.label.value,
+            "would_change_skip_decision": model_should_scan != rules_analysis.should_scan,
+        }
+
     def _analysis(
         self,
         label: PaymentRelevanceLabel,
@@ -289,6 +381,27 @@ class PaymentRelevanceAnalyzer:
                 html_text,
             ])
         ).lower()
+
+    def _ml_text(self, email: EmailObject) -> str:
+        sections = [
+            f"Subject: {email.subject or ''}",
+            f"From: {email.from_display_name or ''} <{email.from_address or ''}>",
+        ]
+        if email.reply_to:
+            sections.append(f"Reply-To: {email.reply_to}")
+        if email.to_addresses:
+            sections.append("To: " + ", ".join(email.to_addresses))
+        body = "\n".join(
+            chunk.strip()
+            for chunk in [email.body_plain or "", re.sub(r"<[^>]+>", " ", email.body_html or "")]
+            if chunk.strip()
+        )
+        if body:
+            sections.append(f"Body:\n{body}")
+        attachment_names = self._attachment_names(getattr(email, "attachments", []) or [])
+        if attachment_names:
+            sections.append("Attachments: " + ", ".join(attachment_names))
+        return "\n\n".join(sections)
 
     def _attachment_names(self, attachments: list[AttachmentObject]) -> list[str]:
         names = []
