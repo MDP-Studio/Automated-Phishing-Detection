@@ -30,9 +30,10 @@ services:
     init: true
     # Cloudflare Tunnel connects to the Docker network. The host mapping is
     # loopback-only so local cron/SSH checks can probe health without exposing
-    # the dashboard on the public or Tailscale interfaces.
+    # the dashboard on the public or Tailscale interfaces. Host port 8000 is
+    # intentionally left free for other local infrastructure such as Coolify.
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8010:8000"
     expose:
       - "8000"
     depends_on:

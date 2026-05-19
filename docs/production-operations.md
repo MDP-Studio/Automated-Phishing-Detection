@@ -162,8 +162,10 @@ Operational checks:
 - If `PUBLIC_DEMO_MODE=true`, verify only `/demo` is public. It must not expose
   live analysis, mailbox data, feedback learning, paid API usage, or account
   management.
-- Do not expose port `8000` publicly. The production compose file uses
-  a loopback-only host port, `127.0.0.1:8000:8000`, for local health probes.
+- Do not expose the app publicly by host port. The production compose file uses
+  a loopback-only host port, `127.0.0.1:8010:8000`, for local health probes.
+  The app still listens on container port `8000`; host port `8000` is kept free
+  for other local infrastructure such as Coolify.
 
 ## Docker Self-Healing
 

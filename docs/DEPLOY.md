@@ -131,9 +131,11 @@ Visit `https://payshield.mdpstudio.com.au`. You should see the PayShield product
 Use `/admin/login` with `ANALYST_API_TOKEN` for owner browser access.
 If `PUBLIC_DEMO_MODE=true`, `/demo` is the only public sample page.
 
-The production stack also binds `127.0.0.1:8000:8000` on the host. This is
+The production stack also binds `127.0.0.1:8010:8000` on the host. This is
 only for SSH/cron health probes on the deployment machine; it is not exposed on
-the public interface or the Tailscale IP.
+the public interface or the Tailscale IP. The application still listens on
+container port `8000`, and Cloudflare Tunnel should continue to use
+`http://orchestrator:8000`.
 
 ## Step 4: Verify API Keys Work
 
@@ -216,5 +218,5 @@ orchestrator logs.
 
 **From Tailscale:**
 The production compose file only publishes the app on host loopback:
-`http://127.0.0.1:8000`. To debug from another machine, SSH into the host or use
+`http://127.0.0.1:8010`. To debug from another machine, SSH into the host or use
 Cloudflare Tunnel rather than exposing port 8000 directly.

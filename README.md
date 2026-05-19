@@ -392,8 +392,9 @@ ssh meidie@100.110.79.52 "cd /home/meidie/.openclaw/workspace/Automated-Phishing
 ```
 
 The production compose setup keeps the orchestrator bound to
-`127.0.0.1:8000`, uses Cloudflare Tunnel for public traffic, and runs URL
-detonation in a separate Playwright browser-sandbox container.
+`127.0.0.1:8010` on the host while the container still listens on `8000`, uses
+Cloudflare Tunnel for public traffic, and runs URL detonation in a separate
+Playwright browser-sandbox container.
 
 ## Security And Privacy Boundaries
 
