@@ -22,6 +22,8 @@ python-docx>=1.0
 # URL / Domain
 python-whois>=0.9
 tldextract>=5.0
+# Security: keep IDNA handling past CVE-2026-45409.
+idna>=3.15
 
 # Browser automation (URL detonation)
 playwright>=1.40

@@ -13,6 +13,11 @@ The platform is designed to show a clear verdict, the evidence behind it, which
 checks were locked or skipped, and what the user should do next. It is decision
 support, not a payment authorization system.
 
+MDP Studio project pages:
+
+- [PhishAnalyze suspicious email analysis](https://mdpstudio.com.au/projects/phishing-email-analysis/)
+- [PayShield invoice fraud triage](https://mdpstudio.com.au/projects/invoice-fraud-triage/)
+
 ## Current Product Shape
 
 | Area | Routes | Purpose |

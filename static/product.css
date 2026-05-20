@@ -336,6 +336,19 @@ main {
   font-size: 17px;
 }
 
+.mdp-project-link {
+  display: inline-flex;
+  margin-top: 14px;
+  color: var(--accent-light);
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.mdp-project-link:hover {
+  color: var(--text-primary);
+}
+
 .about-points {
   display: grid;
   gap: 12px;
