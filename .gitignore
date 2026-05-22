@@ -116,6 +116,7 @@ tensorboard_logs/
 instance/
 feedback/exports/
 reports/generated/
+reports/cti-compatibility/
 
 # ===== Generated / Local Marketing Media =====
 docs/linkedin_post_media/

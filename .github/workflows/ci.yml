@@ -1,6 +1,6 @@
 name: CI
 
-# Runs on every push and PR to main. Four independent jobs:
+# Runs on every push and PR to main. Independent jobs:
 #   1. test       - full pytest suite on a fresh checkout against the locked
 #                   dependency set. This is the "fresh clone catches things
 #                   local-pass misses" gate from the cycle 4 review.
@@ -9,6 +9,8 @@ name: CI
 #   4. pip-audit  - supply-chain CVE scan against requirements.lock.
 #                   Fails the build on any high or critical advisory.
 #   5. sigma-conversion - CI-only pySigma conversion check for exported rules.
+#   6. cti-compatibility-report - signed STIX/TAXII/Sigma compatibility
+#                   report artifact for release and nightly evidence.
 #
 # All jobs install from `requirements.lock` (hash-pinned) so the build is
 # reproducible. Re-pin by running locally:
@@ -29,6 +31,9 @@ on:
   # without waiting for the next code change.
   schedule:
     - cron: "17 4 * * *"
+  release:
+    types: [published]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -92,6 +97,57 @@ jobs:
       - name: Convert Sigma rules through pySigma Splunk backend
         run: |
           python scripts/sigma_convert_check.py --backend splunk --require-converter
+
+  cti-compatibility-report:
+    name: Signed CTI compatibility report
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned app dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Install CI-only Sigma converter tooling
+        run: |
+          pip install pysigma==1.3.3 pysigma-backend-splunk==2.1.0
+
+      - name: Build signed CTI compatibility report
+        env:
+          CTI_COMPAT_EXPORT_SIGNING_PRIVATE_KEY_B64: ${{ secrets.CTI_COMPAT_EXPORT_SIGNING_PRIVATE_KEY_B64 }}
+          CTI_COMPAT_EXPORT_SIGNING_KEY_ID: ${{ vars.CTI_COMPAT_EXPORT_SIGNING_KEY_ID }}
+          CTI_COMPAT_REPORT_SIGNING_PRIVATE_KEY_B64: ${{ secrets.CTI_COMPAT_REPORT_SIGNING_PRIVATE_KEY_B64 }}
+          CTI_COMPAT_REPORT_SIGNING_KEY_ID: ${{ vars.CTI_COMPAT_REPORT_SIGNING_KEY_ID }}
+          TAXII_OBJECTS_URL: ${{ secrets.OPENCTI_TAXII_OBJECTS_URL }}
+          TAXII_BEARER_TOKEN: ${{ secrets.OPENCTI_TAXII_BEARER_TOKEN }}
+          TAXII_TIMEOUT_SECONDS: "15"
+          TAXII_VERIFY_TLS: "false"
+        run: |
+          TAXII_MODE="dry-run"
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "release" ]; then
+            TAXII_MODE="live-if-configured"
+          fi
+          python scripts/cti_compatibility_report.py \
+            --output-dir reports/cti-compatibility \
+            --sigma-backend splunk \
+            --require-sigma-converter \
+            --taxii-mode "$TAXII_MODE"
+
+      - name: Upload CTI compatibility artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cti-compatibility-report
+          path: reports/cti-compatibility/
 
   browser-smoke:
     name: Dashboard browser smoke

@@ -98,6 +98,9 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   reporting in the private admin overview.
 - CI-backed Sigma conversion validation through pySigma and the Splunk backend
   so exported rules are checked against a real downstream converter.
+- Signed CTI compatibility report artifacts that validate STIX/Sigma exports,
+  OpenCTI TAXII Add Objects envelopes, and Sigma backend conversion per release
+  or scheduled CI run.
 - PayShield payment-corpus assurance reporting for redacted real-world sample
   breadth, decision balance, and channel drift coverage.
 - `/mailbox-guide` with provider-specific setup steps and direct settings links

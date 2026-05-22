@@ -76,6 +76,39 @@ python scripts/sigma_convert_check.py --backend splunk --require-converter
 This catches rules that look valid as YAML but cannot be converted by a real
 downstream backend. The status file is `data/sigma_conversion_status.json`.
 
+## Signed Compatibility Report
+
+Releases and scheduled CI runs also build a signed CTI compatibility report:
+
+```bash
+python scripts/cti_compatibility_report.py \
+  --output-dir reports/cti-compatibility \
+  --sigma-backend splunk \
+  --require-sigma-converter \
+  --taxii-mode dry-run
+```
+
+The report creates a representative PhishAnalyze export, signs the STIX/Sigma
+export manifest, validates the STIX bundle and Sigma rule, validates the TAXII
+2.1 Add Objects envelope for OpenCTI, and converts both the generated campaign
+rule and the static `sigma_rules/` library through the Splunk pySigma backend.
+CI uploads `reports/cti-compatibility/` as the `cti-compatibility-report`
+artifact.
+
+`--taxii-mode dry-run` is the safe PR/default mode and performs no network I/O.
+Scheduled and release workflows use `live-if-configured`, which attempts a live
+OpenCTI TAXII push only when the workflow has a configured TAXII endpoint. Store
+these as GitHub Actions secrets if live nightly ingest evidence is wanted:
+
+- `OPENCTI_TAXII_OBJECTS_URL`
+- `OPENCTI_TAXII_BEARER_TOKEN`
+- `CTI_COMPAT_EXPORT_SIGNING_PRIVATE_KEY_B64`
+- `CTI_COMPAT_REPORT_SIGNING_PRIVATE_KEY_B64`
+
+If the signing secrets are absent, the artifact is still signed with an
+ephemeral key embedded in the report. Use stable signing keys for release
+evidence that needs out-of-band verification.
+
 ## Admin Visibility
 
 The `/admin` overview shows:
