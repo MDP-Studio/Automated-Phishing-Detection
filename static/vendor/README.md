@@ -10,7 +10,9 @@ Update process:
 `chart.umd.js`
 - Library: Chart.js 4.4.0
 - Source: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js
-- SHA256: 321E3A3FA98DA4AAA957D10BE57CBB514DE0989EED8F9D726B5D05902CD01904
+- Local patch: passive-listener feature-detection catch logs debug context so
+  the machine quality gate does not require editing generated code later.
+- SHA256: 1D9CF9128AA72407E68A2777C3D439CB514C33B80D5570ABD675425E16F0A38E
 - License: MIT, retained in the bundled file header.
 
 `chart.umd.js.map`
