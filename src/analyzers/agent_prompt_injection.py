@@ -25,6 +25,7 @@ try:
         predict_prompt_injection,
     )
 except Exception:  # pragma: no cover - defensive fallback for minimal installs
+    logger.debug("Suppressed exception in src/analyzers/agent_prompt_injection.py", exc_info=True)
     ATTACK_LABEL = "PROMPT_INJECTION"
     DEFAULT_PROMPT_MODEL_DIR = None
     predict_prompt_injection = None
@@ -36,12 +37,13 @@ def _load_prompt_predictor():
     if predict_prompt_injection is not None:
         return predict_prompt_injection
     try:
-        from src.ml.prompt_injection_classifier import (  # noqa: WPS433
+        from src.ml.prompt_injection_classifier import (  # noqa: WPS433  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
             ATTACK_LABEL as attack_label,
             DEFAULT_MODEL_DIR,
             predict_prompt_injection as predictor,
         )
     except Exception:  # pragma: no cover - defensive fallback for minimal installs
+        logger.debug("Suppressed exception in src/analyzers/agent_prompt_injection.py", exc_info=True)
         return None
     ATTACK_LABEL = attack_label
     DEFAULT_PROMPT_MODEL_DIR = DEFAULT_MODEL_DIR
@@ -148,6 +150,7 @@ class AgentPromptInjectionAnalyzer:
         try:
             self.ml_threshold = float(threshold_value)
         except ValueError:
+            logger.debug("Suppressed exception in src/analyzers/agent_prompt_injection.py", exc_info=True)
             self.ml_threshold = 0.90
 
     async def analyze(self, email: EmailObject) -> AnalyzerResult:
@@ -437,12 +440,14 @@ class AgentPromptInjectionAnalyzer:
             padded = value + ("=" * (-len(value) % 4))
             raw = base64.b64decode(padded, validate=True)
         except (binascii.Error, ValueError):
+            logger.debug("Suppressed exception in src/analyzers/agent_prompt_injection.py", exc_info=True)
             return ""
         if not raw:
             return ""
         try:
             decoded = raw.decode("utf-8", errors="ignore")
         except UnicodeDecodeError:
+            logger.debug("Suppressed exception in src/analyzers/agent_prompt_injection.py", exc_info=True)
             return ""
         printable = sum(1 for char in decoded if char.isprintable() or char.isspace())
         if printable / max(len(decoded), 1) < 0.85:

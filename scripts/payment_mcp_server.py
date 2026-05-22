@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Minimal stdio MCP server for the Payment Scam Firewall agent tool."""
 from __future__ import annotations
+import logging
 
 import asyncio
 import json
@@ -8,16 +9,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.agent_tools.payment_email import (  # noqa: E402
+from src.agent_tools.payment_email import (  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
     TOOL_INPUT_SCHEMA,
     TOOL_NAME,
     TOOL_OUTPUT_SCHEMA,
     analyze_payment_email_file,
 )
-from src.support.mailbox_guides import (  # noqa: E402
+from src.support.mailbox_guides import (  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
     MAILBOX_GUIDE_INPUT_SCHEMA,
     MAILBOX_GUIDE_OUTPUT_SCHEMA,
     MAILBOX_GUIDE_TOOL_NAME,
@@ -142,6 +145,7 @@ async def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
             include_email_metadata=include_metadata,
         )
     except Exception as exc:
+        logger.debug("Suppressed exception in scripts/payment_mcp_server.py", exc_info=True)
         return {
             "content": [{"type": "text", "text": str(exc)}],
             "isError": True,
@@ -188,6 +192,7 @@ async def handle_jsonrpc_message(message: Any) -> Any:
         try:
             result = await _call_tool(params)
         except ValueError as exc:
+            logger.debug("Suppressed exception in scripts/payment_mcp_server.py", exc_info=True)
             return _error(message_id, -32602, str(exc))
         return _response(message_id, result)
     return _error(message_id, -32601, f"Method not found: {method}")
@@ -202,6 +207,7 @@ async def run_stdio() -> None:
         try:
             message = json.loads(line)
         except json.JSONDecodeError as exc:
+            logger.debug("Suppressed exception in scripts/payment_mcp_server.py", exc_info=True)
             response = _error(None, -32700, f"Parse error: {exc.msg}")
         else:
             response = await handle_jsonrpc_message(message)

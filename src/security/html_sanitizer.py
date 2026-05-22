@@ -190,6 +190,7 @@ def sanitize_email_html(html: Optional[str]) -> str:
         try:
             html = html.decode("utf-8", errors="replace")
         except Exception:
+            logger.debug("Suppressed exception in src/security/html_sanitizer.py", exc_info=True)
             return ""
 
     try:

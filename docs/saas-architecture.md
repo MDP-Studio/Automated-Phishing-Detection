@@ -42,12 +42,17 @@ Implemented foundation:
   returns the same generic response for known and unknown emails.
 - `src/saas/database.py` creates `users`, `organizations`, `memberships`,
   `password_reset_tokens`, `subscriptions`, `mail_accounts`, `scan_jobs`,
-  `scan_results`, `usage_events`, `feature_locks`, `audit_logs`,
+  `scan_results`, `incident_cases`, `incident_case_events`,
+  `simulation_results`, `usage_events`, `feature_locks`, `audit_logs`,
   `webauthn_credentials`, `webauthn_challenges`, and `passkey_stepups`.
 - `/api/saas/analyze/upload` stores results in `scan_results`, not the shared
   analyst `data/results.jsonl` log.
 - `/api/saas/scans/{result_id}` deletes one organization-scoped scan result
   from history while keeping usage events for quota and billing integrity.
+- `/api/saas/cases` creates and lists lightweight incident cases tied to stored
+  scan result IDs. `/api/saas/cases/{case_id}` returns the case with immutable
+  evidence events and accepts status, owner, severity, note, and escalation
+  updates.
 - `/api/saas/mailboxes` lists, registers, reconnects, and deletes
   organization-scoped mailbox records. Connection is Pro+ gated, quota checked,
   CSRF protected, verifies IMAP access before storing, and stores submitted app
@@ -89,9 +94,14 @@ Implemented foundation:
 - `/api/saas/security/policy` reports passkey policy state. Passkey
   registration and authentication endpoints use browser-native WebAuthn with
   short-lived server-side challenges. `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor`
-  is the default. In `enforce`, owner/admin team, mailbox, billing, and passkey
-  deletion mutations require a fresh passkey assertion when the user already
-  has a passkey.
+  is the default. In `enforce`, owner/admin team, mailbox, billing, passkey,
+  scan-deletion, case, and simulation-ingest mutations require a fresh passkey
+  assertion when the user already has a passkey. The policy payload includes a
+  privileged-action matrix so tests and clients can see the covered actions.
+- `/api/saas/simulations/results` ingests compact internal phishing simulation
+  outcomes. `/api/saas/simulations/summary` exposes the 90-day dashboard score
+  card for sample size, report rate, click rate, credential submission rate,
+  and risk score.
 
 Not implemented yet:
 
@@ -132,12 +142,15 @@ development and single-operator demos.
 | `mail_accounts` | User-owned mailbox config | `org_id`, `user_id`, `provider`, encrypted token refs, `status` |
 | `scan_jobs` | Queued or completed scan requests | `org_id`, `user_id`, `mail_account_id`, `status`, `source`, `created_at` |
 | `scan_results` | Private analysis output | `org_id`, `scan_job_id`, `email_id`, `verdict`, `payment_decision`, `result_json` |
+| `incident_cases` | Lightweight response state | `org_id`, `scan_result_id`, `status`, `severity`, `owner_user_id`, `escalated_at` |
+| `incident_case_events` | Immutable case evidence chain | `case_id`, `org_id`, `actor_user_id`, `event_type`, `from_status`, `to_status`, `evidence_json` |
 | `usage_events` | Quota and billing meter | `org_id`, `feature_slug`, `quantity`, `occurred_at`, `idempotency_key` |
 | `feature_locks` | Optional audit of blocked actions | `org_id`, `user_id`, `feature_slug`, `required_plan`, `created_at` |
 | `audit_logs` | Security and admin trace | `org_id`, `actor_user_id`, `action`, `target_type`, `target_id`, `created_at` |
 | `webauthn_credentials` | User-bound passkeys | `org_id`, `user_id`, `credential_id`, `public_key_b64`, `sign_count` |
 | `webauthn_challenges` | Short-lived register/auth challenges | `org_id`, `user_id`, `purpose`, `challenge`, `expires_at`, `used_at` |
 | `passkey_stepups` | Temporary privileged action freshness | `org_id`, `user_id`, `verified_at`, `expires_at` |
+| `simulation_results` | Awareness simulation outcome rows | `org_id`, `campaign_id`, `recipient_ref`, `scenario`, `outcome`, `reported`, `clicked`, `submitted_credentials` |
 
 Tenant isolation rule: every query for user-visible data must include `org_id`
 from the authenticated session. Tests must prove user A cannot read user B's
@@ -189,11 +202,13 @@ Safe implementation order:
 8. Add per-user mailbox connection. **Done for encrypted mailbox metadata,
    immediate IMAP verification, and customer onboarding.**
 9. Add passkey/WebAuthn registration and privileged step-up. **Done in staged
-   monitor/enforce mode for owner/admin mutations.**
-10. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
-11. Add tenant isolation tests before enabling live customer mailbox polling.
+   monitor/enforce mode for owner/admin privileged mutations.**
+10. Add lightweight incident cases for scan-linked response state. **Done.**
+11. Add awareness simulation result ingest and dashboard score card. **Done.**
+12. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
+13. Add tenant isolation tests before enabling live customer mailbox polling.
 
-Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 11 are
+Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 13 are
 complete.
 
 Legacy analyst-token `/admin` access is not phishing-resistant because it is

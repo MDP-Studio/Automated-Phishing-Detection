@@ -27,6 +27,7 @@ try:
         predict_payment_relevance,
     )
 except Exception:  # pragma: no cover - optional ML dependencies may be absent.
+    logger.debug("Suppressed exception in src/analyzers/payment_relevance.py", exc_info=True)
     DEFAULT_PAYMENT_MODEL_DIR = None
     predict_payment_relevance = None
 
@@ -41,6 +42,7 @@ def _load_payment_relevance_predictor():
             predict_payment_relevance as predictor,
         )
     except Exception:
+        logger.debug("Suppressed exception in src/analyzers/payment_relevance.py", exc_info=True)
         return None
     DEFAULT_PAYMENT_MODEL_DIR = DEFAULT_MODEL_DIR
     predict_payment_relevance = predictor

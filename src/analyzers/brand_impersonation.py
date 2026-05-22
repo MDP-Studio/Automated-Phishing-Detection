@@ -237,6 +237,7 @@ class BrandImpersonationAnalyzer:
                 domain = domain[4:]
             return domain
         except Exception:
+            logger.debug("Suppressed exception in src/analyzers/brand_impersonation.py", exc_info=True)
             return None
 
     def _is_legit_domain_for_brand(self, domain: str, brand_info: dict) -> bool:
@@ -637,6 +638,7 @@ class BrandImpersonationAnalyzer:
                                 "risk": risk,
                             }
                     except Exception:
+                        logger.debug("Suppressed exception in src/analyzers/brand_impersonation.py", exc_info=True)
                         pass
             except Exception as e:
                 logger.warning(f"Screenshot analysis failed for {url}: {e}")

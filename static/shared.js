@@ -25,7 +25,7 @@
         var parsed;
         try {
           parsed = new URL(href, window.location.origin);
-        } catch(e) {
+        } catch(e) { console.debug("Suppressed exception in static/shared.js", e);
           return;
         }
         if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.origin !== window.location.origin) {
@@ -40,10 +40,20 @@
 
     function requestPath(url) {
       if (typeof url === 'string') {
-        try { return new URL(url, window.location.origin).pathname; } catch(e) { return url; }
+        try {
+          return new URL(url, window.location.origin).pathname;
+        } catch(e) {
+          console.debug("Suppressed exception in static/shared.js", e);
+          return url;
+        }
       }
       if (url && url.url) {
-        try { return new URL(url.url, window.location.origin).pathname; } catch(e) { return url.url; }
+        try {
+          return new URL(url.url, window.location.origin).pathname;
+        } catch(e) {
+          console.debug("Suppressed exception in static/shared.js", e);
+          return url.url;
+        }
       }
       return '';
     }
@@ -82,7 +92,11 @@
   (function() {
     // Default to dark
     var theme = 'dark';
-    try { theme = localStorage.getItem('phishdetect-theme') || 'dark'; } catch(e) {}
+    try {
+      theme = localStorage.getItem('phishdetect-theme') || 'dark';
+    } catch(e) {
+      console.debug("Suppressed exception in static/shared.js", e);
+    }
     document.documentElement.setAttribute('data-theme', theme);
 
     function themeIcon(nextTheme) {
@@ -126,7 +140,11 @@
       var current = document.documentElement.getAttribute('data-theme') || 'dark';
       var next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
-      try { localStorage.setItem('phishdetect-theme', next); } catch(e) {}
+      try {
+        localStorage.setItem('phishdetect-theme', next);
+      } catch(e) {
+        console.debug("Suppressed exception in static/shared.js", e);
+      }
       updateThemeButtons(next);
     };
 
@@ -273,7 +291,7 @@
         }
         navigator.clipboard.writeText(feedbackBody())
           .then(function() { statusEl.textContent = 'Draft copied.'; })
-          .catch(function() { statusEl.textContent = 'Could not copy draft.'; });
+          .catch(function(error) { console.debug("Suppressed exception in static/shared.js", error); statusEl.textContent = 'Could not copy draft.'; });
       });
 
       form.addEventListener('submit', function(event) {
@@ -315,7 +333,7 @@
           });
           nav.appendChild(logoutBtn);
         })
-        .catch(function() {});
+        .catch(function(error) { console.debug("Suppressed exception in static/shared.js", error);});
     }
 
     document.addEventListener('DOMContentLoaded', function() {

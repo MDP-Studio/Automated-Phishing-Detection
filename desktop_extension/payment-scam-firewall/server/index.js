@@ -219,7 +219,7 @@ function runPythonTool(args) {
       }
       try {
         finish({ ok: true, payload: JSON.parse(stdout) });
-      } catch (err) {
+      } catch (err) { console.warn("Suppressed exception in desktop_extension/payment-scam-firewall/server/index.js", err);
         finish({ ok: false, message: `Could not parse Python tool JSON: ${err.message}` });
       }
     });
@@ -307,7 +307,7 @@ function runMailboxGuideTool(args) {
       }
       try {
         finish({ ok: true, payload: JSON.parse(stdout) });
-      } catch (err) {
+      } catch (err) { console.warn("Suppressed exception in desktop_extension/payment-scam-firewall/server/index.js", err);
         finish({ ok: false, message: `Could not parse mailbox guide JSON: ${err.message}` });
       }
     });
@@ -397,7 +397,7 @@ async function handleMessage(message) {
     case "tools/call":
       try {
         return result(id, await callTool(params));
-      } catch (err) {
+      } catch (err) { console.warn("Suppressed exception in desktop_extension/payment-scam-firewall/server/index.js", err);
         return error(id, -32602, err.message);
       }
     default:
@@ -419,7 +419,7 @@ rl.on("line", async (line) => {
     if (response) {
       writeResponse(response);
     }
-  } catch (err) {
+  } catch (err) { console.warn("Suppressed exception in desktop_extension/payment-scam-firewall/server/index.js", err);
     writeResponse(error(null, -32700, err.message));
   }
 });

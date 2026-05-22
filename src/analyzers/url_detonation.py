@@ -114,6 +114,7 @@ class URLDetonationAnalyzer:
                 await self._playwright.stop()
                 self._playwright = None
         except Exception:
+            logger.debug("Suppressed exception in src/analyzers/url_detonation.py", exc_info=True)
             pass
 
     @staticmethod
@@ -158,6 +159,7 @@ class URLDetonationAnalyzer:
             try:
                 default_ssrf_guard.assert_safe(url)
             except SSRFBlockedError as exc:
+                logger.debug("Suppressed exception in src/analyzers/url_detonation.py", exc_info=True)
                 reason = str(exc)[:200]
                 result["error"] = f"SSRF blocked: {reason}"
                 result["risk_indicators"] = ["ssrf_blocked_initial_url"]
@@ -186,6 +188,7 @@ class URLDetonationAnalyzer:
                 try:
                     default_ssrf_guard.assert_safe(request_url)
                 except SSRFBlockedError as exc:
+                    logger.debug("Suppressed exception in src/analyzers/url_detonation.py", exc_info=True)
                     reason = str(exc)[:200]
                     if len(ssrf_blocked_requests) < 10:
                         ssrf_blocked_requests.append(
@@ -255,6 +258,7 @@ class URLDetonationAnalyzer:
                 result["risk_indicators"] = risk_indicators
 
             except Exception as nav_error:
+                logger.debug("Suppressed exception in src/analyzers/url_detonation.py", exc_info=True)
                 if ssrf_blocked_requests:
                     result["error"] = "Navigation blocked by SSRF guard"
                     result["ssrf_blocked_requests"] = ssrf_blocked_requests
@@ -272,6 +276,7 @@ class URLDetonationAnalyzer:
                     result["screenshot_bytes"] = screenshot_bytes
                     result["screenshot_b64"] = base64.b64encode(screenshot_bytes).decode()
                 except Exception:
+                    logger.debug("Suppressed exception in src/analyzers/url_detonation.py", exc_info=True)
                     pass
 
             finally:
@@ -356,7 +361,7 @@ class URLDetonationAnalyzer:
 
         # Check if Playwright is available
         try:
-            import playwright  # noqa: F401
+            import playwright  # noqa: F401  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
         except ImportError:
             logger.warning("Playwright not installed — URL detonation disabled")
             return AnalyzerResult(
@@ -384,6 +389,7 @@ class URLDetonationAnalyzer:
                         all_errors.append(f"{extracted_url.url}: {det_result['error']}")
 
                 except Exception as e:
+                    logger.debug("Suppressed exception in src/analyzers/url_detonation.py", exc_info=True)
                     all_errors.append(f"{extracted_url.url}: {str(e)}")
 
         finally:

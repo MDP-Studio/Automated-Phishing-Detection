@@ -15,6 +15,7 @@ Usage:
 
 Requires internet access and API keys configured in .env
 """
+import logging
 import asyncio
 import json
 import os
@@ -26,6 +27,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 from urllib.parse import urlparse, quote
 
+logger = logging.getLogger(__name__)
+
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -35,6 +38,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv(project_root / ".env")
 except ImportError:
+    logger.debug("Suppressed exception in tests/real_world_samples/run_live_test.py", exc_info=True)
     # No python-dotenv; try manual .env loading
     env_path = project_root / ".env"
     if env_path.exists():
@@ -244,6 +248,7 @@ async def analyze_eml(pipeline, eml_content: str, phish_info: dict, index: int) 
                         json.dumps(v)
                         details_safe[k] = v
                     except (TypeError, ValueError):
+                        logger.debug("Suppressed exception in tests/real_world_samples/run_live_test.py", exc_info=True)
                         details_safe[k] = str(v)
         analyzer_results[name] = {
             "risk_score": ar.risk_score if hasattr(ar, 'risk_score') else 0,

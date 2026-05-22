@@ -11,8 +11,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.eval.payment_dataset import DEFAULT_DATASET_DIR  # noqa: E402
-from src.ml.payment_classifier import DEFAULT_MODEL_DIR, train_payment_classifier  # noqa: E402
+from src.eval.payment_dataset import DEFAULT_DATASET_DIR  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
+from src.ml.payment_classifier import DEFAULT_MODEL_DIR, train_payment_classifier  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
 
 
 def main() -> int:

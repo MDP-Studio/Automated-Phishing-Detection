@@ -1154,6 +1154,26 @@ button:disabled {
   color: var(--accent);
 }
 
+.status-pill.open,
+.status-pill.triaged {
+  border-color: var(--v-suspicious-border);
+  background: var(--v-suspicious-bg);
+  color: var(--v-suspicious);
+}
+
+.status-pill.investigating,
+.status-pill.contained {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.status-pill.closed {
+  border-color: var(--v-clean-border);
+  background: var(--v-clean-bg);
+  color: var(--v-clean);
+}
+
 .status-pill.error,
 .badge.confirmed_phishing {
   border-color: var(--v-phishing-border);
@@ -1234,7 +1254,9 @@ button:disabled {
 }
 
 .mailbox-row .row-actions span,
-.mailbox-row .row-actions button {
+.mailbox-row .row-actions button,
+.case-row .row-actions span,
+.case-row .row-actions button {
   margin-top: 0;
   white-space: nowrap;
 }

@@ -36,6 +36,7 @@ try:
         predict_payment_decision,
     )
 except Exception:  # pragma: no cover - defensive fallback for minimal installs
+    logger.debug("Suppressed exception in src/analyzers/payment_fraud.py", exc_info=True)
     DEFAULT_PAYMENT_MODEL_DIR = None
     predict_payment_decision = None
 
@@ -46,11 +47,12 @@ def _load_payment_predictor():
     if predict_payment_decision is not None:
         return predict_payment_decision
     try:
-        from src.ml.payment_classifier import (  # noqa: WPS433 - deliberate lazy import
+        from src.ml.payment_classifier import (  # noqa: WPS433 - deliberate lazy import  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
             DEFAULT_MODEL_DIR,
             predict_payment_decision as predictor,
         )
     except Exception:  # pragma: no cover - defensive fallback for minimal installs
+        logger.debug("Suppressed exception in src/analyzers/payment_fraud.py", exc_info=True)
         return None
     DEFAULT_PAYMENT_MODEL_DIR = DEFAULT_MODEL_DIR
     predict_payment_decision = predictor

@@ -98,6 +98,7 @@ class PhishingPipeline:
                     try:
                         await client.close()
                     except Exception:
+                        logger.debug("Suppressed exception in src/orchestrator/pipeline.py", exc_info=True)
                         pass
         self._analyzers.clear()
 
@@ -1164,7 +1165,7 @@ class PhishingPipeline:
                 # falling back to the stub if Playwright is not installed.
                 try:
                     from src.analyzers.url_detonation import URLDetonationAnalyzer as RealDetonator
-                    import playwright  # noqa: F401
+                    import playwright  # noqa: F401  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
                     analyzer = RealDetonator(
                         timeout_ms=self.config.url_detonation_timeout * 1000,
                     )

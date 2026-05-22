@@ -6,8 +6,11 @@ feature gates in templates or API handlers.
 """
 
 from __future__ import annotations
+import logging
 
 from dataclasses import asdict, dataclass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -199,6 +202,7 @@ def _plan_rank(slug: str) -> int:
     try:
         return PLAN_ORDER.index(slug)
     except ValueError:
+        logger.debug("Suppressed exception in src/billing/plans.py", exc_info=True)
         return -1
 
 
@@ -233,6 +237,7 @@ def plan_allows_feature(plan_slug: str, feature_slug: str) -> bool:
         plan_rank = _plan_rank(get_plan(plan_slug).slug)
         feature_rank = _plan_rank(minimum_plan_for_feature(feature_slug).slug)
     except KeyError:
+        logger.debug("Suppressed exception in src/billing/plans.py", exc_info=True)
         return False
     return plan_rank >= feature_rank
 

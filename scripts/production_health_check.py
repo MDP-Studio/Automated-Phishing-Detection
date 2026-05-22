@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Production health probe with optional webhook alerting."""
 from __future__ import annotations
+import logging
 
 import argparse
 import json
@@ -11,6 +12,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_USER_AGENT = os.getenv(
@@ -44,10 +47,12 @@ def _request_json(url: str, *, token: str = "", timeout: float = 5.0) -> tuple[i
             raw = response.read().decode("utf-8")
             return response.status, json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
+        logger.debug("Suppressed exception in scripts/production_health_check.py", exc_info=True)
         raw = exc.read().decode("utf-8", errors="replace")
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError:
+            logger.debug("Suppressed exception in scripts/production_health_check.py", exc_info=True)
             payload = {"error": raw}
         return exc.code, payload
 
@@ -109,6 +114,7 @@ def run_check(
                     if age > max_monitor_age_seconds:
                         failures.append(f"last monitor poll is older than {max_monitor_age_seconds}s")
                 except ValueError:
+                    logger.debug("Suppressed exception in scripts/production_health_check.py", exc_info=True)
                     failures.append("monitor last_poll timestamp is not parseable")
     elif require_monitor_running:
         failures.append("ANALYST_API_TOKEN is required to verify monitor status")
@@ -137,6 +143,7 @@ def main() -> int:
             timeout=args.timeout,
         )
     except Exception as exc:
+        logger.debug("Suppressed exception in scripts/production_health_check.py", exc_info=True)
         report = {
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "base_url": args.base_url,
@@ -150,6 +157,7 @@ def main() -> int:
             _post_webhook(args.alert_webhook, report, timeout=args.timeout)
             report["alert_sent"] = True
         except Exception as exc:  # pragma: no cover - depends on external webhook
+            logger.debug("Suppressed exception in scripts/production_health_check.py", exc_info=True)
             report["alert_sent"] = False
             report["alert_error"] = str(exc)
 

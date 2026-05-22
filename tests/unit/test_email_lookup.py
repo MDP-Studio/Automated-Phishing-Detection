@@ -8,6 +8,7 @@ look up by email_id, assert sender comes back. If this test passes, the
 silent-feedback-no-op bug from audit #9 cannot recur.
 """
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -17,6 +18,8 @@ from pathlib import Path
 import pytest
 
 from src.feedback.email_lookup import EmailLookupIndex
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -165,6 +168,7 @@ class TestStatAndReload:
             new_mtime = path.stat().st_mtime + 1.0
             os.utime(path, (new_mtime, new_mtime))
         except OSError:
+            logger.debug("Suppressed exception in tests/unit/test_email_lookup.py", exc_info=True)
             pass
 
         # Lookup the externally-added entry — should rebuild and find it
@@ -344,6 +348,7 @@ class TestConcurrentAccess:
                     offset = _append_row(path, line)
                     index.add(f"w-{i}", offset)
             except Exception as e:
+                logger.debug("Suppressed exception in tests/unit/test_email_lookup.py", exc_info=True)
                 errors.append(e)
 
         def reader():
@@ -353,6 +358,7 @@ class TestConcurrentAccess:
                     index.lookup("w-25")
                     index.lookup("nonexistent")
             except Exception as e:
+                logger.debug("Suppressed exception in tests/unit/test_email_lookup.py", exc_info=True)
                 errors.append(e)
 
         threads = [threading.Thread(target=writer)] + [

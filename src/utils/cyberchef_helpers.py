@@ -37,6 +37,7 @@ def decode_base64(text: str) -> Optional[str]:
         decoded = base64.b64decode(text, validate=True)
         return decoded.decode("utf-8", errors="replace")
     except Exception:
+        logger.debug("Suppressed exception in src/utils/cyberchef_helpers.py", exc_info=True)
         return None
 
 
@@ -51,6 +52,7 @@ def decode_base64_url(text: str) -> Optional[str]:
         decoded = base64.urlsafe_b64decode(text)
         return decoded.decode("utf-8", errors="replace")
     except Exception:
+        logger.debug("Suppressed exception in src/utils/cyberchef_helpers.py", exc_info=True)
         return None
 
 
@@ -95,6 +97,7 @@ def decode_hex(text: str) -> Optional[str]:
         text = text.strip()
         return bytes.fromhex(text).decode("utf-8", errors="replace")
     except (ValueError, UnicodeDecodeError):
+        logger.debug("Suppressed exception in src/utils/cyberchef_helpers.py", exc_info=True)
         return None
 
 
@@ -144,6 +147,7 @@ def decode_punycode(domain: str) -> str:
             return ".".join(decoded_parts)
         return domain
     except (UnicodeError, UnicodeDecodeError):
+        logger.debug("Suppressed exception in src/utils/cyberchef_helpers.py", exc_info=True)
         return domain
 
 
@@ -152,6 +156,7 @@ def encode_punycode(domain: str) -> str:
     try:
         return domain.encode("idna").decode("ascii")
     except (UnicodeError, UnicodeDecodeError):
+        logger.debug("Suppressed exception in src/utils/cyberchef_helpers.py", exc_info=True)
         return domain
 
 

@@ -1,6 +1,7 @@
 """Transactional delivery for SaaS account emails."""
 
 from __future__ import annotations
+import logging
 
 import json
 import smtplib
@@ -12,6 +13,8 @@ from email.message import EmailMessage
 from email.utils import formataddr
 
 from src.config import SMTPConfig, ZohoMailConfig
+
+logger = logging.getLogger(__name__)
 
 
 class EmailDeliveryError(RuntimeError):
@@ -175,5 +178,6 @@ def _zoho_error_code(body: str) -> str:
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
+        logger.debug("Suppressed exception in src/saas/email_delivery.py", exc_info=True)
         return "http_error"
     return str(payload.get("error", "http_error"))

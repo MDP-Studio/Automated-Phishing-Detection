@@ -10,8 +10,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.eval.payment_dataset import DEFAULT_DATASET_DIR  # noqa: E402
-from src.eval.payment_relevance_eval import evaluate_payment_relevance  # noqa: E402
+from src.eval.payment_dataset import DEFAULT_DATASET_DIR  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
+from src.eval.payment_relevance_eval import evaluate_payment_relevance  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
 
 
 def main() -> int:

@@ -118,6 +118,9 @@ These are real and verifiable. References are file paths.
 | **Bearer token auth on all sensitive `/api/*` routes** | `src/security/web_security.py::TokenVerifier`, applied in `main.py` and `src/feedback/feedback_api.py` | S-TB6, E-TB6, T-TB6: feedback poisoning, account/credential takeover via dashboard |
 | **Public demo is sample-only** | `main.py::public_demo`, `main.py::api_demo_status`, `main.py::api_demo_plans` | I-TB6, D-TB4: public visitors can preview fixed sample output and non-secret plan locks without mailbox data or paid API-backed analysis |
 | **SaaS user scans are tenant-scoped and plan-gated** | `src/saas/database.py`, `src/saas/auth.py`, `src/billing/entitlements.py`, `main.py::api_saas_analyze_upload` | I-TB6, D-TB4: normal users can only access their own org's DB scan history, free-tier scans are quota-limited, and paid analyzers return lock metadata before clients load |
+| **SaaS incident cases are scan-linked and tenant-scoped** | `src/saas/database.py`, `main.py::api_saas_cases`, `main.py::api_saas_create_case`, `main.py::api_saas_update_case` | R-TB6, I-TB6: response state has owner, status, escalation, and immutable evidence events without exposing raw email bodies across tenants |
+| **Passkey step-up covers privileged SaaS mutations** | `main.py::PRIVILEGED_STEP_UP_ACTIONS`, `main.py::_require_privileged_step_up`, `tests/unit/test_saas_api.py` | S-TB6, E-TB6: owner/admin mutations for team, mailbox, billing, passkeys, scan deletion, cases, and simulation ingest require fresh WebAuthn step-up when enforcement is active and a passkey exists |
+| **Awareness simulation ingest stores compact outcomes** | `src/saas/database.py::record_simulation_results`, `main.py::api_saas_ingest_simulation_results` | I-TB6: internal phish-drill feedback avoids raw message bodies and hashes email-like recipient refs before storage |
 | **Stripe webhook signature verification** | `src/billing/stripe_client.py::verify_stripe_webhook`, `main.py::api_stripe_webhook` | S-TB6, T-TB6: subscription state only changes after a valid Stripe-Signature HMAC and timestamp tolerance check |
 | **`run_server()` defaults to 127.0.0.1; refuses non-loopback bind without token** | `main.py::run_server` | S-TB6: blocks accidental internet exposure |
 | **SSRF guard on `/api/detonate-url`** | `src/security/web_security.py::SSRFGuard` | T-TB3, I-TB3: cloud-metadata / internal-network exfil via URL detonator |
@@ -214,7 +217,12 @@ The purge subcommand supports `--dry-run` so operators can verify what would be 
 To prevent scope creep and to make the threat model honest:
 
 - **The pipeline is not a mail filter.** It does not block, quarantine, or modify mail flow. Every output is advisory. An operator who wants a filter must wire the verdicts into their MTA themselves.
-- **The pipeline is not a SOAR.** No automated remediation, no ticket creation, no user notification. Reports are generated; routing is the operator's job.
+- **The pipeline is not a SOAR.** It now has lightweight scan-linked cases, but
+  no automated remediation, external ticket creation, or user notification.
+  Reports and case state are generated; routing is the operator's job.
+- **The simulation feedback loop is not an LMS.** It stores compact awareness
+  simulation outcomes and a risk score. It does not send campaigns, assign
+  training, or manage learner records.
 - **The pipeline is not an EDR.** Post-compromise activity (T1078 full, T1098, T1606, etc.) is out of scope. See ATT&CK mapping for the exact line.
 - **The analyst dashboard and mailbox monitor are not multi-tenant.** `/app` user manual scans are organization-scoped, but the legacy analyst dashboard, feedback DB, credential vault, and mailbox monitor remain one-operator surfaces.
 - **The public demo is not a user mailbox connector.** `/demo` is fixed sample content. Per-user mailboxes need OAuth or IMAP credential isolation, token encryption, storage, and retention design before visitor mailboxes are enabled.

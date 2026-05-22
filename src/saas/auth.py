@@ -1,6 +1,7 @@
 """Signed browser sessions for normal SaaS users."""
 
 from __future__ import annotations
+import logging
 
 import base64
 import hashlib
@@ -11,6 +12,8 @@ import time
 from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request, status
+
+logger = logging.getLogger(__name__)
 
 USER_SESSION_COOKIE_NAME = "phishdetect_user_session"
 USER_CSRF_COOKIE_NAME = "phishdetect_user_csrf"
@@ -64,6 +67,7 @@ class SaaSSessionManager:
         try:
             payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
         except (ValueError, json.JSONDecodeError):
+            logger.debug("Suppressed exception in src/saas/auth.py", exc_info=True)
             return None
         expires_at = payload.get("exp")
         if not isinstance(expires_at, int):

@@ -140,6 +140,7 @@ def _parse_timestamp(value) -> Optional[datetime]:
     try:
         dt = datetime.fromisoformat(value)
     except ValueError:
+        logger.debug("Suppressed exception in src/automation/retention.py", exc_info=True)
         return None
     if dt.tzinfo is None:
         # Treat naive timestamps as UTC. The pipeline emits TZ-aware
@@ -205,6 +206,7 @@ def erase_subject_from_results_jsonl(
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
+                logger.debug("Suppressed exception in src/automation/retention.py", exc_info=True)
                 if _contains_subject(line, subject):
                     dropped += 1
                 else:
@@ -231,6 +233,7 @@ def erase_subject_from_results_jsonl(
                 if tmp_path.exists():
                     tmp_path.unlink()
             except OSError:
+                logger.debug("Suppressed exception in src/automation/retention.py", exc_info=True)
                 pass
             raise
         if index is not None:
@@ -319,6 +322,7 @@ def purge_results_jsonl(
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
+                logger.debug("Suppressed exception in src/automation/retention.py", exc_info=True)
                 unparseable += 1
                 if keep_unparseable:
                     kept_lines.append(line)
@@ -354,6 +358,7 @@ def purge_results_jsonl(
             if tmp_path.exists():
                 tmp_path.unlink()
         except OSError:
+            logger.debug("Suppressed exception in src/automation/retention.py", exc_info=True)
             pass
         raise
 

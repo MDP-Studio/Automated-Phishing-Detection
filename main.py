@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import sys
 from collections import deque
 from pathlib import Path
@@ -126,6 +127,23 @@ STATIC_PAGE_CSP = (
 
 DEFAULT_MAX_EMAIL_UPLOAD_BYTES = 10 * 1024 * 1024
 
+PRIVILEGED_STEP_UP_ACTIONS = {
+    "billing.checkout",
+    "billing.portal",
+    "case.create",
+    "case.update",
+    "mailbox.connect",
+    "mailbox.delete",
+    "mailbox.scan_now",
+    "passkey.delete",
+    "passkey.register",
+    "scan.delete",
+    "simulation.ingest",
+    "team.member.create",
+    "team.member.delete",
+    "team.member.update",
+}
+
 
 def _max_email_upload_bytes() -> int:
     """Return the maximum accepted manual upload size."""
@@ -172,7 +190,8 @@ def _asset_version_from_static_dir(static_dir: Path) -> str:
                 continue
             try:
                 newest = max(newest, path.stat().st_mtime_ns)
-            except OSError:
+            except OSError as exc:
+                logger.debug("Could not stat static asset %s: %s", path, exc)
                 continue
     return str(newest or 0)
 
@@ -196,8 +215,9 @@ def _tail_jsonl_records(log_path: Path, limit: int) -> list[dict]:
             continue
         try:
             entries.append(json.loads(line))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             # Ignore partial/corrupt lines so one bad append doesn't break the UI.
+            logger.debug("Skipping malformed monitor log line: %s", exc)
             continue
     return entries
 
@@ -1131,6 +1151,9 @@ class PhishingDetectionApp:
             )
             privileged_role = str(context.role).lower() in {"owner", "admin"}
             mode = _passkey_enforcement_mode()
+            requires_step_up = (
+                mode == "enforce" and privileged_role and registered_count > 0
+            )
             return {
                 "baseline_mfa": "user-session",
                 "privileged_mfa": "passkey",
@@ -1140,9 +1163,11 @@ class PhishingDetectionApp:
                 "passkey_count": registered_count,
                 "fresh_step_up": has_fresh_step_up,
                 "step_up_expires_at": step_up.get("expires_at") if step_up else None,
-                "requires_privileged_step_up": (
-                    mode == "enforce" and privileged_role and registered_count > 0
-                ),
+                "requires_privileged_step_up": requires_step_up,
+                "privileged_actions": [
+                    {"action": action, "requires_step_up": requires_step_up}
+                    for action in sorted(PRIVILEGED_STEP_UP_ACTIONS)
+                ],
                 "legacy_admin_access": {
                     "phishing_resistant": False,
                     "scope": "internal",
@@ -1154,6 +1179,8 @@ class PhishingDetectionApp:
             }
 
         def _require_privileged_step_up(store: SaaSStore, context, action: str) -> None:
+            if action not in PRIVILEGED_STEP_UP_ACTIONS:
+                logger.warning("Unregistered privileged step-up action used: %s", action)
             if _passkey_enforcement_mode() != "enforce":
                 return
             if str(context.role).lower() not in {"owner", "admin"}:
@@ -1326,7 +1353,8 @@ class PhishingDetectionApp:
         def _mailbox_scan_limit(payload: dict) -> int:
             try:
                 value = int(payload.get("max_results", 5))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("Invalid mailbox scan max_results, using default: %s", exc)
                 value = 5
             return max(1, min(value, 10))
 
@@ -1537,7 +1565,8 @@ class PhishingDetectionApp:
             try:
                 from datetime import datetime, timezone
                 return datetime.fromtimestamp(int(raw), tz=timezone.utc).isoformat()
-            except (TypeError, ValueError, OSError):
+            except (TypeError, ValueError, OSError) as exc:
+                logger.debug("Ignoring invalid Stripe period end: %s", exc)
                 return None
 
         def _metadata_value(payload: dict, key: str) -> str:
@@ -1664,6 +1693,7 @@ class PhishingDetectionApp:
                     subject="browser-token",
                 )
             except HTTPException as exc:
+                logger.info("Analyst login blocked by auth failure budget: %s", exc.detail)
                 return _render_login(next_path, str(exc.detail), status_code=exc.status_code)
             if (
                 not self.token_verifier.enabled
@@ -2020,19 +2050,148 @@ class PhishingDetectionApp:
             """Delete one tenant-scoped scan result from workspace history."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin", "analyst"})
-            deleted = _get_saas_store().delete_scan_result(
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "scan.delete")
+            deleted = store.delete_scan_result(
                 org_id=context.org_id,
                 user_id=context.user_id,
                 result_id=result_id,
             )
             if not deleted:
                 raise HTTPException(status_code=404, detail="Scan result not found")
-            updated_context = _get_saas_store().get_account_context(context.user_id) or context
+            updated_context = store.get_account_context(context.user_id) or context
             return {
                 "status": "ok",
                 "deleted": True,
                 "result_id": result_id,
                 "account": updated_context.to_dict(),
+            }
+
+        @app.get("/api/saas/cases")
+        async def api_saas_cases(request: Request, limit: int = Query(50, ge=1, le=100)):
+            """Return lightweight incident cases tied to workspace scan results."""
+            context = _current_user_context(request)
+            _require_workspace_role(context, {"owner", "admin", "analyst", "viewer"})
+            store = _get_saas_store()
+            return {
+                "account": context.to_dict(),
+                "cases": store.list_incident_cases(context.org_id, limit=limit),
+            }
+
+        @app.post("/api/saas/cases")
+        async def api_saas_create_case(request: Request):
+            """Create a lightweight incident case from a stored scan result."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "case.create")
+            payload = await _json_object_body(request)
+            try:
+                case = store.create_incident_case(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    scan_result_id=str(payload.get("scan_result_id", "")).strip(),
+                    owner_user_id=str(payload.get("owner_user_id") or "").strip() or None,
+                    severity=str(payload.get("severity") or "medium"),
+                    title=str(payload.get("title") or "").strip() or None,
+                    note=str(payload.get("note") or "").strip() or None,
+                )
+            except sqlite3.IntegrityError as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail="An incident case already exists for this scan result",
+                ) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return {"status": "ok", "case": case}
+
+        @app.get("/api/saas/cases/{case_id}")
+        async def api_saas_case_detail(request: Request, case_id: str):
+            """Return one incident case and its evidence event chain."""
+            context = _current_user_context(request)
+            _require_workspace_role(context, {"owner", "admin", "analyst", "viewer"})
+            case = _get_saas_store().get_incident_case(
+                org_id=context.org_id,
+                case_id=case_id,
+            )
+            if case is None:
+                raise HTTPException(status_code=404, detail="Incident case not found")
+            return {"account": context.to_dict(), "case": case}
+
+        @app.patch("/api/saas/cases/{case_id}")
+        async def api_saas_update_case(request: Request, case_id: str):
+            """Transition case state, assign owner, add evidence notes, or escalate."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "case.update")
+            payload = await _json_object_body(request)
+            try:
+                case = store.update_incident_case(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    case_id=case_id,
+                    status=(
+                        str(payload.get("status")).strip()
+                        if payload.get("status") is not None
+                        else None
+                    ),
+                    owner_user_id=(
+                        str(payload.get("owner_user_id")).strip()
+                        if payload.get("owner_user_id") is not None
+                        else None
+                    ),
+                    severity=(
+                        str(payload.get("severity")).strip()
+                        if payload.get("severity") is not None
+                        else None
+                    ),
+                    escalate=bool(payload.get("escalate")),
+                    escalation_reason=str(payload.get("escalation_reason") or "").strip() or None,
+                    note=str(payload.get("note") or "").strip() or None,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return {"status": "ok", "case": case}
+
+        @app.get("/api/saas/simulations/summary")
+        async def api_saas_simulation_summary(request: Request, days: int = Query(90, ge=1, le=365)):
+            """Return aggregate awareness simulation outcomes for the dashboard."""
+            context = _current_user_context(request)
+            _require_workspace_role(context, {"owner", "admin", "analyst", "viewer"})
+            store = _get_saas_store()
+            return {
+                "account": context.to_dict(),
+                "summary": store.simulation_summary(context.org_id, days=days),
+            }
+
+        @app.post("/api/saas/simulations/results")
+        async def api_saas_ingest_simulation_results(request: Request):
+            """Ingest compact JSON awareness simulation outcomes."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "simulation.ingest")
+            payload = await _json_object_body(request)
+            raw_results = payload.get("results")
+            if raw_results is None:
+                raw_results = [payload]
+            if not isinstance(raw_results, list):
+                raise HTTPException(status_code=400, detail="results must be a list")
+            try:
+                saved = store.record_simulation_results(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    results=raw_results,
+                    campaign_id=str(payload.get("campaign_id") or "").strip() or None,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return {
+                "status": "ok",
+                "ingested": len(saved),
+                "results": saved,
+                "summary": store.simulation_summary(context.org_id),
             }
 
         @app.get("/api/saas/security/policy")
@@ -2073,6 +2232,7 @@ class PhishingDetectionApp:
             """Create short-lived WebAuthn registration options."""
             context = _current_user_context(request, require_csrf=True)
             store = _get_saas_store()
+            _require_privileged_step_up(store, context, "passkey.register")
             return passkey_registration_options(store, context, request)
 
         @app.post("/api/saas/security/passkeys/register/verify")
@@ -2080,6 +2240,7 @@ class PhishingDetectionApp:
             """Verify a WebAuthn registration response and save the credential."""
             context = _current_user_context(request, require_csrf=True)
             store = _get_saas_store()
+            _require_privileged_step_up(store, context, "passkey.register")
             payload = await _json_object_body(request)
             result = verify_passkey_registration(store, context, request, payload)
             return {
@@ -2385,8 +2546,9 @@ class PhishingDetectionApp:
             """Scan unread messages from one tenant-scoped mailbox on demand."""
             context = _current_user_context(request, require_csrf=True)
             _require_workspace_role(context, {"owner", "admin", "analyst"})
-            payload = await _json_object_body(request)
             store = _get_saas_store()
+            _require_privileged_step_up(store, context, "mailbox.scan_now")
+            payload = await _json_object_body(request)
             entitlement = store.check_entitlement(
                 org_id=context.org_id,
                 user_id=context.user_id,
@@ -3408,8 +3570,8 @@ class PhishingDetectionApp:
             for line in reversed(lines[-limit:]):
                 try:
                     alerts.append(_json.loads(line))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Skipping malformed alert log line: %s", exc)
             return {"alerts": alerts}
 
         # ── Account management routes ─────────────────────────────
@@ -3630,22 +3792,23 @@ class PhishingDetectionApp:
                                         p.decode(c or "utf-8", errors="replace") if isinstance(p, bytes) else p
                                         for p, c in parts
                                     )
-                                except Exception:
-                                    pass
+                                except Exception as exc:
+                                    logger.debug("Could not decode email subject header: %s", exc)
                                 try:
                                     parts = decode_header(from_addr)
                                     from_addr = "".join(
                                         p.decode(c or "utf-8", errors="replace") if isinstance(p, bytes) else p
                                         for p, c in parts
                                     )
-                                except Exception:
-                                    pass
+                                except Exception as exc:
+                                    logger.debug("Could not decode email from header: %s", exc)
 
                                 # Parse date
                                 date_iso = ""
                                 try:
                                     date_iso = parsedate_to_datetime(date_str).isoformat()
-                                except Exception:
+                                except Exception as exc:
+                                    logger.debug("Could not parse email date header: %s", exc)
                                     date_iso = date_str
 
                                 emails.append({
@@ -3669,8 +3832,8 @@ class PhishingDetectionApp:
                     try:
                         conn.close()
                         conn.logout()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Failed to close browse inbox IMAP connection: %s", exc)
 
         @app.post("/api/accounts/analyze-selected", dependencies=[Depends(require_token)])
         async def api_analyze_selected(request: Request):
@@ -3822,8 +3985,8 @@ class PhishingDetectionApp:
                     try:
                         conn.close()
                         conn.logout()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Failed to close analyze selected IMAP connection: %s", exc)
 
         def list_accounts_helper():
             from src.automation.multi_account_monitor import list_accounts

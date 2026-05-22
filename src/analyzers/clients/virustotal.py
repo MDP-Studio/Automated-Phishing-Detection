@@ -84,6 +84,7 @@ class VirusTotalClient(BaseAPIClient):
                     import asyncio as _asyncio
                     _asyncio.create_task(self._submit_url_for_scan(url))
                 except Exception:
+                    logger.debug("Suppressed exception in src/analyzers/clients/virustotal.py", exc_info=True)
                     pass
                 return AnalyzerResult(
                     analyzer_name="virustotal_url",

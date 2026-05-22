@@ -143,6 +143,7 @@ class GmailMonitor:
             try:
                 loop.add_signal_handler(sig, self.stop)
             except NotImplementedError:
+                logger.debug("Suppressed exception in src/automation/gmail_monitor.py", exc_info=True)
                 pass
 
         logger.info(

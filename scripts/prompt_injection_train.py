@@ -10,8 +10,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.eval.prompt_injection_dataset import DEFAULT_OUTPUT_JSONL  # noqa: E402
-from src.ml.prompt_injection_classifier import (  # noqa: E402
+from src.eval.prompt_injection_dataset import DEFAULT_OUTPUT_JSONL  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
+from src.ml.prompt_injection_classifier import (  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
     DEFAULT_MODEL_DIR,
     train_prompt_injection_classifier,
 )

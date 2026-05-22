@@ -5,6 +5,7 @@ transport layer without making TAXII a hard runtime dependency or exposing
 credentials in status payloads.
 """
 from __future__ import annotations
+import logging
 
 import base64
 import json
@@ -18,6 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
+
+logger = logging.getLogger(__name__)
 
 
 TAXII_MEDIA_TYPE = "application/taxii+json;version=2.1"
@@ -208,6 +211,7 @@ def push_stix_bundle(
             message="STIX objects accepted by TAXII collection",
         )
     except urllib.error.HTTPError as exc:
+        logger.debug("Suppressed exception in src/reporting/taxii_client.py", exc_info=True)
         return finish(
             "failed",
             success=False,
@@ -217,8 +221,10 @@ def push_stix_bundle(
             error_type="http_error",
         )
     except TimeoutError:
+        logger.debug("Suppressed exception in src/reporting/taxii_client.py", exc_info=True)
         return finish("timeout", success=False, message="TAXII push timed out", error_type="timeout")
     except Exception as exc:
+        logger.debug("Suppressed exception in src/reporting/taxii_client.py", exc_info=True)
         return finish(
             "failed",
             success=False,
@@ -272,6 +278,7 @@ def _env_float(name: str, default: float) -> float:
     try:
         return float(os.getenv(name, str(default)))
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/reporting/taxii_client.py", exc_info=True)
         return default
 
 

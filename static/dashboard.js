@@ -21,7 +21,7 @@ function scoreColor(s) {
 
 function fmt(ts) {
   if (!ts) return '-';
-  try { return new Date(ts).toLocaleString(); } catch { return ts; }
+  try { return new Date(ts).toLocaleString(); } catch (error) { console.debug("Suppressed exception in static/dashboard.js", error); return ts; }
 }
 
 function el(tag, className, text) {
@@ -341,7 +341,11 @@ function updateStatus(mon, entries) {
 // ── Load ───────────────────────────────────────────────────────────────────────
 async function requireJson(response, label) {
   let payload = null;
-  try { payload = await response.json(); } catch (err) {}
+  try {
+    payload = await response.json();
+  } catch (err) {
+    console.debug("Suppressed exception in static/dashboard.js", err);
+  }
   if (!response.ok) {
     const detail = payload && (payload.detail || payload.error);
     throw new Error(label + ' failed (' + response.status + ')' + (detail ? ': ' + detail : ''));
@@ -379,7 +383,7 @@ async function loadAll() {
     updateStatus(mon, allEntries);
 
     document.getElementById('tsLabel').textContent = 'Updated ' + new Date().toLocaleTimeString();
-  } catch (err) {
+  } catch (err) { console.debug("Suppressed exception in static/dashboard.js", err);
     document.getElementById('tsLabel').textContent = 'Load failed: ' + err.message;
   } finally {
     btn.disabled = false; btn.classList.remove('loading');

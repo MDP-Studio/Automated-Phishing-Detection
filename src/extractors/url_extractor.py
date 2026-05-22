@@ -184,6 +184,7 @@ class URLExtractor:
         try:
             url = urllib.parse.unquote(url)
         except Exception:
+            logger.debug("Suppressed exception in src/extractors/url_extractor.py", exc_info=True)
             pass
 
         return url
@@ -219,6 +220,7 @@ class URLExtractor:
             result = urlparse(test_url)
             return result.scheme and result.netloc
         except Exception:
+            logger.debug("Suppressed exception in src/extractors/url_extractor.py", exc_info=True)
             return False
 
     def defang_url(self, url: str) -> str:

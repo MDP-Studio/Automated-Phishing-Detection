@@ -68,6 +68,19 @@ When an email returns `VERIFY` or `DO_NOT_PAY`:
 4. Require second-person approval for any bank-detail change.
 5. Record verifier name, date, and approval outcome before releasing funds.
 
+## Response And Awareness Loop
+
+PayShield scan results can now be opened as lightweight incident cases through
+`/api/saas/cases`. A case keeps the scan ID, owner, status, severity,
+escalation state, and immutable evidence events. This is enough for a small
+finance team pilot to measure closure and escalation without building a full
+SOAR.
+
+Internal simulated phish outcomes can be ingested through
+`/api/saas/simulations/results`. The dashboard summary tracks sample size,
+report rate, click rate, credential submission rate, and risk score. This keeps
+the product aware of user response trends without adding LMS features.
+
 ## Payment Scam Dataset
 
 Keep this dataset separate from the generic phishing corpora. Generic phishing

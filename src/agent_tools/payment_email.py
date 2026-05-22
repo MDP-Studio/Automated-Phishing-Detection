@@ -6,6 +6,7 @@ payment_fraud analyzer. It returns the decision evidence an agent needs without
 returning full email bodies, raw headers, or unmasked attachment content.
 """
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -17,6 +18,8 @@ from src.eval.payment_dataset import SAMPLES_DIR
 from src.eval.payment_demo import read_payment_labels, select_demo_label_rows
 from src.extractors.eml_parser import EMLParser
 from src.models import EmailObject
+
+logger = logging.getLogger(__name__)
 
 
 TOOL_NAME = "analyze_payment_email"
@@ -83,6 +86,7 @@ def _as_float(value: Any) -> float:
     try:
         return round(float(value), 3)
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/agent_tools/payment_email.py", exc_info=True)
         return 0.0
 
 
@@ -162,6 +166,7 @@ def _max_email_bytes() -> int:
     try:
         value = int(raw)
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/agent_tools/payment_email.py", exc_info=True)
         return DEFAULT_MAX_EMAIL_BYTES
     if value <= 0:
         return DEFAULT_MAX_EMAIL_BYTES

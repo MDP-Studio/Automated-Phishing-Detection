@@ -26,6 +26,7 @@ Labels file format (JSON):
     }
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import asyncio
@@ -33,6 +34,8 @@ import json
 import os
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -42,6 +45,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
+    logger.debug("Suppressed exception in scripts/run_eval.py", exc_info=True)
     env_path = PROJECT_ROOT / ".env"
     if env_path.exists():
         for line in env_path.read_text().splitlines():

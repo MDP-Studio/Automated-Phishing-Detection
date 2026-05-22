@@ -85,6 +85,7 @@ class RetrainScheduler:
             try:
                 await self.scheduler_task
             except asyncio.CancelledError:
+                logger.debug("Suppressed exception in src/feedback/scheduler.py", exc_info=True)
                 pass
 
         logger.info("Retraining scheduler stopped")

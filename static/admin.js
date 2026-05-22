@@ -151,7 +151,7 @@
       ], "No payment assurance data");
       renderAudit(payload.recent_audit);
       buildLabel.textContent = `Build ${payload.system && payload.system.build_sha ? payload.system.build_sha : "unknown"}`;
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/admin.js", error);
       notice(error.message);
     } finally {
       refreshButton.disabled = false;

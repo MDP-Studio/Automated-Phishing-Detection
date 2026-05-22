@@ -26,6 +26,7 @@ By default it runs three samples chosen for the cycle 6 commit:
 Pass `--all` to run all samples in tests/real_world_samples/.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import asyncio
@@ -33,6 +34,8 @@ import json
 import os
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -42,6 +45,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
+    logger.debug("Suppressed exception in scripts/compare_runs.py", exc_info=True)
     pass
 
 
@@ -92,6 +96,7 @@ async def _run_set(samples: list[Path], with_calibration: bool):
                     "calibration": r.calibration,
                 })
             except Exception as e:
+                logger.debug("Suppressed exception in scripts/compare_runs.py", exc_info=True)
                 results.append({"sample": sample.name, "error": str(e)})
     finally:
         cal_module.REGISTRY = saved_registry  # type: ignore[assignment]

@@ -38,9 +38,11 @@ Vulnerabilities in any of these are in scope and welcome:
 - **Browser sandbox** — container escape, host filesystem access, host network egress that should be blocked.
 - **Feedback API** — auth bypass, IDOR, SQL injection, label-poisoning attacks beyond the documented "no-auth-by-default" residual risk.
 - **Secrets handling** — credentials leaking into logs, reports, STIX exports, dashboard responses, or git history.
-- **Passkey step-up** — privileged owner/admin SaaS mutations should run with
+- **Passkey step-up** - privileged owner/admin SaaS mutations should run with
   `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor` until passkeys are enrolled, then
-  move to `enforce` for team, mailbox, billing, and passkey deletion actions.
+  move to `enforce` for team, mailbox, billing, passkey registration/deletion,
+  scan deletion, incident case mutation, and simulation ingest actions. The
+  `/api/saas/security/policy` payload exposes the covered action matrix.
   Password-only sessions and legacy analyst tokens are not phishing-resistant.
 - **Export integrity** — shareable STIX/Sigma file exports require an Ed25519
   signing key and a signed manifest. Validate manifests before sharing threat

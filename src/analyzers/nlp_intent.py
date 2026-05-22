@@ -183,11 +183,13 @@ Respond in JSON format:
             try:
                 intent_category = IntentCategory(intent_str)
             except ValueError:
+                logger.debug("Suppressed exception in src/analyzers/nlp_intent.py", exc_info=True)
                 # Try to match with underscore conversion
                 intent_str = intent_str.replace("-", "_").replace(" ", "_")
                 try:
                     intent_category = IntentCategory[intent_str.upper()]
                 except KeyError:
+                    logger.debug("Suppressed exception in src/analyzers/nlp_intent.py", exc_info=True)
                     intent_category = IntentCategory.UNKNOWN
 
             urgency_score = min(urgency_indicators / 5.0, 1.0)
@@ -225,6 +227,7 @@ Respond in JSON format:
             try:
                 intent_category = IntentCategory(intent_str)
             except ValueError:
+                logger.debug("Suppressed exception in src/analyzers/nlp_intent.py", exc_info=True)
                 intent_category = IntentCategory.UNKNOWN
 
             reasoning = prediction.get("reasoning", "sklearn classification")

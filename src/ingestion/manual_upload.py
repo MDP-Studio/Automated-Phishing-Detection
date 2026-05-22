@@ -215,6 +215,7 @@ class ManualUploadHandler:
             try:
                 date = msg.date
             except Exception:
+                logger.debug("Suppressed exception in src/ingestion/manual_upload.py", exc_info=True)
                 pass
 
         # Extract attachments

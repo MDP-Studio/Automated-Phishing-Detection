@@ -76,6 +76,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Signed user accounts, workspaces, CSRF-protected sessions, and tenant-scoped
   scan history.
 - Delete controls for stored scan results.
+- Lightweight incident cases tied to stored scan IDs, with status transitions,
+  assigned owner, immutable evidence events, and manual escalation state.
 - Plan-gated analyzers, quota checks, and locked-check reporting before paid
   API clients load.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence
@@ -88,10 +90,11 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - A PhishAnalyze settings page with workspace summary, billing entry points,
   mailbox status, privacy links, team member visibility, and platform-managed
   API coverage guidance.
-- Staged passkey/WebAuthn support for owner/admin step-up. The default
-  `monitor` mode exposes policy state and registration without blocking users;
-  `enforce` requires a fresh passkey step-up for team, mailbox, billing, and
-  passkey deletion mutations when a passkey exists.
+- Passkey/WebAuthn support for owner/admin step-up. The default `monitor` mode
+  exposes policy state and registration without blocking users; `enforce`
+  requires a fresh passkey step-up for team, mailbox, billing, passkey,
+  scan-deletion, incident-case, and simulation-ingest mutations when a passkey
+  exists.
 - Signed STIX/Sigma file export manifests with Ed25519 signatures and a
   validator for hashes, signatures, STIX parsing, and Sigma structure.
 - Optional TAXII 2.1 STIX push for operator CTI sharing, with safe status
@@ -108,6 +111,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   IMAP.
 - Optional LLM evidence summaries behind paid gating. The LLM explains
   structured evidence only; it does not decide the verdict.
+- Awareness simulation result ingest for small internal phish pilots, plus a
+  dashboard risk card for sample size, report rate, click rate, and risk score.
 - Privacy-preserving admin aggregate status.
 - Cloudflare Tunnel and Docker deployment.
 - Minimal Chrome/Edge extension starter that only opens the web app routes.
@@ -128,6 +133,11 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   guidance.
 - Legacy analyst-token `/admin` access is not phishing-resistant. Keep it
   internal until it is migrated to user-bound passkeys.
+- Incident cases are a lightweight response tracker, not a full SOAR. They do
+  not send notifications, quarantine mail, or open external tickets.
+- Simulation results are a feedback loop for awareness metrics, not an LMS.
+  Campaign delivery, training content, and learner management stay out of
+  scope.
 
 ## Analyzer Pipeline
 
@@ -282,9 +292,10 @@ PASSKEY_STEP_UP_TTL_SECONDS=600
 ```
 
 Use `enforce` only after owner/admin users have enrolled at least one passkey.
-When enforced and a passkey exists, team management, mailbox connection or
-deletion, billing checkout or portal access, and passkey deletion require a
-fresh WebAuthn assertion.
+When enforced and a passkey exists, team management, mailbox connection,
+mailbox scan-now, mailbox deletion, billing checkout or portal access, passkey
+registration or deletion, scan deletion, incident case mutation, and simulation
+result ingest require a fresh WebAuthn assertion for owner/admin users.
 
 Signed STIX/Sigma file exports:
 
@@ -321,7 +332,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1309 tests across 72 test modules
+1343 tests across 78 test modules
 ```
 
 Run all tests:
@@ -438,6 +449,8 @@ store credentials, or include API keys. It only opens:
 | [`docs/saas-architecture.md`](docs/saas-architecture.md) | SaaS users, workspaces, plan gates, and Stripe architecture. |
 | [`docs/mailbox-connection-guide.md`](docs/mailbox-connection-guide.md) | Provider mailbox setup guide, direct settings links, and OAuth/admin caveats. |
 | [`docs/payment-fraud-firewall.md`](docs/payment-fraud-firewall.md) | PayShield payment-scam workflow and SME positioning. |
+| [`docs/incident-response-workflow.md`](docs/incident-response-workflow.md) | Lightweight scan-linked cases, status transitions, owner assignment, escalation, and evidence chains. |
+| [`docs/awareness-simulation-feedback.md`](docs/awareness-simulation-feedback.md) | Simulation result ingest, awareness risk score, and LMS boundaries. |
 | [`docs/agent-prompt-injection.md`](docs/agent-prompt-injection.md) | AI-agent prompt-injection boundary and email safety controls. |
 | [`docs/ml-datasets.md`](docs/ml-datasets.md) | ML and evaluation dataset plan for phishing, payment scams, and agent-safety tests. |
 | [`docs/product-ml-training.md`](docs/product-ml-training.md) | Separate PhishAnalyze, PayShield, and prompt-injection training/eval lanes. |

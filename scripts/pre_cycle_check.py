@@ -35,6 +35,7 @@ the override in the cycle commit message and include the reason —
 otherwise you've just reproduced cycle 10's framing absorption.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import json
@@ -42,6 +43,8 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 EVAL_DIR = PROJECT_ROOT / "eval_runs"
@@ -70,6 +73,7 @@ def _parse_run_id_date(summary_path: Path) -> datetime | None:
         dt = datetime.strptime(f"{m.group(1)} {m.group(2)}", "%Y-%m-%d %H%M")
         return dt.replace(tzinfo=timezone.utc)
     except ValueError:
+        logger.debug("Suppressed exception in scripts/pre_cycle_check.py", exc_info=True)
         return None
 
 

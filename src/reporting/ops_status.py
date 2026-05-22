@@ -1,5 +1,6 @@
 """Privacy-preserving operational status summaries for admin views."""
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -9,6 +10,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 from src.eval.payment_dataset import DEFAULT_DATASET_DIR, REPORTS_DIR
 from src.reporting.taxii_client import DEFAULT_TAXII_STATUS_PATH, TaxiiPushConfig
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_SIGMA_CONVERSION_STATUS_PATH = Path("data/sigma_conversion_status.json")
@@ -96,6 +99,7 @@ def _read_status(path: str | Path) -> dict[str, Any]:
             return {}
         payload = json.loads(status_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, TypeError):
+        logger.debug("Suppressed exception in src/reporting/ops_status.py", exc_info=True)
         return {}
     return payload if isinstance(payload, dict) else {}
 
@@ -113,6 +117,7 @@ def _safe_int(value: object) -> int:
     try:
         return int(value or 0)
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/reporting/ops_status.py", exc_info=True)
         return 0
 
 

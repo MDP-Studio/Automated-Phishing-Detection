@@ -27,6 +27,10 @@
   const printResultButton = document.getElementById("printResultButton");
   const historyList = document.getElementById("historyList");
   const statsRow = document.getElementById("statsRow");
+  const simulationStatsRow = document.getElementById("simulationStatsRow");
+  const caseList = document.getElementById("caseList");
+  const casesNotice = document.getElementById("casesNotice");
+  const refreshCasesButton = document.getElementById("refreshCasesButton");
   const firstRunPanel = document.getElementById("firstRunPanel");
   const mailboxForm = document.getElementById("mailboxForm");
   const mailboxButton = document.getElementById("mailboxButton");
@@ -425,7 +429,8 @@
   function storedFirstRunState() {
     try {
       return JSON.parse(localStorage.getItem(firstRunStateKey) || "{}") || {};
-    } catch {
+    } catch (error) {
+      console.debug("Ignoring invalid first-run state", error);
       return {};
     }
   }
@@ -747,6 +752,7 @@ ${element.innerHTML}
       renderPasskeyPolicy(payload);
       hideNotice(passkeyNotice);
     } catch (error) {
+      console.warn("Passkey policy could not be loaded", error);
       if (settingsPasskeyStatus) {
         settingsPasskeyStatus.textContent = "Passkey policy could not be loaded.";
       }
@@ -779,6 +785,7 @@ ${element.innerHTML}
       showNotice(passkeyNotice, "Passkey registered. Fresh step-up is active.");
       await loadSecurityPolicy();
     } catch (error) {
+      console.warn("Passkey registration failed", error);
       showNotice(passkeyNotice, error.message);
     } finally {
       passkeyRegisterButton.disabled = false;
@@ -810,6 +817,7 @@ ${element.innerHTML}
       showNotice(passkeyNotice, "Passkey verified. Privileged actions are unlocked briefly.");
       await loadSecurityPolicy();
     } catch (error) {
+      console.warn("Passkey step-up verification failed", error);
       showNotice(passkeyNotice, error.message);
     } finally {
       passkeyStepupButton.disabled = false;
@@ -836,6 +844,8 @@ ${element.innerHTML}
     await Promise.all([
       loadPlans(),
       loadHistory(),
+      loadCases(),
+      loadSimulationSummary(),
       loadMailboxes(),
       loadSecurityPolicy(),
       loadTeam().catch(() => {
@@ -1355,6 +1365,7 @@ ${element.innerHTML}
         </div>
         <div class="row-actions">
           <span class="badge ${escapeHtml(verdict)}">${escapeHtml(label(item.verdict))}</span>
+          <button class="secondary-button" type="button" data-create-case="${escapeHtml(item.id)}">Case</button>
           <button class="secondary-button" type="button" data-delete-scan="${escapeHtml(item.id)}">Delete</button>
         </div>
       `;
@@ -1384,6 +1395,81 @@ ${element.innerHTML}
       ["Likely phishing", counts.likely],
     ];
     statsRow.innerHTML = cards.map(([name, value]) => `
+      <article class="stat-card">
+        <span>${escapeHtml(name)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </article>
+    `).join("");
+  }
+
+  async function loadCases() {
+    if (!caseList) return;
+    const payload = await apiJson("/api/saas/cases?limit=25");
+    const cases = payload.cases || [];
+    caseList.innerHTML = "";
+    hideNotice(casesNotice);
+    if (!cases.length) {
+      caseList.innerHTML = '<article class="history-row"><div><strong>No cases yet</strong><span>Create a case from a scan when response tracking is needed.</span></div></article>';
+      return;
+    }
+    cases.forEach((item) => {
+      const row = document.createElement("article");
+      row.className = "history-row case-row";
+      const escalated = item.escalated_at ? "Escalated" : "Not escalated";
+      row.innerHTML = `
+        <div>
+          <strong>${escapeHtml(item.title || item.email_id || "Incident case")}</strong>
+          <span>${escapeHtml(label(item.severity))} severity &middot; ${escapeHtml(item.owner_email || "Unassigned")} &middot; ${escapeHtml(escalated)}</span>
+        </div>
+        <div class="row-actions">
+          <span class="status-pill ${escapeHtml(item.status || "open")}">${escapeHtml(label(item.status || "open"))}</span>
+          ${caseActionButtons(item)}
+        </div>
+      `;
+      caseList.appendChild(row);
+    });
+  }
+
+  function caseActionButtons(item) {
+    const status = String(item.status || "open").toLowerCase();
+    const id = escapeHtml(item.id);
+    const transitions = {
+      open: [["triaged", "Triaged"], ["investigating", "Investigate"], ["closed", "Close"]],
+      triaged: [["investigating", "Investigate"], ["contained", "Contain"], ["closed", "Close"]],
+      investigating: [["contained", "Contain"], ["closed", "Close"]],
+      contained: [["closed", "Close"], ["investigating", "Reopen"]],
+      closed: [["investigating", "Reopen"]],
+    }[status] || [];
+    const buttons = transitions.slice(0, 2).map(([next, text]) => (
+      `<button class="secondary-button" type="button" data-case-id="${id}" data-case-status="${escapeHtml(next)}">${escapeHtml(text)}</button>`
+    ));
+    if (!item.escalated_at && status !== "closed") {
+      buttons.push(`<button class="secondary-button" type="button" data-case-id="${id}" data-case-escalate="true">Escalate</button>`);
+    }
+    return buttons.join("");
+  }
+
+  async function loadSimulationSummary() {
+    if (!simulationStatsRow) return;
+    try {
+      const payload = await apiJson("/api/saas/simulations/summary?days=90");
+      renderSimulationSummary(payload.summary || {});
+    } catch (error) {
+      console.debug("Simulation summary could not be loaded", error);
+      simulationStatsRow.innerHTML = "";
+    }
+  }
+
+  function renderSimulationSummary(summary) {
+    if (!simulationStatsRow) return;
+    const score = summary.risk_score == null ? "-" : `${summary.risk_score}/100`;
+    const cards = [
+      ["Simulation sample", `${summary.total || 0} / ${summary.target_sample_size || 10}`],
+      ["Simulation risk", score],
+      ["Report rate", percent(summary.report_rate || 0)],
+      ["Click rate", percent(summary.click_rate || 0)],
+    ];
+    simulationStatsRow.innerHTML = cards.map(([name, value]) => `
       <article class="stat-card">
         <span>${escapeHtml(name)}</span>
         <strong>${escapeHtml(value)}</strong>
@@ -1489,6 +1575,7 @@ ${element.innerHTML}
       });
       await loadSession();
     } catch (error) {
+      console.warn("Login failed", error);
       notice(authNotice, error.message);
     }
   });
@@ -1504,6 +1591,7 @@ ${element.innerHTML}
       });
       await loadSession();
     } catch (error) {
+      console.warn("Signup failed", error);
       notice(authNotice, error.message);
     }
   });
@@ -1518,6 +1606,7 @@ ${element.innerHTML}
       });
       notice(authNotice, payload.message);
     } catch (error) {
+      console.warn("Password reset request failed", error);
       notice(authNotice, error.message);
     }
   });
@@ -1533,6 +1622,7 @@ ${element.innerHTML}
       window.history.replaceState({}, "", window.location.pathname);
       await loadSession();
     } catch (error) {
+      console.warn("Password reset confirmation failed", error);
       notice(authNotice, error.message);
     }
   });
@@ -1545,6 +1635,7 @@ ${element.innerHTML}
       await apiJson("/api/saas/auth/logout", { method: "POST", body: "{}" });
       window.location.href = "/analyze";
     } catch (error) {
+      console.warn("Logout failed", error);
       button.disabled = false;
       notice(historyNotice, error.message || "Logout failed. Refresh and try again.");
     }
@@ -1574,6 +1665,7 @@ ${element.innerHTML}
       }
       window.location.href = payload.portal_url;
     } catch (error) {
+      console.warn("Billing portal request failed", error);
       showNotice(billingNotice, billingErrorMessage(error));
     }
   });
@@ -1633,6 +1725,7 @@ ${element.innerHTML}
       }
       window.location.href = payload.checkout_url;
     } catch (error) {
+      console.warn("Checkout request failed", error);
       showNotice(billingNotice, billingErrorMessage(error));
       button.disabled = false;
       button.textContent = originalText;
@@ -1687,6 +1780,7 @@ ${element.innerHTML}
       saveFirstRunState({ upload: true, review: true });
       await loadHistory();
     } catch (error) {
+      console.warn("Manual email analysis failed", error);
       if (error.status === 402) {
         showUpgradeNotice(scanNotice, `${error.message} Upgrade to keep scanning.`);
         openPricingPanel();
@@ -1705,12 +1799,40 @@ ${element.innerHTML}
     loadHistory().catch((error) => notice(historyNotice, error.message));
   });
 
+  if (refreshCasesButton) {
+    refreshCasesButton.addEventListener("click", () => {
+      loadCases().catch((error) => notice(casesNotice, error.message));
+    });
+  }
+
   if (mailboxProviderSelect) {
     mailboxProviderSelect.addEventListener("change", syncMailboxProviderFields);
     syncMailboxProviderFields();
   }
 
   historyList.addEventListener("click", async (event) => {
+    const caseButton = event.target.closest("[data-create-case]");
+    if (caseButton) {
+      const resultId = caseButton.dataset.createCase;
+      caseButton.disabled = true;
+      caseButton.textContent = "Opening";
+      hideNotice(casesNotice);
+      try {
+        await apiJson("/api/saas/cases", {
+          method: "POST",
+          body: JSON.stringify({ scan_result_id: resultId }),
+        });
+        await loadCases();
+        notice(casesNotice, "Case opened.");
+      } catch (error) {
+        console.warn("Case creation failed", error);
+        caseButton.disabled = false;
+        caseButton.textContent = "Case";
+        notice(casesNotice, error.message);
+      }
+      return;
+    }
+
     const button = event.target.closest("[data-delete-scan]");
     if (!button) return;
     const resultId = button.dataset.deleteScan;
@@ -1723,12 +1845,42 @@ ${element.innerHTML}
       });
       saveFirstRunState({ delete: true });
       await loadHistory();
+      await loadCases();
     } catch (error) {
+      console.warn("Scan delete failed", error);
       button.disabled = false;
       button.textContent = "Delete";
       notice(historyNotice, error.message);
     }
   });
+
+  if (caseList) {
+    caseList.addEventListener("click", async (event) => {
+      const statusButton = event.target.closest("[data-case-status]");
+      const escalateButton = event.target.closest("[data-case-escalate]");
+      const button = statusButton || escalateButton;
+      if (!button) return;
+      const caseId = button.dataset.caseId;
+      button.disabled = true;
+      const originalText = button.textContent;
+      button.textContent = "Saving";
+      try {
+        const payload = statusButton
+          ? { status: statusButton.dataset.caseStatus }
+          : { escalate: true, escalation_reason: "Manual escalation" };
+        await apiJson(`/api/saas/cases/${encodeURIComponent(caseId)}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        await loadCases();
+      } catch (error) {
+        console.warn("Case update failed", error);
+        button.disabled = false;
+        button.textContent = originalText;
+        notice(casesNotice, error.message);
+      }
+    });
+  }
 
   mailboxForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1748,13 +1900,16 @@ ${element.innerHTML}
       mailboxStateReloaded = true;
       notice(mailboxNotice, payload.message || "Mailbox saved.");
     } catch (error) {
+      console.warn("Mailbox save failed", error);
       if (error.status === 402) {
         showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect mailbox monitoring.`);
         openPricingPanel();
       } else {
         notice(mailboxNotice, error.message);
       }
-      await loadMailboxes().then(() => { mailboxStateReloaded = true; }).catch(() => {});
+      await loadMailboxes().then(() => { mailboxStateReloaded = true; }).catch((reloadError) => {
+        console.warn("Mailbox refresh after save failure failed", reloadError);
+      });
     } finally {
       if (!mailboxStateReloaded) {
         mailboxButton.disabled = false;
@@ -1784,6 +1939,7 @@ ${element.innerHTML}
         const message = parts.join(" and ");
         notice(mailboxNotice, message ? `${message.charAt(0).toUpperCase()}${message.slice(1)}.` : "No new unread emails found.");
       } catch (error) {
+        console.warn("Mailbox scan failed", error);
         scanButton.disabled = false;
         scanButton.textContent = "Scan now";
         if (error.status === 402) {
@@ -1809,6 +1965,7 @@ ${element.innerHTML}
       await loadMailboxes();
       notice(mailboxNotice, "Mailbox deleted.");
     } catch (error) {
+      console.warn("Mailbox delete failed", error);
       button.disabled = false;
       button.textContent = "Delete";
       notice(mailboxNotice, error.message);
@@ -1817,6 +1974,7 @@ ${element.innerHTML}
 
   updateNav();
   loadSession().catch((error) => {
+    console.warn("Initial session load failed", error);
     authView.hidden = false;
     workspaceView.hidden = true;
     notice(authNotice, error.message);

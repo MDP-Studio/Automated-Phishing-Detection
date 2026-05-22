@@ -1,5 +1,6 @@
 """Normalize email, SMS, chat, and voice transcript inputs for analyzers."""
 from __future__ import annotations
+import logging
 
 import base64
 import hashlib
@@ -10,6 +11,8 @@ from typing import Any
 
 from src.extractors.eml_parser import EMLParser
 from src.models import ChannelMetadata, EmailObject, MessageChannel, utc_now
+
+logger = logging.getLogger(__name__)
 
 CHANNEL_MAX_TEXT_CHARS = 50000
 TEXT_CHANNELS = {
@@ -220,4 +223,5 @@ def _decode_raw_email(raw_email: str) -> bytes:
     try:
         return base64.b64decode(text, validate=True)
     except Exception:
+        logger.debug("Suppressed exception in src/ingestion/channel_adapter.py", exc_info=True)
         return raw_email.encode("utf-8")

@@ -581,7 +581,7 @@
   function storedFirstRunState() {
     try {
       return JSON.parse(localStorage.getItem(firstRunStateKey) || "{}") || {};
-    } catch {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       return {};
     }
   }
@@ -1341,7 +1341,7 @@ ${element.innerHTML}
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       await loadSession();
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       showNotice(authNotice, error.message);
     }
   });
@@ -1356,7 +1356,7 @@ ${element.innerHTML}
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       await loadSession();
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       showNotice(authNotice, error.message);
     }
   });
@@ -1371,7 +1371,7 @@ ${element.innerHTML}
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
       showNotice(authNotice, payload.message);
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       showNotice(authNotice, error.message);
     }
   });
@@ -1387,7 +1387,7 @@ ${element.innerHTML}
       });
       window.history.replaceState({}, "", "/app");
       await loadSession();
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       showNotice(authNotice, error.message);
     }
   });
@@ -1399,7 +1399,7 @@ ${element.innerHTML}
     try {
       await apiJson("/api/saas/auth/logout", { method: "POST", body: "{}" });
       await loadSession();
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       button.disabled = false;
       showNotice(billingNotice, error.message || "Logout failed. Refresh and try again.");
     }
@@ -1461,7 +1461,7 @@ ${element.innerHTML}
         throw new Error("Stripe did not return a Checkout URL.");
       }
       window.location.href = payload.checkout_url;
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       showNotice(billingNotice, billingErrorMessage(error));
       button.disabled = false;
       button.textContent = originalText;
@@ -1483,7 +1483,7 @@ ${element.innerHTML}
         throw new Error("Stripe did not return a billing portal URL.");
       }
       window.location.href = payload.portal_url;
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       showNotice(billingNotice, billingErrorMessage(error));
     }
   });
@@ -1511,7 +1511,7 @@ ${element.innerHTML}
       event.currentTarget.reset();
       syncMailboxProviderFields();
       showNotice(mailboxNotice, response.message || "Mailbox saved for this workspace.");
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       if (error.status === 402) {
         showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect mailbox monitoring.`);
         openUpgradePanel();
@@ -1549,7 +1549,7 @@ ${element.innerHTML}
         await loadHistory();
         const count = Number(response.analyzed || 0);
         showNotice(mailboxNotice, count ? `Scanned ${count} new email${count === 1 ? "" : "s"}.` : "No new unread emails found.");
-      } catch (error) {
+      } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
         scanButton.disabled = false;
         scanButton.textContent = originalText;
         if (error.status === 402) {
@@ -1582,7 +1582,7 @@ ${element.innerHTML}
       });
       renderMailboxes(response);
       showNotice(mailboxNotice, "Mailbox connection deleted.");
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       button.disabled = false;
       button.textContent = originalText;
       showNotice(mailboxNotice, error.message || "Could not delete this mailbox.");
@@ -1612,7 +1612,7 @@ ${element.innerHTML}
       renderEmptyResult();
       await loadHistory();
       showNotice(historyNotice, "Scan result deleted from workspace history.");
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       button.disabled = false;
       button.textContent = originalText;
       showNotice(historyNotice, error.message || "Could not delete this scan result.");
@@ -1692,7 +1692,7 @@ ${element.innerHTML}
       renderResult(payload);
       saveFirstRunState({ upload: true, review: true });
       await Promise.all([loadPlans(), loadHistory()]);
-    } catch (error) {
+    } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       if (error.status === 402) {
         showUpgradeNotice(scanNotice, `${error.message} Upgrade to keep scanning.`);
       } else {

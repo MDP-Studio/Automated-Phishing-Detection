@@ -6,6 +6,7 @@ emails that try to control AI assistants, tools, prompts, or exfiltration
 actions.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import csv
@@ -21,6 +22,8 @@ from email.message import Message
 from email.parser import BytesParser
 from pathlib import Path
 from typing import Iterator, Optional
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -80,6 +83,7 @@ def _safe_header_value(message: Message, header: str) -> str:
         if value:
             return str(value)
     except Exception:
+        logger.debug("Suppressed exception in src/eval/prompt_injection_dataset.py", exc_info=True)
         pass
     try:
         values = [
@@ -88,6 +92,7 @@ def _safe_header_value(message: Message, header: str) -> str:
             if key.lower() == header.lower()
         ]
     except Exception:
+        logger.debug("Suppressed exception in src/eval/prompt_injection_dataset.py", exc_info=True)
         values = []
     return ", ".join(values)
 
@@ -107,6 +112,7 @@ def _email_text_for_ml(sample_path: Path, max_text_chars: int) -> str:
         try:
             body_chunks.append(str(part.get_content()))
         except LookupError:
+            logger.debug("Suppressed exception in src/eval/prompt_injection_dataset.py", exc_info=True)
             payload = part.get_payload(decode=True) or b""
             body_chunks.append(payload.decode("utf-8", errors="replace"))
 

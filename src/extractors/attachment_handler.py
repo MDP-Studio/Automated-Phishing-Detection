@@ -163,6 +163,7 @@ class AttachmentHandler:
 
                 return "application/zip"
         except (zipfile.BadZipFile, Exception):
+            logger.debug("Suppressed exception in src/extractors/attachment_handler.py", exc_info=True)
             return "application/zip"
 
     def _is_archive(self, attachment: AttachmentObject) -> bool:
@@ -240,6 +241,7 @@ class AttachmentHandler:
                     if lower.endswith(".bin") and "vba" in lower:
                         return True
         except (zipfile.BadZipFile, Exception):
+            logger.debug("Suppressed exception in src/extractors/attachment_handler.py", exc_info=True)
             pass
         return False
 

@@ -191,6 +191,7 @@ def _short_sha() -> str:
         )
         return out.decode().strip()
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        logger.debug("Suppressed exception in src/eval/harness.py", exc_info=True)
         return "unknown"
 
 
@@ -465,6 +466,7 @@ async def run_eval(
         try:
             verdict = Verdict(r.predicted_verdict)
         except ValueError:
+            logger.debug("Suppressed exception in src/eval/harness.py", exc_info=True)
             strict_rows.append(r)
             continue
         strict_label = _project_verdict_to_label(verdict, "strict")
@@ -554,6 +556,7 @@ async def run_mixed_channel_eval(
                 try:
                     channel = _manifest_channel(entry)
                 except Exception:
+                    logger.debug("Suppressed exception in src/eval/harness.py", exc_info=True)
                     channel = "unknown"
                 label = str(entry.get("label") or entry.get("true_label") or "CLEAN").strip().upper()
                 if label not in {"PHISHING", "CLEAN"}:
@@ -573,6 +576,7 @@ async def run_mixed_channel_eval(
         try:
             verdict = Verdict(r.predicted_verdict)
         except ValueError:
+            logger.debug("Suppressed exception in src/eval/harness.py", exc_info=True)
             strict_rows.append(r)
             continue
         strict_label = _project_verdict_to_label(verdict, "strict")

@@ -71,6 +71,7 @@ class URLReputationAnalyzer:
         try:
             hostname = urlparse(url).hostname
         except Exception:
+            logger.debug("Suppressed exception in src/analyzers/url_reputation.py", exc_info=True)
             return False
         if not hostname:
             return False
@@ -78,6 +79,7 @@ class URLReputationAnalyzer:
             socket.getaddrinfo(hostname, None)
             return True
         except (socket.gaierror, socket.herror, OSError):
+            logger.debug("Suppressed exception in src/analyzers/url_reputation.py", exc_info=True)
             return False
 
     @classmethod
@@ -163,6 +165,7 @@ class URLReputationAnalyzer:
         try:
             asyncio.create_task(self.urlscan_client.submit_only(url))
         except Exception:
+            logger.debug("Suppressed exception in src/analyzers/url_reputation.py", exc_info=True)
             pass
         return 0.0, 0.0, {"urlscan_note": "scan_submitted_async"}
 
@@ -192,6 +195,7 @@ class URLReputationAnalyzer:
                     timeout=_DNS_RESOLUTION_TIMEOUT_SECONDS,
                 )
             except Exception:
+                logger.debug("Suppressed exception in src/analyzers/url_reputation.py", exc_info=True)
                 return 0.0, 0.0, {"abuseipdb": "dns_resolution_failed"}
 
             result = await self.abuseipdb_client.check_ip(ip)

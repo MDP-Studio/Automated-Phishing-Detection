@@ -8,6 +8,7 @@ the LLM decision layer directly on NOT_PAYMENT_SPECIFIC / SAFE / VERIFY /
 DO_NOT_PAY labels.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import asyncio
@@ -30,14 +31,17 @@ from typing import Any
 
 import aiohttp
 
+logger = logging.getLogger(__name__)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.eval.payment_dataset import DEFAULT_DATASET_DIR, LABELS_CSV, SAMPLES_DIR  # noqa: E402
+from src.eval.payment_dataset import DEFAULT_DATASET_DIR, LABELS_CSV, SAMPLES_DIR  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
 
 try:
     from dotenv import load_dotenv
 except Exception:  # pragma: no cover - python-dotenv is in requirements.
+    logger.debug("Suppressed exception in scripts/llm_provider_eval.py", exc_info=True)
     load_dotenv = None
 
 
@@ -414,6 +418,7 @@ def parse_llm_json(text: str) -> tuple[str, float, str]:
     try:
         confidence = float(confidence_raw)
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in scripts/llm_provider_eval.py", exc_info=True)
         confidence = 0.0
     confidence = max(0.0, min(confidence, 1.0))
     reasoning = str(payload.get("reasoning", "")).strip()[:240]
@@ -535,6 +540,7 @@ async def _evaluate_openai_compatible(
                     )
                 )
             except Exception as exc:
+                logger.debug("Suppressed exception in scripts/llm_provider_eval.py", exc_info=True)
                 latency_ms = int((time.perf_counter() - started) * 1000)
                 results.append(
                     LLMCallResult(
@@ -640,6 +646,7 @@ async def _evaluate_anthropic(
     try:
         import anthropic
     except Exception as exc:
+        logger.debug("Suppressed exception in scripts/llm_provider_eval.py", exc_info=True)
         return [
             LLMCallResult(
                 provider=model.provider,
@@ -699,6 +706,7 @@ async def _evaluate_anthropic(
                 )
             )
         except Exception as exc:
+            logger.debug("Suppressed exception in scripts/llm_provider_eval.py", exc_info=True)
             latency_ms = int((time.perf_counter() - started) * 1000)
             results.append(
                 LLMCallResult(

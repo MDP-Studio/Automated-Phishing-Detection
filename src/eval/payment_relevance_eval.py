@@ -1,6 +1,7 @@
 """Evaluate PayShield payment relevance routing against labeled samples."""
 
 from __future__ import annotations
+import logging
 
 import csv
 import json
@@ -19,6 +20,8 @@ from src.eval.payment_dataset import (
     validate_dataset,
 )
 from src.extractors.eml_parser import EMLParser
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -208,6 +211,7 @@ async def evaluate_payment_relevance(
         try:
             email = parser.parse_file(sample_path)
         except Exception:
+            logger.debug("Suppressed exception in src/eval/payment_relevance_eval.py", exc_info=True)
             email = None
         if email is None:
             eval_rows.append(

@@ -1,5 +1,6 @@
 """Signed manifest support for shareable STIX and Sigma export artifacts."""
 from __future__ import annotations
+import logging
 
 import base64
 import hashlib
@@ -12,6 +13,8 @@ from typing import Iterable
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+
+logger = logging.getLogger(__name__)
 
 EXPORT_MANIFEST_VERSION = 1
 
@@ -141,6 +144,7 @@ def _artifact_entry(path: Path, manifest_dir: Path) -> dict:
     try:
         rel_path = path.resolve().relative_to(manifest_dir.resolve())
     except ValueError:
+        logger.debug("Suppressed exception in src/reporting/export_integrity.py", exc_info=True)
         rel_path = Path(path.name)
     return {
         "path": rel_path.as_posix(),

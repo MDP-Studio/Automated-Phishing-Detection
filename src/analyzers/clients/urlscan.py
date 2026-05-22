@@ -117,6 +117,7 @@ class URLScanClient(BaseAPIClient):
                 timeout=10,
             )
         except Exception:
+            logger.debug("Suppressed exception in src/analyzers/clients/urlscan.py", exc_info=True)
             pass  # best-effort submission, ignore errors
 
     async def _poll_scan_results(

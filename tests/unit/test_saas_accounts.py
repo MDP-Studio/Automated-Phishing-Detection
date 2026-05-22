@@ -203,6 +203,99 @@ def test_scan_history_is_tenant_scoped(tmp_path):
     assert store.list_scan_results(bob.org_id) == []
 
 
+def test_incident_cases_keep_status_owner_and_evidence_chain(tmp_path):
+    store = SaaSStore(tmp_path / "saas.db")
+    owner = store.create_user_with_org(email="owner@example.com", password="long-password-1")
+    analyst = store.add_org_member(
+        org_id=owner.org_id,
+        actor_user_id=owner.user_id,
+        email="analyst@example.com",
+        password="long-password-2",
+        role="analyst",
+    )
+    scan_id = store.create_scan_job(
+        org_id=owner.org_id,
+        user_id=owner.user_id,
+        source="manual_upload",
+    )
+    store.record_scan_result(
+        org_id=owner.org_id,
+        user_id=owner.user_id,
+        scan_job_id=scan_id,
+        email_id="email-1",
+        verdict="SUSPICIOUS",
+        payment_decision="VERIFY",
+        result={
+            "email_id": "email-1",
+            "iocs": {"headers": {"subject": "Supplier bank detail change"}},
+        },
+    )
+    result_id = store.list_scan_results(owner.org_id)[0]["id"]
+
+    case = store.create_incident_case(
+        org_id=owner.org_id,
+        actor_user_id=owner.user_id,
+        scan_result_id=result_id,
+        owner_user_id=analyst.user_id,
+        severity="high",
+        note="Finance pilot case",
+    )
+    updated = store.update_incident_case(
+        org_id=owner.org_id,
+        actor_user_id=analyst.user_id,
+        case_id=case["id"],
+        status="triaged",
+        escalate=True,
+        escalation_reason="Needs finance manager approval",
+        note="Called supplier using known number",
+    )
+
+    assert case["scan_result_id"] == result_id
+    assert case["title"] == "Supplier bank detail change"
+    assert updated["status"] == "triaged"
+    assert updated["severity"] == "high"
+    assert updated["owner_email"] == "analyst@example.com"
+    assert updated["escalated_at"]
+    assert [event["event_type"] for event in updated["events"]] == [
+        "created",
+        "status_changed",
+        "escalated",
+    ]
+    assert updated["events"][0]["evidence"]["payment_decision"] == "VERIFY"
+
+
+def test_simulation_results_summary_hashes_email_recipients(tmp_path):
+    store = SaaSStore(tmp_path / "saas.db")
+    owner = store.create_user_with_org(email="owner@example.com", password="long-password-1")
+
+    saved = store.record_simulation_results(
+        org_id=owner.org_id,
+        actor_user_id=owner.user_id,
+        campaign_id="may-pilot",
+        results=[
+            {
+                "recipient_ref": "alice@example.com",
+                "scenario": "invoice_update",
+                "outcome": "reported",
+            },
+            {
+                "recipient_ref": "finance-seat-2",
+                "scenario": "invoice_update",
+                "outcome": "submitted_credentials",
+            },
+        ],
+    )
+    summary = store.simulation_summary(owner.org_id)
+
+    assert saved[0]["recipient_ref"].startswith("recipient_hash:")
+    assert "alice@example.com" not in json.dumps(saved)
+    assert summary["total"] == 2
+    assert summary["reported"] == 1
+    assert summary["clicked"] == 1
+    assert summary["submitted_credentials"] == 1
+    assert summary["risk_score"] is not None
+
+
 def test_admin_overview_is_aggregate_and_redacted(tmp_path, monkeypatch):
     taxii_status = tmp_path / "taxii_status.json"
     sigma_status = tmp_path / "sigma_status.json"

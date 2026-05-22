@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate Sigma rules with pySigma conversion in CI."""
 from __future__ import annotations
+import logging
 
 import argparse
 import json
@@ -11,10 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.reporting.export_integrity import ExportIntegrityError, validate_sigma_rule  # noqa: E402
+from src.reporting.export_integrity import ExportIntegrityError, validate_sigma_rule  # noqa: E402  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
 
 
 DEFAULT_STATUS_PATH = PROJECT_ROOT / "data" / "sigma_conversion_status.json"
@@ -68,6 +71,7 @@ def run_sigma_conversion_check(
     try:
         backend = _load_backend(backend_name)
     except Exception as exc:
+        logger.debug("Suppressed exception in scripts/sigma_convert_check.py", exc_info=True)
         if require_converter:
             failures.append({"path": "converter", "reason": _safe_reason(exc)})
             return _finish(
@@ -105,6 +109,7 @@ def run_sigma_conversion_check(
             rules_converted += 1
             query_count += len(queries)
         except Exception as exc:
+            logger.debug("Suppressed exception in scripts/sigma_convert_check.py", exc_info=True)
             failures.append({"path": rel, "reason": _safe_reason(exc)})
 
     return _finish(
@@ -189,6 +194,7 @@ def _relative_path(path: Path) -> str:
     try:
         return path.resolve().relative_to(PROJECT_ROOT).as_posix()
     except ValueError:
+        logger.debug("Suppressed exception in scripts/sigma_convert_check.py", exc_info=True)
         return path.name
 
 

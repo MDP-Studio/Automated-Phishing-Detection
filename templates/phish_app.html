@@ -251,6 +251,18 @@
 
       <section class="page-panel" id="dashboardPanel" data-panel="dashboard" hidden>
         <div class="stats-row" id="statsRow"></div>
+        <div class="stats-row" id="simulationStatsRow"></div>
+        <article class="wide-card">
+          <div class="card-heading">
+            <div>
+              <h2>Incident cases</h2>
+              <p>Track scan-linked response state, owner, evidence history, and escalation.</p>
+            </div>
+            <button class="secondary-button" id="refreshCasesButton" type="button">Refresh</button>
+          </div>
+          <div class="history-list" id="caseList"></div>
+          <div class="notice" id="casesNotice" hidden></div>
+        </article>
         <article class="wide-card">
           <div class="card-heading">
             <div>

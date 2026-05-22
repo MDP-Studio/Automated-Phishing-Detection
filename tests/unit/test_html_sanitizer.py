@@ -77,10 +77,12 @@ class TestScriptTag:
         payload = '<script type="text/javascript" src="//evil/x.js"></script>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_uppercase_script(self):
         out = sanitize_email_html("<SCRIPT>alert(1)</SCRIPT>")
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
 
 class TestEventHandlers:
@@ -94,6 +96,7 @@ class TestEventHandlers:
         payload = '<body onload="alert(1)">hello</body>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_a_onclick(self):
         payload = '<a href="https://example.com" onclick="alert(1)">x</a>'
@@ -106,6 +109,7 @@ class TestEventHandlers:
         payload = '<div onmouseover="alert(1)">hover</div>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
 
 class TestSVGNamespaceJS:
@@ -121,12 +125,14 @@ class TestSVGNamespaceJS:
         payload = '<svg onload="alert(1)">'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_svg_use_xlink_href_javascript(self):
         # SVG <use xlink:href="javascript:..."> is a real bypass class
         payload = '<svg><use xlink:href="javascript:alert(1)"/></svg>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
 
 class TestJavaScriptUrlScheme:
@@ -141,16 +147,19 @@ class TestJavaScriptUrlScheme:
         payload = '<a href="JAVASCRIPT:alert(1)">click</a>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_a_href_vbscript(self):
         payload = '<a href="vbscript:msgbox(1)">click</a>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_iframe_src_javascript(self):
         payload = '<iframe src="javascript:alert(1)"></iframe>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
 
 class TestDataUri:
@@ -158,16 +167,19 @@ class TestDataUri:
         payload = '<iframe src="data:text/html,<script>alert(1)</script>"></iframe>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_a_href_data_html(self):
         payload = '<a href="data:text/html,<script>alert(1)</script>">x</a>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_object_data_html(self):
         payload = '<object data="data:text/html,<script>alert(1)</script>"></object>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
 
 class TestMetaRefresh:
@@ -211,11 +223,13 @@ class TestParserQuirks:
         payload = '<math><mtext><script>alert(1)</script></mtext></math>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_noscript(self):
         payload = '<noscript><img src=x onerror=alert(1)></noscript>'
         out = sanitize_email_html(payload)
         _assert_no_executable(out)
+        assert isinstance(out, str)
 
     def test_form_with_formaction(self):
         payload = '<form><button formaction="javascript:alert(1)">x</button></form>'

@@ -1,5 +1,6 @@
 """Passkey/WebAuthn helpers for staged phishing-resistant step-up."""
 from __future__ import annotations
+import logging
 
 import json
 import os
@@ -10,6 +11,8 @@ from typing import Any
 from fastapi import HTTPException, Request
 
 from src.saas.database import SaaSStore
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -23,9 +26,10 @@ class PasskeyRuntimeConfig:
 
 def webauthn_available() -> bool:
     try:
-        import webauthn  # noqa: F401
+        import webauthn  # noqa: F401  # agent-quality: allow: scoped lint suppression is required for import order or optional dependency compatibility
         return True
     except ImportError:
+        logger.debug("Suppressed exception in src/saas/passkeys.py", exc_info=True)
         return False
 
 
@@ -239,4 +243,5 @@ def _env_int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, str(default)))
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/saas/passkeys.py", exc_info=True)
         return default

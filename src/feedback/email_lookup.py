@@ -208,6 +208,7 @@ class EmailLookupIndex:
                     try:
                         record = json.loads(line.decode("utf-8"))
                     except (json.JSONDecodeError, UnicodeDecodeError):
+                        logger.debug("Suppressed exception in src/feedback/email_lookup.py", exc_info=True)
                         # FM2: partial-write crash, garbage line, etc.
                         continue
                     eid = record.get("email_id")
@@ -229,6 +230,7 @@ class EmailLookupIndex:
                     return None
                 return json.loads(line.decode("utf-8"))
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            logger.debug("Suppressed exception in src/feedback/email_lookup.py", exc_info=True)
             return None
 
     def _stat_changed(self) -> bool:

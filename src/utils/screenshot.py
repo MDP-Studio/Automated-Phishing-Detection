@@ -132,6 +132,7 @@ class ScreenshotCapture:
                     wait_until="networkidle",
                 )
             except Exception:
+                logger.debug("Suppressed exception in src/utils/screenshot.py", exc_info=True)
                 # Try with less strict wait
                 await page.goto(
                     url,
@@ -229,6 +230,7 @@ class ScreenshotCapture:
             with Image.open(filepath) as img:
                 return img.size
         except ImportError:
+            logger.debug("Suppressed exception in src/utils/screenshot.py", exc_info=True)
             pass
         except Exception as e:
             logger.debug(f"Could not read image dimensions: {e}")
@@ -243,6 +245,7 @@ class ScreenshotCapture:
             with Image.open(filepath) as img:
                 return str(imagehash.phash(img))
         except ImportError:
+            logger.debug("Suppressed exception in src/utils/screenshot.py", exc_info=True)
             return None
         except Exception as e:
             logger.debug(f"Could not compute phash: {e}")

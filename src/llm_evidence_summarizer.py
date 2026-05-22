@@ -1,12 +1,15 @@
 """Optional LLM summary layer for normalized analyzer evidence."""
 
 from __future__ import annotations
+import logging
 
 import json
 import re
 from typing import Any
 
 from src.analyzers.clients.anthropic_client import LLMResponse
+
+logger = logging.getLogger(__name__)
 
 
 class LLMEvidenceSummarizer:
@@ -122,6 +125,7 @@ def _parse_summary_json(text: str) -> dict:
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
+        logger.debug("Suppressed exception in src/llm_evidence_summarizer.py", exc_info=True)
         parsed = {"summary": text}
     return {
         "summary": str(parsed.get("summary") or "Structured evidence summary was generated."),

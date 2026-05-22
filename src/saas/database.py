@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import sqlite3
 from collections import Counter
@@ -21,6 +22,24 @@ from src.support.mailbox_guides import CONNECTABLE_MAILBOX_PROVIDERS, MAILBOX_PR
 ACTIVE_SUBSCRIPTION_STATUSES = {"active", "trialing"}
 WORKSPACE_ROLES = {"owner", "admin", "analyst", "viewer"}
 BILLING_INTERVALS = {"monthly", "yearly"}
+CASE_STATUSES = {"open", "triaged", "investigating", "contained", "closed"}
+CASE_SEVERITIES = {"low", "medium", "high", "critical"}
+CASE_STATUS_TRANSITIONS = {
+    "open": {"triaged", "investigating", "closed"},
+    "triaged": {"investigating", "contained", "closed"},
+    "investigating": {"contained", "closed"},
+    "contained": {"closed", "investigating"},
+    "closed": {"investigating"},
+}
+SIMULATION_OUTCOMES = {
+    "reported",
+    "opened",
+    "clicked",
+    "submitted_credentials",
+    "ignored",
+}
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_billing_interval(value: str | None) -> str:
@@ -128,6 +147,29 @@ class WebAuthnCredentialRecord:
             "created_at": self.created_at,
             "last_used_at": self.last_used_at,
         }
+
+
+@dataclass(frozen=True)
+class IncidentCaseRecord:
+    id: str
+    org_id: str
+    scan_result_id: str
+    scan_job_id: str | None
+    email_id: str
+    title: str
+    status: str
+    severity: str
+    owner_user_id: str | None
+    owner_email: str | None
+    escalated_at: str | None
+    escalation_reason: str | None
+    created_at: str
+    updated_at: str
+    closed_at: str | None
+    event_count: int = 0
+
+    def to_public_dict(self) -> dict:
+        return asdict(self)
 
 
 class SaaSStore:
@@ -1086,6 +1128,465 @@ class SaaSStore:
             conn.commit()
             return True
 
+    def create_incident_case(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        scan_result_id: str,
+        owner_user_id: str | None = None,
+        severity: str = "medium",
+        title: str | None = None,
+        note: str | None = None,
+    ) -> dict:
+        """Open a lightweight incident case tied to an existing scan result."""
+        severity = _validate_case_severity(severity)
+        now = utc_now_iso()
+        case_id = new_id("case")
+        with self._connect() as conn:
+            scan = conn.execute(
+                """
+                SELECT id, scan_job_id, email_id, verdict, payment_decision, result_json
+                FROM scan_results
+                WHERE id = ? AND org_id = ?
+                """,
+                (scan_result_id, org_id),
+            ).fetchone()
+            if scan is None:
+                raise ValueError("scan result not found")
+
+            owner_user_id = owner_user_id or actor_user_id
+            if owner_user_id and not self._user_is_org_member(conn, org_id, owner_user_id):
+                raise ValueError("case owner must be a workspace member")
+
+            subject = _scan_result_subject(scan["result_json"])
+            case_title = _clean_short_text(title or subject or f"Incident for {scan['email_id']}", 160)
+            conn.execute(
+                """
+                INSERT INTO incident_cases (
+                    id, org_id, scan_result_id, scan_job_id, email_id, title, status,
+                    severity, owner_user_id, escalated_at, escalation_reason,
+                    created_at, updated_at, closed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL)
+                """,
+                (
+                    case_id,
+                    org_id,
+                    scan["id"],
+                    scan["scan_job_id"],
+                    scan["email_id"],
+                    case_title,
+                    "open",
+                    severity,
+                    owner_user_id,
+                    now,
+                    now,
+                ),
+            )
+            self._write_case_event(
+                conn,
+                case_id=case_id,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                event_type="created",
+                from_status=None,
+                to_status="open",
+                note=note,
+                evidence={
+                    "scan_result_id": scan["id"],
+                    "scan_job_id": scan["scan_job_id"],
+                    "email_id": scan["email_id"],
+                    "verdict": scan["verdict"],
+                    "payment_decision": scan["payment_decision"],
+                    "subject": subject,
+                },
+                now=now,
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="incident_case.created",
+                target_type="incident_case",
+                target_id=case_id,
+                metadata={
+                    "scan_result_id": scan["id"],
+                    "status": "open",
+                    "severity": severity,
+                },
+                now=now,
+            )
+            conn.commit()
+        case = self.get_incident_case(org_id=org_id, case_id=case_id)
+        if case is None:
+            raise RuntimeError("created incident case could not be loaded")
+        return case
+
+    def list_incident_cases(self, org_id: str, *, limit: int = 50) -> list[dict]:
+        limit = max(1, min(int(limit or 50), 100))
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT c.*, u.email AS owner_email,
+                       COUNT(e.id) AS event_count
+                FROM incident_cases c
+                LEFT JOIN users u ON u.id = c.owner_user_id
+                LEFT JOIN incident_case_events e ON e.case_id = c.id
+                WHERE c.org_id = ?
+                GROUP BY c.id
+                ORDER BY c.updated_at DESC, c.created_at DESC
+                LIMIT ?
+                """,
+                (org_id, limit),
+            ).fetchall()
+            return [self._incident_case_record_from_row(row).to_public_dict() for row in rows]
+
+    def get_incident_case(self, *, org_id: str, case_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT c.*, u.email AS owner_email,
+                       (
+                           SELECT COUNT(*)
+                           FROM incident_case_events e
+                           WHERE e.case_id = c.id
+                       ) AS event_count
+                FROM incident_cases c
+                LEFT JOIN users u ON u.id = c.owner_user_id
+                WHERE c.id = ? AND c.org_id = ?
+                """,
+                (case_id, org_id),
+            ).fetchone()
+            if row is None:
+                return None
+            events = conn.execute(
+                """
+                SELECT id, event_type, from_status, to_status, note,
+                       evidence_json, created_at
+                FROM incident_case_events
+                WHERE case_id = ? AND org_id = ?
+                ORDER BY created_at ASC, rowid ASC
+                """,
+                (case_id, org_id),
+            ).fetchall()
+            payload = self._incident_case_record_from_row(row).to_public_dict()
+            payload["events"] = [
+                {
+                    "id": event["id"],
+                    "event_type": event["event_type"],
+                    "from_status": event["from_status"],
+                    "to_status": event["to_status"],
+                    "note": event["note"],
+                    "evidence": _safe_json_dict(event["evidence_json"]),
+                    "created_at": event["created_at"],
+                }
+                for event in events
+            ]
+            return payload
+
+    def update_incident_case(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        case_id: str,
+        status: str | None = None,
+        owner_user_id: str | None = None,
+        severity: str | None = None,
+        escalate: bool = False,
+        escalation_reason: str | None = None,
+        note: str | None = None,
+    ) -> dict:
+        """Apply a small incident workflow update and append immutable events."""
+        now = utc_now_iso()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT *
+                FROM incident_cases
+                WHERE id = ? AND org_id = ?
+                """,
+                (case_id, org_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("incident case not found")
+
+            updates: dict[str, object] = {"updated_at": now}
+            current_status = row["status"]
+            if status is not None:
+                next_status = _validate_case_status(status)
+                if next_status != current_status:
+                    allowed = CASE_STATUS_TRANSITIONS.get(current_status, set())
+                    if next_status not in allowed:
+                        raise ValueError(
+                            f"case status cannot move from {current_status} to {next_status}"
+                        )
+                    updates["status"] = next_status
+                    updates["closed_at"] = now if next_status == "closed" else None
+                    self._write_case_event(
+                        conn,
+                        case_id=case_id,
+                        org_id=org_id,
+                        actor_user_id=actor_user_id,
+                        event_type="status_changed",
+                        from_status=current_status,
+                        to_status=next_status,
+                        note=note,
+                        evidence={},
+                        now=now,
+                    )
+
+            if owner_user_id is not None and owner_user_id != row["owner_user_id"]:
+                if not self._user_is_org_member(conn, org_id, owner_user_id):
+                    raise ValueError("case owner must be a workspace member")
+                updates["owner_user_id"] = owner_user_id
+                self._write_case_event(
+                    conn,
+                    case_id=case_id,
+                    org_id=org_id,
+                    actor_user_id=actor_user_id,
+                    event_type="owner_changed",
+                    from_status=None,
+                    to_status=None,
+                    note=note,
+                    evidence={
+                        "from_owner_user_id": row["owner_user_id"],
+                        "to_owner_user_id": owner_user_id,
+                    },
+                    now=now,
+                )
+
+            if severity is not None:
+                next_severity = _validate_case_severity(severity)
+                if next_severity != row["severity"]:
+                    updates["severity"] = next_severity
+                    self._write_case_event(
+                        conn,
+                        case_id=case_id,
+                        org_id=org_id,
+                        actor_user_id=actor_user_id,
+                        event_type="severity_changed",
+                        from_status=None,
+                        to_status=None,
+                        note=note,
+                        evidence={
+                            "from_severity": row["severity"],
+                            "to_severity": next_severity,
+                        },
+                        now=now,
+                    )
+
+            clean_note = _clean_note(note)
+            if escalate:
+                reason = _clean_short_text(escalation_reason or note or "Escalated for review", 240)
+                updates["escalated_at"] = row["escalated_at"] or now
+                updates["escalation_reason"] = reason
+                self._write_case_event(
+                    conn,
+                    case_id=case_id,
+                    org_id=org_id,
+                    actor_user_id=actor_user_id,
+                    event_type="escalated",
+                    from_status=row["status"],
+                    to_status=updates.get("status", row["status"]),
+                    note=clean_note,
+                    evidence={"reason": reason},
+                    now=now,
+                )
+            elif clean_note and not any(
+                key in updates for key in {"status", "owner_user_id", "severity"}
+            ):
+                self._write_case_event(
+                    conn,
+                    case_id=case_id,
+                    org_id=org_id,
+                    actor_user_id=actor_user_id,
+                    event_type="note",
+                    from_status=None,
+                    to_status=None,
+                    note=clean_note,
+                    evidence={},
+                    now=now,
+                )
+
+            assignments = ", ".join(f"{name} = ?" for name in updates)
+            values = list(updates.values()) + [case_id, org_id]
+            conn.execute(
+                f"UPDATE incident_cases SET {assignments} WHERE id = ? AND org_id = ?",
+                values,
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="incident_case.updated",
+                target_type="incident_case",
+                target_id=case_id,
+                metadata={
+                    "status": updates.get("status", row["status"]),
+                    "severity": updates.get("severity", row["severity"]),
+                    "escalated": bool(updates.get("escalated_at") or row["escalated_at"]),
+                },
+                now=now,
+            )
+            conn.commit()
+        case = self.get_incident_case(org_id=org_id, case_id=case_id)
+        if case is None:
+            raise RuntimeError("updated incident case could not be loaded")
+        return case
+
+    def record_simulation_results(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        results: list[dict],
+        campaign_id: str | None = None,
+    ) -> list[dict]:
+        """Ingest compact awareness simulation outcomes without storing message bodies."""
+        if not results:
+            raise ValueError("at least one simulation result is required")
+        if len(results) > 250:
+            raise ValueError("ingest at most 250 simulation results per request")
+        now = utc_now_iso()
+        saved: list[dict] = []
+        with self._connect() as conn:
+            for item in results:
+                if not isinstance(item, dict):
+                    raise ValueError("simulation results must be JSON objects")
+                normalized = _normalize_simulation_result(item, org_id=org_id)
+                result_id = new_id("sim")
+                row_campaign_id = _clean_short_text(
+                    str(item.get("campaign_id") or campaign_id or "default"), 80
+                )
+                conn.execute(
+                    """
+                    INSERT INTO simulation_results (
+                        id, org_id, actor_user_id, campaign_id, recipient_ref,
+                        scenario, outcome, reported, clicked,
+                        submitted_credentials, opened, detected_by_user,
+                        occurred_at, metadata_json, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        result_id,
+                        org_id,
+                        actor_user_id,
+                        row_campaign_id,
+                        normalized["recipient_ref"],
+                        normalized["scenario"],
+                        normalized["outcome"],
+                        int(normalized["reported"]),
+                        int(normalized["clicked"]),
+                        int(normalized["submitted_credentials"]),
+                        int(normalized["opened"]),
+                        int(normalized["detected_by_user"]),
+                        normalized["occurred_at"],
+                        json.dumps(normalized["metadata"], default=str),
+                        now,
+                    ),
+                )
+                saved.append(
+                    {
+                        "id": result_id,
+                        "campaign_id": row_campaign_id,
+                        "recipient_ref": normalized["recipient_ref"],
+                        "scenario": normalized["scenario"],
+                        "outcome": normalized["outcome"],
+                        "occurred_at": normalized["occurred_at"],
+                    }
+                )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="simulation_results.ingested",
+                target_type="simulation_campaign",
+                target_id=campaign_id or "default",
+                metadata={"count": len(saved)},
+                now=now,
+            )
+            conn.commit()
+        return saved
+
+    def simulation_summary(self, org_id: str, *, days: int = 90) -> dict:
+        days = max(1, min(int(days or 90), 365))
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM(reported), 0) AS reported,
+                    COALESCE(SUM(clicked), 0) AS clicked,
+                    COALESCE(SUM(submitted_credentials), 0) AS submitted_credentials,
+                    COALESCE(SUM(opened), 0) AS opened,
+                    COALESCE(SUM(detected_by_user), 0) AS detected_by_user,
+                    MAX(occurred_at) AS last_result_at
+                FROM simulation_results
+                WHERE org_id = ? AND occurred_at >= ?
+                """,
+                (org_id, since),
+            ).fetchone()
+            by_outcome = [
+                {"name": item["outcome"], "count": int(item["count"] or 0)}
+                for item in conn.execute(
+                    """
+                    SELECT outcome, COUNT(*) AS count
+                    FROM simulation_results
+                    WHERE org_id = ? AND occurred_at >= ?
+                    GROUP BY outcome
+                    ORDER BY count DESC, outcome ASC
+                    """,
+                    (org_id, since),
+                ).fetchall()
+            ]
+
+        total = int(row["total"] or 0)
+        reported = int(row["reported"] or 0)
+        clicked = int(row["clicked"] or 0)
+        submitted = int(row["submitted_credentials"] or 0)
+        opened = int(row["opened"] or 0)
+        detected = int(row["detected_by_user"] or 0)
+        if total:
+            report_rate = reported / total
+            click_rate = clicked / total
+            credential_rate = submitted / total
+            risk_score = round(
+                min(
+                    100,
+                    max(
+                        0,
+                        (click_rate * 45)
+                        + (credential_rate * 45)
+                        + ((1 - report_rate) * 10),
+                    ),
+                )
+            )
+        else:
+            report_rate = click_rate = credential_rate = 0.0
+            risk_score = None
+        return {
+            "window_days": days,
+            "status": "pilot_ready" if total >= 10 else "needs_pilot",
+            "target_sample_size": 10,
+            "total": total,
+            "reported": reported,
+            "clicked": clicked,
+            "submitted_credentials": submitted,
+            "opened": opened,
+            "detected_by_user": detected,
+            "report_rate": round(report_rate, 4),
+            "click_rate": round(click_rate, 4),
+            "credential_submission_rate": round(credential_rate, 4),
+            "risk_score": risk_score,
+            "risk_level": _simulation_risk_level(risk_score),
+            "last_result_at": row["last_result_at"],
+            "by_outcome": by_outcome,
+        }
+
     def admin_overview(self, *, audit_limit: int = 20) -> dict:
         """Return privacy-preserving aggregate SaaS state for owner/admin views.
 
@@ -1118,6 +1619,14 @@ class SaaSStore:
                     WHERE status != 'disabled'
                     """
                 ).fetchone()["count"]
+                or 0
+            )
+            total_cases = int(
+                conn.execute("SELECT COUNT(*) AS count FROM incident_cases").fetchone()["count"]
+                or 0
+            )
+            total_simulations = int(
+                conn.execute("SELECT COUNT(*) AS count FROM simulation_results").fetchone()["count"]
                 or 0
             )
 
@@ -1194,6 +1703,22 @@ class SaaSStore:
                 LIMIT 12
                 """
             )
+            cases_by_status = grouped(
+                """
+                SELECT status AS name, COUNT(*) AS count
+                FROM incident_cases
+                GROUP BY status
+                ORDER BY count DESC, name ASC
+                """
+            )
+            simulation_outcomes = grouped(
+                """
+                SELECT outcome AS name, COUNT(*) AS count
+                FROM simulation_results
+                GROUP BY outcome
+                ORDER BY count DESC, name ASC
+                """
+            )
             analyzer_stats = self._aggregate_analyzer_stats(conn)
             ops_status = _safe_ops_status()
             payment_assurance = _safe_payment_assurance_status()
@@ -1223,6 +1748,8 @@ class SaaSStore:
                 "organizations": total_orgs,
                 "scans": total_scans,
                 "mailboxes": total_mailboxes,
+                "incident_cases": total_cases,
+                "simulation_results": total_simulations,
             },
             "plans": plans,
             "subscription_status": subscription_status,
@@ -1232,6 +1759,8 @@ class SaaSStore:
             "mailboxes_by_provider": mailboxes_by_provider,
             "usage_this_month": usage_this_month,
             "feature_locks": feature_locks,
+            "cases_by_status": cases_by_status,
+            "simulation_outcomes": simulation_outcomes,
             "analyzers": analyzer_stats,
             "cti_transport": ops_status,
             "payment_assurance": payment_assurance,
@@ -1261,7 +1790,8 @@ class SaaSStore:
         for row in rows:
             try:
                 payload = json.loads(row["result_json"] or "{}")
-            except (TypeError, json.JSONDecodeError):
+            except (TypeError, json.JSONDecodeError) as exc:
+                logger.debug("Skipping malformed analyzer stats JSON: %s", exc)
                 continue
 
             product_verdicts = payload.get("product_verdicts") or {}
@@ -1616,7 +2146,8 @@ class SaaSStore:
     def _webauthn_record_from_row(row: sqlite3.Row) -> WebAuthnCredentialRecord:
         try:
             transports = json.loads(row["transports_json"] or "[]")
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            logger.debug("Ignoring malformed WebAuthn transport JSON: %s", exc)
             transports = []
         if not isinstance(transports, list):
             transports = []
@@ -1634,6 +2165,27 @@ class SaaSStore:
         )
 
     @staticmethod
+    def _incident_case_record_from_row(row: sqlite3.Row) -> IncidentCaseRecord:
+        return IncidentCaseRecord(
+            id=row["id"],
+            org_id=row["org_id"],
+            scan_result_id=row["scan_result_id"],
+            scan_job_id=row["scan_job_id"],
+            email_id=row["email_id"],
+            title=row["title"],
+            status=row["status"],
+            severity=row["severity"],
+            owner_user_id=row["owner_user_id"],
+            owner_email=row["owner_email"],
+            escalated_at=row["escalated_at"],
+            escalation_reason=row["escalation_reason"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            closed_at=row["closed_at"],
+            event_count=int(row["event_count"] or 0),
+        )
+
+    @staticmethod
     def _owner_count(conn: sqlite3.Connection, org_id: str) -> int:
         row = conn.execute(
             """
@@ -1645,6 +2197,55 @@ class SaaSStore:
             (org_id,),
         ).fetchone()
         return int(row["count"] or 0)
+
+    @staticmethod
+    def _user_is_org_member(conn: sqlite3.Connection, org_id: str, user_id: str) -> bool:
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM memberships m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.org_id = ? AND m.user_id = ? AND u.disabled_at IS NULL
+            """,
+            (org_id, user_id),
+        ).fetchone()
+        return row is not None
+
+    def _write_case_event(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        case_id: str,
+        org_id: str,
+        actor_user_id: str | None,
+        event_type: str,
+        from_status: str | None,
+        to_status: str | None,
+        note: str | None,
+        evidence: dict,
+        now: str,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO incident_case_events (
+                id, case_id, org_id, actor_user_id, event_type,
+                from_status, to_status, note, evidence_json, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                new_id("evt"),
+                case_id,
+                org_id,
+                actor_user_id,
+                event_type,
+                from_status,
+                to_status,
+                _clean_note(note),
+                json.dumps(evidence or {}, default=str),
+                now,
+            ),
+        )
 
     def _write_audit(
         self,
@@ -1727,7 +2328,8 @@ def verify_password(password: str, encoded: str) -> bool:
         iterations = int(raw_iterations)
         salt = bytes.fromhex(salt_hex)
         expected = bytes.fromhex(digest_hex)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        logger.debug("Password hash verification received an invalid encoded value: %s", exc)
         return False
     actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(actual, expected)
@@ -1766,7 +2368,8 @@ def _safe_ops_status() -> dict:
         from src.reporting.ops_status import cti_transport_overview
 
         return cti_transport_overview()
-    except Exception:
+    except Exception as exc:
+        logger.debug("CTI transport overview unavailable: %s", exc)
         return {
             "taxii": {"status": "unavailable", "enabled": False, "configured": False},
             "sigma_conversion": {"status": "unavailable"},
@@ -1778,8 +2381,108 @@ def _safe_payment_assurance_status() -> dict:
         from src.reporting.ops_status import payment_assurance_overview
 
         return payment_assurance_overview()
-    except Exception:
+    except Exception as exc:
+        logger.debug("Payment assurance overview unavailable: %s", exc)
         return {"status": "unavailable", "ready": False}
+
+
+def _validate_case_status(status: str) -> str:
+    value = str(status or "").strip().lower()
+    if value not in CASE_STATUSES:
+        raise ValueError("case status must be open, triaged, investigating, contained, or closed")
+    return value
+
+
+def _validate_case_severity(severity: str) -> str:
+    value = str(severity or "medium").strip().lower()
+    if value not in CASE_SEVERITIES:
+        raise ValueError("case severity must be low, medium, high, or critical")
+    return value
+
+
+def _clean_short_text(value: str | None, limit: int) -> str:
+    text = " ".join(str(value or "").split())
+    return text[:limit].strip()
+
+
+def _clean_note(value: str | None) -> str | None:
+    text = _clean_short_text(value, 1000)
+    return text or None
+
+
+def _safe_json_dict(raw: str | None) -> dict:
+    try:
+        parsed = json.loads(raw or "{}")
+    except (TypeError, json.JSONDecodeError) as exc:
+        logger.debug("Ignoring malformed JSON object payload: %s", exc)
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _scan_result_subject(raw_result_json: str | None) -> str | None:
+    result = _safe_json_dict(raw_result_json)
+    headers = ((result.get("iocs") or {}).get("headers") or {})
+    subject = headers.get("subject") if isinstance(headers, dict) else None
+    return _clean_short_text(subject, 160) or None
+
+
+def _normalize_simulation_result(item: dict, *, org_id: str) -> dict:
+    outcome = str(item.get("outcome") or "").strip().lower()
+    if not outcome:
+        outcome = "reported" if item.get("reported") else "ignored"
+    if outcome not in SIMULATION_OUTCOMES:
+        raise ValueError(
+            "simulation outcome must be reported, opened, clicked, "
+            "submitted_credentials, or ignored"
+        )
+    reported = bool(item.get("reported")) or outcome == "reported"
+    submitted = bool(item.get("submitted_credentials")) or outcome == "submitted_credentials"
+    clicked = bool(item.get("clicked")) or submitted or outcome == "clicked"
+    opened = bool(item.get("opened")) or clicked or outcome == "opened"
+    detected = bool(item.get("detected_by_user")) or reported
+    occurred_at = _clean_short_text(item.get("occurred_at") or utc_now_iso(), 80)
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    return {
+        "recipient_ref": _simulation_recipient_ref(item.get("recipient_ref"), org_id=org_id),
+        "scenario": _clean_short_text(item.get("scenario") or "phishing_simulation", 120),
+        "outcome": outcome,
+        "reported": reported,
+        "clicked": clicked,
+        "submitted_credentials": submitted,
+        "opened": opened,
+        "detected_by_user": detected,
+        "occurred_at": occurred_at,
+        "metadata": _redacted_simulation_metadata(metadata),
+    }
+
+
+def _simulation_recipient_ref(value: object, *, org_id: str) -> str:
+    text = _clean_short_text(str(value or "unknown"), 160)
+    if "@" in text:
+        digest = hashlib.sha256(f"{org_id}:{text.lower()}".encode("utf-8")).hexdigest()[:16]
+        return f"recipient_hash:{digest}"
+    return text or "unknown"
+
+
+def _redacted_simulation_metadata(metadata: dict) -> dict:
+    allowed = {}
+    for key, value in metadata.items():
+        key_text = _clean_short_text(key, 40).lower()
+        if key_text in {"raw_email", "body", "html", "password", "token", "secret"}:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            allowed[key_text] = _clean_short_text(str(value), 200) if isinstance(value, str) else value
+    return allowed
+
+
+def _simulation_risk_level(score: int | None) -> str:
+    if score is None:
+        return "not_enough_data"
+    if score >= 60:
+        return "high"
+    if score >= 30:
+        return "medium"
+    return "low"
 
 
 SCHEMA_SQL = """
@@ -1862,6 +2565,37 @@ CREATE TABLE IF NOT EXISTS scan_results (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS incident_cases (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    scan_result_id TEXT NOT NULL REFERENCES scan_results(id) ON DELETE CASCADE,
+    scan_job_id TEXT REFERENCES scan_jobs(id) ON DELETE SET NULL,
+    email_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    escalated_at TEXT,
+    escalation_reason TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    closed_at TEXT,
+    UNIQUE(org_id, scan_result_id)
+);
+
+CREATE TABLE IF NOT EXISTS incident_case_events (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL REFERENCES incident_cases(id) ON DELETE CASCADE,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT,
+    note TEXT,
+    evidence_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS usage_events (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -1925,10 +2659,32 @@ CREATE TABLE IF NOT EXISTS passkey_stepups (
     PRIMARY KEY (org_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS simulation_results (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    campaign_id TEXT NOT NULL,
+    recipient_ref TEXT NOT NULL,
+    scenario TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    reported INTEGER NOT NULL DEFAULT 0,
+    clicked INTEGER NOT NULL DEFAULT 0,
+    submitted_credentials INTEGER NOT NULL DEFAULT 0,
+    opened INTEGER NOT NULL DEFAULT 0,
+    detected_by_user INTEGER NOT NULL DEFAULT 0,
+    occurred_at TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_usage_org_feature_time
     ON usage_events(org_id, feature_slug, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_scan_results_org_time
     ON scan_results(org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_incident_cases_org_status
+    ON incident_cases(org_id, status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_incident_case_events_case
+    ON incident_case_events(case_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_feature_locks_org_time
     ON feature_locks(org_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_org_time
@@ -1937,4 +2693,6 @@ CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user
     ON webauthn_credentials(org_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_webauthn_challenges_user
     ON webauthn_challenges(org_id, user_id, purpose, expires_at);
+CREATE INDEX IF NOT EXISTS idx_simulation_results_org_time
+    ON simulation_results(org_id, occurred_at);
 """

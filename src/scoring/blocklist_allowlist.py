@@ -187,4 +187,5 @@ class BlocklistAllowlistChecker:
             parsed = urlparse(url)
             return (parsed.hostname or "").lower() or None
         except Exception:
+            logger.debug("Suppressed exception in src/scoring/blocklist_allowlist.py", exc_info=True)
             return None

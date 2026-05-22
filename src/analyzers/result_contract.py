@@ -1,12 +1,15 @@
 """Normalize analyzer output for customer-facing scan reports."""
 
 from __future__ import annotations
+import logging
 
 from typing import Any
 
 from src.billing.entitlements import ANALYZER_FEATURES
 from src.billing.plans import get_feature, minimum_plan_for_feature
 from src.models import AnalyzerResult
+
+logger = logging.getLogger(__name__)
 
 
 VALID_ANALYZER_STATUSES = {
@@ -238,6 +241,7 @@ def _feature_metadata(analyzer_id: str) -> dict:
         feature = get_feature(feature_slug)
         plan = minimum_plan_for_feature(feature_slug)
     except KeyError:
+        logger.debug("Suppressed exception in src/analyzers/result_contract.py", exc_info=True)
         return {
             "feature_slug": feature_slug,
             "plan_required": "free",
@@ -488,6 +492,7 @@ def _safe_float(value: Any) -> float:
     try:
         return round(float(value or 0.0), 4)
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/analyzers/result_contract.py", exc_info=True)
         return 0.0
 
 

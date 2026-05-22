@@ -6,6 +6,7 @@ turns those sources into a flat directory of .eml files plus labels and a
 manifest that the eval harness can consume directly.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import csv
@@ -18,6 +19,8 @@ from dataclasses import asdict, dataclass
 from email import policy
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -111,10 +114,12 @@ def _message_as_bytes(message: mailbox.mboxMessage) -> bytes:
         try:
             return message.as_bytes(policy=email_policy)
         except (AttributeError, TypeError, UnicodeEncodeError):
+            logger.debug("Suppressed exception in src/eval/corpus_prepare.py", exc_info=True)
             continue
     try:
         return message.as_bytes()
     except (AttributeError, TypeError, UnicodeEncodeError):
+        logger.debug("Suppressed exception in src/eval/corpus_prepare.py", exc_info=True)
         return _fallback_message_bytes(message)
 
 
@@ -128,6 +133,7 @@ def _fallback_message_bytes(message: mailbox.mboxMessage) -> bytes:
                 try:
                     lines.append(part.as_bytes(policy=policy.SMTPUTF8).decode("utf-8", "replace"))
                 except Exception:
+                    logger.debug("Suppressed exception in src/eval/corpus_prepare.py", exc_info=True)
                     lines.append(str(part.get_payload() if hasattr(part, "get_payload") else part))
             else:
                 lines.append(str(part))
@@ -184,6 +190,7 @@ def iter_nazario_candidates(corpora_dir: Path, max_bytes: int = DEFAULT_MAX_BYTE
                     payload=payload,
                 )
         except OSError:
+            logger.debug("Suppressed exception in src/eval/corpus_prepare.py", exc_info=True)
             continue
 
 
@@ -195,6 +202,7 @@ def _is_reasonable_raw_message(path: Path, max_bytes: int) -> bool:
     try:
         size = path.stat().st_size
     except OSError:
+        logger.debug("Suppressed exception in src/eval/corpus_prepare.py", exc_info=True)
         return False
     return 0 < size <= max_bytes
 

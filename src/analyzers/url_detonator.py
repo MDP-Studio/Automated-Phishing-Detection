@@ -184,6 +184,7 @@ class URLDetonationAnalyzer:
                 domain = domain[4:]
             return domain
         except Exception:
+            logger.debug("Suppressed exception in src/analyzers/url_detonator.py", exc_info=True)
             return None
 
     async def analyze(self, urls: list[ExtractedURL]) -> AnalyzerResult:

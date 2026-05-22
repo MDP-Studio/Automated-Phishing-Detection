@@ -68,6 +68,7 @@ def is_valid_url(url: str) -> bool:
             return False
         return True
     except Exception:
+        logger.debug("Suppressed exception in src/utils/validators.py", exc_info=True)
         return False
 
 
@@ -110,6 +111,7 @@ def normalize_url(url: str) -> str:
         from urllib.parse import urlunparse
         return urlunparse((scheme, netloc, path, parsed.params, query, ""))
     except Exception:
+        logger.debug("Suppressed exception in src/utils/validators.py", exc_info=True)
         return url
 
 
@@ -119,6 +121,7 @@ def extract_domain_from_url(url: str) -> Optional[str]:
         parsed = urlparse(url)
         return (parsed.hostname or "").lower() or None
     except Exception:
+        logger.debug("Suppressed exception in src/utils/validators.py", exc_info=True)
         return None
 
 
@@ -145,6 +148,7 @@ def is_valid_ipv4(ip: str) -> bool:
         addr = ipaddress.IPv4Address(ip)
         return True
     except (ipaddress.AddressValueError, ValueError):
+        logger.debug("Suppressed exception in src/utils/validators.py", exc_info=True)
         return False
 
 
@@ -154,6 +158,7 @@ def is_valid_ipv6(ip: str) -> bool:
         addr = ipaddress.IPv6Address(ip)
         return True
     except (ipaddress.AddressValueError, ValueError):
+        logger.debug("Suppressed exception in src/utils/validators.py", exc_info=True)
         return False
 
 
@@ -168,6 +173,7 @@ def is_private_ip(ip: str) -> bool:
         addr = ipaddress.ip_address(ip)
         return addr.is_private or addr.is_reserved or addr.is_loopback
     except ValueError:
+        logger.debug("Suppressed exception in src/utils/validators.py", exc_info=True)
         return False
 
 

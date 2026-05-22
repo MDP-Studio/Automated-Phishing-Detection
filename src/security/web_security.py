@@ -136,6 +136,7 @@ class TokenVerifier:
         try:
             payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
         except (ValueError, json.JSONDecodeError):
+            logger.debug("Suppressed exception in src/security/web_security.py", exc_info=True)
             return None
         expires_at = payload.get("exp")
         if not isinstance(expires_at, int):

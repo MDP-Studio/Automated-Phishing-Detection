@@ -11,6 +11,7 @@ Tests cover:
 """
 import asyncio
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime, timezone
@@ -141,15 +142,17 @@ class TestAlertDispatcher:
         assert len(received) == 1
 
     @pytest.mark.asyncio
-    async def test_callback_error_doesnt_crash(self):
+    async def test_callback_error_doesnt_crash(self, caplog):
         dispatcher = AlertDispatcher()
         dispatcher.register_callback(lambda p: 1 / 0)  # ZeroDivisionError
 
         email = _make_email()
         result = _make_result(verdict=Verdict.CONFIRMED_PHISHING)
 
-        # Should not raise
-        await dispatcher.dispatch(email, result)
+        with caplog.at_level(logging.ERROR):
+            await dispatcher.dispatch(email, result)
+
+        assert "Alert callback error" in caplog.text
 
 
 # ── ResultStore ──────────────────────────────────────────────────────

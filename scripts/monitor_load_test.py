@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Small production load/error probe for a running dashboard and mailbox monitor."""
 from __future__ import annotations
+import logging
 
 import argparse
 import concurrent.futures
@@ -12,6 +13,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_USER_AGENT = os.getenv(
@@ -52,9 +55,11 @@ def _get(url: str, token: str, timeout: float) -> tuple[int, float, str]:
             response.read()
             return response.status, (time.monotonic() - started) * 1000, ""
     except urllib.error.HTTPError as exc:
+        logger.debug("Suppressed exception in scripts/monitor_load_test.py", exc_info=True)
         exc.read()
         return exc.code, (time.monotonic() - started) * 1000, f"HTTP {exc.code}"
     except Exception as exc:
+        logger.debug("Suppressed exception in scripts/monitor_load_test.py", exc_info=True)
         return 0, (time.monotonic() - started) * 1000, str(exc)
 
 

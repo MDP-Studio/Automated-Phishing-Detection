@@ -7,6 +7,7 @@ CSP. It intentionally avoids `main.py serve` so CI does not start real mailbox
 monitoring from a developer's local `data/accounts.json`.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 import json
@@ -20,6 +21,8 @@ from urllib.parse import urlparse
 
 import uvicorn
 from playwright.sync_api import sync_playwright
+
+logger = logging.getLogger(__name__)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -52,6 +55,7 @@ def _wait_for_health(base_url: str, timeout_seconds: float) -> None:
                 if response.status == 200:
                     return
         except Exception as exc:  # pragma: no cover - only failure path
+            logger.debug("Suppressed exception in scripts/dashboard_browser_check.py", exc_info=True)
             last_error = exc
             time.sleep(0.25)
     raise RuntimeError(f"server did not become healthy: {last_error}")

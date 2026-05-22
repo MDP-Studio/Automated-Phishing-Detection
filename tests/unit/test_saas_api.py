@@ -1394,6 +1394,163 @@ def test_passkey_enforce_allows_privileged_mutation_after_step_up(tmp_path, monk
     assert response.json()["member"]["email"] == "analyst@example.com"
 
 
+def test_passkey_enforce_blocks_every_registered_privileged_mutation(tmp_path, monkeypatch):
+    monkeypatch.setenv("PHISHANALYZE_PASSKEY_ENFORCEMENT", "enforce")
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="credential-test",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+    member = store.add_org_member(
+        org_id=account["org_id"],
+        actor_user_id=account["user_id"],
+        email="analyst@example.com",
+        password="correct horse analyst",
+        role="analyst",
+    )
+    mailbox = store.register_mail_account(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        provider="gmail",
+        external_account_id="owner@example.com",
+        encrypted_token_ref="enc:v2:redacted",
+        status="active",
+    )
+    scan_id = store.create_scan_job(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        source="manual_upload",
+    )
+    store.record_scan_result(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        scan_job_id=scan_id,
+        email_id="email-1",
+        verdict="SUSPICIOUS",
+        payment_decision="VERIFY",
+        result={"email_id": "email-1"},
+    )
+    result_id = store.list_scan_results(account["org_id"])[0]["id"]
+    case = store.create_incident_case(
+        org_id=account["org_id"],
+        actor_user_id=account["user_id"],
+        scan_result_id=result_id,
+    )
+
+    policy = client.get("/api/saas/security/policy").json()["policy"]
+    matrix = {item["action"]: item for item in policy["privileged_actions"]}
+    assert set(matrix) == app_main.PRIVILEGED_STEP_UP_ACTIONS
+    assert all(item["requires_step_up"] for item in matrix.values())
+
+    checks = [
+        (
+            "post",
+            "/api/saas/team/members",
+            {"email": "new@example.com", "password": "correct horse battery", "role": "analyst"},
+            "team.member.create",
+        ),
+        ("patch", f"/api/saas/team/members/{member.user_id}", {"role": "viewer"}, "team.member.update"),
+        ("delete", f"/api/saas/team/members/{member.user_id}", {}, "team.member.delete"),
+        ("post", "/api/saas/mailboxes", {}, "mailbox.connect"),
+        ("delete", f"/api/saas/mailboxes/{mailbox.id}", {}, "mailbox.delete"),
+        ("post", f"/api/saas/mailboxes/{mailbox.id}/scan-now", {"max_results": 1}, "mailbox.scan_now"),
+        ("post", "/api/saas/billing/checkout", {"plan": "starter"}, "billing.checkout"),
+        ("post", "/api/saas/billing/portal", {}, "billing.portal"),
+        ("post", "/api/saas/security/passkeys/register/options", {}, "passkey.register"),
+        ("delete", "/api/saas/security/passkeys/credential-test", {}, "passkey.delete"),
+        ("delete", f"/api/saas/scans/{result_id}", {}, "scan.delete"),
+        ("post", "/api/saas/cases", {"scan_result_id": result_id}, "case.create"),
+        ("patch", f"/api/saas/cases/{case['id']}", {"status": "triaged"}, "case.update"),
+        (
+            "post",
+            "/api/saas/simulations/results",
+            {"results": [{"recipient_ref": "finance-1", "outcome": "reported"}]},
+            "simulation.ingest",
+        ),
+    ]
+    for method, path, body, action in checks:
+        if method == "post":
+            response = _post_json_with_csrf(client, path, body)
+        elif method == "patch":
+            response = _patch_json_with_csrf(client, path, body)
+        else:
+            response = _delete_with_csrf(client, path)
+        assert response.status_code == 403, path
+        detail = response.json()["detail"]
+        assert detail["passkey_required"] is True
+        assert detail["action"] == action
+
+
+def test_saas_case_api_links_scan_and_transitions_status(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    assert _signup(client).status_code == 200
+    assert _upload(client).status_code == 200
+    result_id = client.get("/api/saas/scans").json()["results"][0]["id"]
+
+    created = _post_json_with_csrf(
+        client,
+        "/api/saas/cases",
+        {
+            "scan_result_id": result_id,
+            "severity": "high",
+            "note": "Manual pilot case",
+        },
+    )
+    case_id = created.json()["case"]["id"]
+    updated = _patch_json_with_csrf(
+        client,
+        f"/api/saas/cases/{case_id}",
+        {
+            "status": "triaged",
+            "escalate": True,
+            "escalation_reason": "Finance owner review",
+        },
+    )
+    detail = client.get(f"/api/saas/cases/{case_id}")
+
+    assert created.status_code == 200
+    assert created.json()["case"]["scan_result_id"] == result_id
+    assert updated.status_code == 200
+    assert updated.json()["case"]["status"] == "triaged"
+    assert updated.json()["case"]["escalation_reason"] == "Finance owner review"
+    assert detail.json()["case"]["events"][0]["event_type"] == "created"
+    assert detail.json()["case"]["events"][-1]["event_type"] == "escalated"
+
+
+def test_saas_simulation_results_ingest_updates_dashboard_summary(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    assert _signup(client).status_code == 200
+
+    ingest = _post_json_with_csrf(
+        client,
+        "/api/saas/simulations/results",
+        {
+            "campaign_id": "may-pilot",
+            "results": [
+                {"recipient_ref": "alice@example.com", "outcome": "reported"},
+                {"recipient_ref": "finance-seat-2", "outcome": "clicked"},
+                {"recipient_ref": "finance-seat-3", "outcome": "submitted_credentials"},
+            ],
+        },
+    )
+    summary = client.get("/api/saas/simulations/summary")
+    serialized = json.dumps(ingest.json())
+
+    assert ingest.status_code == 200
+    assert ingest.json()["ingested"] == 3
+    assert summary.json()["summary"]["total"] == 3
+    assert summary.json()["summary"]["reported"] == 1
+    assert summary.json()["summary"]["clicked"] == 2
+    assert summary.json()["summary"]["submitted_credentials"] == 1
+    assert "alice@example.com" not in serialized
+
+
 def test_saas_channel_scan_normalizes_sms_and_does_not_echo_raw_text(tmp_path):
     client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
     signup = _signup(client)

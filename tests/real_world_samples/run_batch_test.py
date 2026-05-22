@@ -3,12 +3,15 @@
 Batch test runner: sends all sample .eml files through the phishing pipeline API
 and saves detailed results as JSON for analysis.
 """
+import logging
 import asyncio
 import json
 import os
 import sys
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -19,6 +22,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv(project_root / ".env")
 except ImportError:
+    logger.debug("Suppressed exception in tests/real_world_samples/run_batch_test.py", exc_info=True)
     env_path = project_root / ".env"
     if env_path.exists():
         for line in env_path.read_text().splitlines():
@@ -95,6 +99,7 @@ async def analyze_sample(pipeline, eml_path: Path) -> dict:
                         json.dumps(v)
                         details_safe[k] = v
                     except (TypeError, ValueError):
+                        logger.debug("Suppressed exception in tests/real_world_samples/run_batch_test.py", exc_info=True)
                         details_safe[k] = str(v)
 
         analyzer_results[name] = {
@@ -127,6 +132,7 @@ async def analyze_sample(pipeline, eml_path: Path) -> dict:
                     json.dumps(v)
                     iocs["headers"][k] = v
                 except (TypeError, ValueError):
+                    logger.debug("Suppressed exception in tests/real_world_samples/run_batch_test.py", exc_info=True)
                     iocs["headers"][k] = str(v)
 
     # Also handle extracted_urls at top level

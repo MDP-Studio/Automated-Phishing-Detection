@@ -86,8 +86,10 @@ async def check_virustotal(api_key: str, timeout: float = DEFAULT_TIMEOUT_S) -> 
                     return CheckResult("virustotal", CheckStatus.WARN, "rate limited", http_status=429)
                 return CheckResult("virustotal", CheckStatus.FAIL, f"HTTP {r.status}", http_status=r.status)
     except asyncio.TimeoutError:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("virustotal", CheckStatus.FAIL, f"timeout ({timeout}s)")
     except Exception as e:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("virustotal", CheckStatus.FAIL, f"exception: {e}")
 
 
@@ -132,8 +134,10 @@ async def check_google_safebrowsing(api_key: str, timeout: float = DEFAULT_TIMEO
                     )
                 return CheckResult("google_safebrowsing", CheckStatus.FAIL, f"HTTP {r.status}", http_status=r.status)
     except asyncio.TimeoutError:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("google_safebrowsing", CheckStatus.FAIL, f"timeout ({timeout}s)")
     except Exception as e:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("google_safebrowsing", CheckStatus.FAIL, f"exception: {e}")
 
 
@@ -157,8 +161,10 @@ async def check_urlscan(api_key: str, timeout: float = DEFAULT_TIMEOUT_S) -> Che
                     return CheckResult("urlscan", CheckStatus.FAIL, "invalid API key", http_status=401)
                 return CheckResult("urlscan", CheckStatus.FAIL, f"HTTP {r.status}", http_status=r.status)
     except asyncio.TimeoutError:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("urlscan", CheckStatus.FAIL, f"timeout ({timeout}s)")
     except Exception as e:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("urlscan", CheckStatus.FAIL, f"exception: {e}")
 
 
@@ -187,8 +193,10 @@ async def check_abuseipdb(api_key: str, timeout: float = DEFAULT_TIMEOUT_S) -> C
                     return CheckResult("abuseipdb", CheckStatus.WARN, "rate limited", http_status=429)
                 return CheckResult("abuseipdb", CheckStatus.FAIL, f"HTTP {r.status}", http_status=r.status)
     except asyncio.TimeoutError:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("abuseipdb", CheckStatus.FAIL, f"timeout ({timeout}s)")
     except Exception as e:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("abuseipdb", CheckStatus.FAIL, f"exception: {e}")
 
 
@@ -220,8 +228,10 @@ async def check_anthropic(api_key: str, timeout: float = DEFAULT_TIMEOUT_S) -> C
                     return CheckResult("anthropic_llm", CheckStatus.WARN, "rate limited", http_status=429)
                 return CheckResult("anthropic_llm", CheckStatus.FAIL, f"HTTP {r.status}", http_status=r.status)
     except asyncio.TimeoutError:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("anthropic_llm", CheckStatus.FAIL, f"timeout ({timeout}s)")
     except Exception as e:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult("anthropic_llm", CheckStatus.FAIL, f"exception: {e}")
 
 
@@ -301,8 +311,10 @@ async def _check_openai_compatible_llm(
                     http_status=r.status,
                 )
     except asyncio.TimeoutError:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult(service, CheckStatus.FAIL, f"timeout ({timeout}s)")
     except Exception as e:
+        logger.debug("Suppressed exception in src/diagnostics/api_checks.py", exc_info=True)
         return CheckResult(service, CheckStatus.FAIL, f"exception: {e}")
 
 

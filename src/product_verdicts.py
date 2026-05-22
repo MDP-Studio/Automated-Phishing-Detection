@@ -6,8 +6,11 @@ stored backend enums that tests and datasets already depend on.
 """
 
 from __future__ import annotations
+import logging
 
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 PHISHANALYZE_NEXT_STEPS = {
@@ -271,6 +274,7 @@ def _safe_score(value: Any) -> float:
     try:
         score = float(value or 0.0)
     except (TypeError, ValueError):
+        logger.debug("Suppressed exception in src/product_verdicts.py", exc_info=True)
         score = 0.0
     return max(0.0, min(round(score, 4), 1.0))
 

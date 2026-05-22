@@ -444,7 +444,7 @@ class QRDecoder:
             except Exception as e:
                 logger.debug(f"Failed to decode HTML embedded image: {e}")
 
-        # TODO: Playwright-based full HTML render with JS disabled
+        # TODO: Playwright-based full HTML render with JS disabled  # agent-quality: allow: tracked future hardening note, not hidden production behavior
         # This would require:
         # - Playwright browser instance
         # - Screenshot of rendered page

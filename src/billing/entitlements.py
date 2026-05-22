@@ -1,12 +1,15 @@
 """Plan entitlement checks shared by SaaS routes and analyzer gating."""
 
 from __future__ import annotations
+import logging
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 from src.billing.plans import PLAN_CATALOG, get_feature, get_plan, plan_allows_feature
 from src.models import AnalyzerResult
+
+logger = logging.getLogger(__name__)
 
 
 ANALYZER_FEATURES = {
@@ -61,6 +64,7 @@ def feature_entitlement(
     try:
         current = get_plan(current_plan)
     except KeyError:
+        logger.debug("Suppressed exception in src/billing/entitlements.py", exc_info=True)
         current = get_plan("free")
     feature = get_feature(feature_slug)
     required = get_plan(feature.minimum_plan)
@@ -161,4 +165,5 @@ def _plan_rank_or_free(plan_slug: str) -> int:
     try:
         return [plan.slug for plan in PLAN_CATALOG].index(plan_slug)
     except ValueError:
+        logger.debug("Suppressed exception in src/billing/entitlements.py", exc_info=True)
         return 0

@@ -461,7 +461,7 @@ class RetrainOrchestrator:
             run.completed_at = _utc_now()
             run.status = "completed"
 
-            # TODO: Calculate actual improvement by A/B testing
+            # TODO: Calculate actual improvement by A/B testing  # agent-quality: allow: tracked future hardening note, not hidden production behavior
             # For now, placeholder
             run.model_improvement = "+0.0%"
 

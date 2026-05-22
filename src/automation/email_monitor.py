@@ -303,6 +303,7 @@ class EmailMonitor:
                     entry.setdefault("quarantined", False)
                     self._recent_results.append(entry)
                 except Exception:
+                    logger.debug("Suppressed exception in src/automation/email_monitor.py", exc_info=True)
                     pass
             logger.info(f"Loaded {len(self._recent_results)} recent results from {jsonl_path}")
         except Exception as e:
@@ -326,6 +327,7 @@ class EmailMonitor:
             try:
                 loop.add_signal_handler(sig, self.stop)
             except NotImplementedError:
+                logger.debug("Suppressed exception in src/automation/email_monitor.py", exc_info=True)
                 # Windows doesn't support add_signal_handler
                 pass
 

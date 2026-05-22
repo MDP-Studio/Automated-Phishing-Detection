@@ -5,6 +5,7 @@ This dataset is separate from the generic phishing corpus because invoice
 fraud and BEC need business-decision labels, not only PHISHING/CLEAN.
 """
 from __future__ import annotations
+import logging
 
 import argparse
 from collections import Counter
@@ -31,6 +32,8 @@ from src.eval.corpus_prepare import (
     iter_nazario_candidates,
     iter_spamassassin_spam_candidates,
 )
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -493,6 +496,7 @@ def _safe_message_header_value(message: EmailMessage, name: str) -> str:
         value = message.get(name)
         return str(value or "")
     except Exception:
+        logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
         name_lower = name.lower()
         for raw_name, raw_value in message.raw_items():
             if raw_name.lower() == name_lower:
@@ -542,6 +546,7 @@ def _redact_message_payload(message: EmailMessage, context: _RedactionContext) -
             try:
                 content = part.get_content()
             except LookupError:
+                logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
                 content = part.get_payload(decode=True).decode("utf-8", errors="replace")
             part.set_content(_redact_text(content, context), subtype=part.get_content_subtype())
 
@@ -1006,6 +1011,7 @@ def _message_scan_lines(sample_path: Path) -> list[str]:
         try:
             content = part.get_content()
         except LookupError:
+            logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
             content = part.get_payload(decode=True).decode("utf-8", errors="replace")
         lines.extend(str(content).splitlines())
     return lines
@@ -1142,6 +1148,7 @@ def _email_text_for_ml(sample_path: Path) -> str:
         try:
             body_chunks.append(str(part.get_content()))
         except LookupError:
+            logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
             body_chunks.append(part.get_payload(decode=True).decode("utf-8", errors="replace"))
     body = "\n".join(chunk.strip() for chunk in body_chunks if chunk.strip())
     if body:
@@ -1243,6 +1250,7 @@ def prelabel_payment_relevance(
         try:
             email = parser.parse_file(sample_path)
         except Exception:
+            logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
             email = None
         if email is None:
             parse_errors += 1
@@ -1573,6 +1581,7 @@ def _message_text_from_payload(payload: bytes) -> str:
     try:
         message = BytesParser(policy=policy.default).parsebytes(payload)
     except Exception:
+        logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
         return payload.decode("utf-8", errors="replace")
 
     sections: list[str] = []
@@ -1588,6 +1597,7 @@ def _message_text_from_payload(payload: bytes) -> str:
         try:
             content = part.get_content()
         except LookupError:
+            logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
             content = part.get_payload(decode=True).decode("utf-8", errors="replace")
         if content:
             body_chunks.append(str(content))
@@ -1674,6 +1684,7 @@ def _iter_public_corpus_payment_matches(
             try:
                 payload = candidate.read_bytes()
             except OSError:
+                logger.debug("Suppressed exception in src/eval/payment_dataset.py", exc_info=True)
                 continue
             digest = hashlib.sha256(payload).hexdigest()
             if digest in seen_digests:

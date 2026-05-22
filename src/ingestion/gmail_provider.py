@@ -74,6 +74,7 @@ class GmailProvider(EmailProvider):
             try:
                 creds.refresh(Request())
             except Exception:
+                logger.debug("Suppressed exception in src/ingestion/gmail_provider.py", exc_info=True)
                 creds = None
 
         if not creds or not creds.valid:

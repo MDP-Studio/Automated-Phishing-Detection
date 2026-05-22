@@ -165,6 +165,7 @@ class MultiAccountMonitor:
             try:
                 loop.add_signal_handler(sig, self.stop)
             except NotImplementedError:
+                logger.debug("Suppressed exception in src/automation/multi_account_monitor.py", exc_info=True)
                 pass
 
         account_list = ", ".join(p.account_id for p in active_providers)
@@ -505,6 +506,7 @@ def add_account_to_file(acct: dict, path: str = ACCOUNTS_FILE):
         try:
             existing = json.loads(accounts_path.read_text())
         except Exception:
+            logger.debug("Suppressed exception in src/automation/multi_account_monitor.py", exc_info=True)
             pass
 
     # Reconnecting the same mailbox should replace the stale encrypted

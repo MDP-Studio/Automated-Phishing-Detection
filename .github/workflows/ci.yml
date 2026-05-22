@@ -35,6 +35,9 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Tests (fresh checkout)
@@ -234,6 +237,6 @@ jobs:
       # with `--ignore-vuln <id>` AND document the expiry date in the
       # PR description so it doesn't become a permanent allowance.
       - name: Run pip-audit on requirements.lock
-        uses: pypa/gh-action-pip-audit@v1.1.0
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
           inputs: requirements.lock

@@ -353,6 +353,7 @@ class ReportGenerator:
         try:
             number = float(value)
         except (TypeError, ValueError):
+            logger.debug("Suppressed exception in src/reporting/report_generator.py", exc_info=True)
             number = 0.0
         return max(0, min(100, int(round(number * 100))))
 

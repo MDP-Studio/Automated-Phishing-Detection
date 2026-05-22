@@ -6,6 +6,7 @@ ML-ready corpus emitted by ``scripts/eval_prepare_corpus.py`` and writes
 ignored model artifacts under ``models/phishing_classifier/``.
 """
 from __future__ import annotations
+import logging
 
 import csv
 import json
@@ -23,6 +24,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.pipeline import Pipeline
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +67,7 @@ def _safe_header_value(message: Message, header: str) -> str:
         if value:
             return str(value)
     except Exception:
+        logger.debug("Suppressed exception in src/ml/phishing_classifier.py", exc_info=True)
         pass
     try:
         values = [
@@ -72,6 +76,7 @@ def _safe_header_value(message: Message, header: str) -> str:
             if key.lower() == header.lower()
         ]
     except Exception:
+        logger.debug("Suppressed exception in src/ml/phishing_classifier.py", exc_info=True)
         values = []
     return ", ".join(values)
 
@@ -91,6 +96,7 @@ def _email_text_for_ml(sample_path: Path) -> str:
         try:
             body_chunks.append(str(part.get_content()))
         except LookupError:
+            logger.debug("Suppressed exception in src/ml/phishing_classifier.py", exc_info=True)
             payload = part.get_payload(decode=True) or b""
             body_chunks.append(payload.decode("utf-8", errors="replace"))
 

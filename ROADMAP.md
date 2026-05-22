@@ -83,7 +83,9 @@ Status is one of:
 | **Stripe Checkout Adaptive Pricing** - Checkout sessions can opt into Stripe Adaptive Pricing so eligible customers see localized currency while the configured Stripe Prices remain AUD-backed. | `src/billing/stripe_client.py`, `main.py`, `docs/DEPLOY.md` |
 | **Zoho-compatible password reset flow** - `/app` adds reset-password UI, `/api/saas/auth/password-reset/*` stores hashed one-time tokens, rate-limits reset requests, and sends reset links through configurable SMTP. | `src/saas/email_delivery.py`, `src/saas/database.py`, `main.py`, `templates/saas_app.html`, `static/saas.js` |
 | **Channel-normalized phishing scans** - email, SMS, chat, and voice transcripts normalize to the analyzer-compatible message model, with `/api/saas/analyze/channel` and mixed-channel eval summaries that report false negatives by channel. | `src/ingestion/channel_adapter.py`, `src/eval/harness.py`, `main.py`, `scripts/run_eval.py` |
-| **Staged passkey/WebAuthn step-up** - `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor|enforce` gates owner/admin team, mailbox, billing, and passkey deletion mutations with fresh WebAuthn assertions when enforce is active and a passkey exists. | `src/saas/passkeys.py`, `src/saas/database.py`, `main.py`, `static/phish_app.js` |
+| **Passkey/WebAuthn privileged step-up** - `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor|enforce` gates owner/admin team, mailbox, billing, passkey registration/deletion, scan deletion, incident case, and simulation-ingest mutations with fresh WebAuthn assertions when enforce is active and a passkey exists. | `src/saas/passkeys.py`, `src/saas/database.py`, `main.py`, `static/phish_app.js` |
+| **Lightweight incident cases** - `/api/saas/cases` adds scan-linked case state, owner, severity, immutable evidence events, and escalation without adding SOAR automation. | `src/saas/database.py`, `main.py`, `templates/phish_app.html`, `static/phish_app.js`, `docs/incident-response-workflow.md` |
+| **Awareness simulation feedback loop** - `/api/saas/simulations/results` ingests compact internal phish-drill outcomes and `/api/saas/simulations/summary` powers the dashboard risk card without LMS scope. | `src/saas/database.py`, `main.py`, `templates/phish_app.html`, `static/phish_app.js`, `docs/awareness-simulation-feedback.md` |
 | **Signed export integrity manifests** - STIX/Sigma filesystem exports require Ed25519 signed manifests, while stdout inspection remains unsigned. CI validates a signed sample export. | `src/reporting/export_integrity.py`, `scripts/validate_exports.py`, `.github/workflows/ci.yml` |
 | 1309 tests (72 test modules) | unit + integration |
 
@@ -159,7 +161,10 @@ These were on internal "future modules" lists at some point. They are no longer 
 Restating the explicit non-goals from `THREAT_MODEL.md` §7 here so they live next to the planned work:
 
 - **Mail filtering / blocking.** Verdicts are advisory. Routing is the operator's job.
-- **SOAR functionality.** No automated remediation, ticket creation, or user notification.
+- **SOAR functionality.** Lightweight cases exist, but automated remediation,
+  ticket creation, and user notification remain out of scope.
+- **LMS functionality.** Simulation outcomes can be ingested, but campaign
+  delivery, training assignments, and learner management remain out of scope.
 - **EDR / post-compromise detection.** T1078 full, T1098, T1606 — out of scope.
 - **Visitor-owned mailbox SaaS deployment.** User manual scans are tenant-scoped, but live mailbox connection remains out of scope until per-user OAuth/IMAP isolation is implemented.
 - **Active takedown of phishing infrastructure.** Identification only.

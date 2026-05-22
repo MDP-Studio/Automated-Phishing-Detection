@@ -277,7 +277,7 @@ class TestRetrainWeights:
 
         # Should not raise exception
         result = await retainer.retrain_weights(mock_session)
-        # Should handle gracefully
+        assert result is None
 
 
 class TestVerdictToSeverity:
