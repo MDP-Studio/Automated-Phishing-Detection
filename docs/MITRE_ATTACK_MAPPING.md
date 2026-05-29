@@ -2,7 +2,7 @@
 
 This document maps each analyzer in the pipeline to the MITRE ATT&CK techniques it is designed to detect, plus an honest accounting of what it does **not** catch. The goal is to make defensive coverage legible to a SOC reader who already thinks in ATT&CK terms, and to force scope honesty on the project itself.
 
-ATT&CK references are to the Enterprise matrix (v14+). All techniques cited live under the **Initial Access**, **Resource Development**, **Execution**, and **Impact** tactics, with one **Defense Evasion** sub-technique surfaced by the URL detonator.
+ATT&CK references are pinned to the Enterprise matrix v19.1. All techniques cited live under the **Initial Access**, **Resource Development**, **Execution**, and **Impact** tactics, with one **Defense Evasion** sub-technique surfaced by the URL detonator.
 
 ## TL;DR coverage matrix
 

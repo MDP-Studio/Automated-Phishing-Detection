@@ -13,7 +13,7 @@ minimum state needed for a manual incident review:
 - severity: `low`, `medium`, `high`, or `critical`
 - owner from the workspace membership table
 - immutable event chain with scan evidence, status changes, owner changes,
-  severity changes, notes, and escalation markers
+  severity changes, notes, escalation markers, and audit-only remediation plans
 
 This supports a practical
 [NIST SP 800-61r3](https://csrc.nist.gov/pubs/sp/800/61/r3/final) / CSF 2.0
@@ -59,6 +59,21 @@ Read the evidence chain:
 GET /api/saas/cases/case_...
 ```
 
+Generate an audit-only remediation plan:
+
+```http
+POST /api/saas/cases/case_.../remediation-plan
+Content-Type: application/json
+
+{}
+```
+
+The returned plan uses schema `incident-remediation-plan.v1`. It recommends
+manual actions such as preserving evidence, searching for related messages,
+holding payment review, verifying supplier details through trusted channels,
+reviewing blockable indicators, and checking whether a credential reset is
+needed. It does not perform those actions.
+
 ## Security Boundary
 
 - Every case query is scoped by authenticated `org_id`.
@@ -68,6 +83,9 @@ GET /api/saas/cases/case_...
   `PHISHANALYZE_PASSKEY_ENFORCEMENT=enforce` and a passkey exists.
 - Evidence events store scan identifiers, verdict, payment decision, and
   subject. They do not store raw email bodies.
+- Remediation-plan events store only summary evidence references, IOC counts,
+  verdict/payment decision values, and recommended actions. They do not return
+  raw headers, raw bodies, attachment content, credentials, or mailbox data.
 
 ## Non-Goals
 
@@ -75,6 +93,7 @@ GET /api/saas/cases/case_...
 - No external ticket creation.
 - No user notifications.
 - No playbook automation.
+- No automatic remediation from remediation plans.
 - No full SOAR workflow engine.
 
 The fastest validation remains a 10-incident manual pilot. Track whether each

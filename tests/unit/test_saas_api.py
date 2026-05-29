@@ -1466,6 +1466,7 @@ def test_passkey_enforce_blocks_every_registered_privileged_mutation(tmp_path, m
         ("delete", "/api/saas/security/passkeys/credential-test", {}, "passkey.delete"),
         ("delete", f"/api/saas/scans/{result_id}", {}, "scan.delete"),
         ("post", "/api/saas/cases", {"scan_result_id": result_id}, "case.create"),
+        ("post", f"/api/saas/cases/{case['id']}/remediation-plan", {}, "case.remediation_plan"),
         ("patch", f"/api/saas/cases/{case['id']}", {"status": "triaged"}, "case.update"),
         (
             "post",
@@ -1521,6 +1522,34 @@ def test_saas_case_api_links_scan_and_transitions_status(tmp_path):
     assert updated.json()["case"]["escalation_reason"] == "Finance owner review"
     assert detail.json()["case"]["events"][0]["event_type"] == "created"
     assert detail.json()["case"]["events"][-1]["event_type"] == "escalated"
+
+
+def test_saas_case_remediation_plan_is_audit_only_and_redacted(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    assert _signup(client).status_code == 200
+    assert _upload(client).status_code == 200
+    result_id = client.get("/api/saas/scans").json()["results"][0]["id"]
+    case_id = _post_json_with_csrf(client, "/api/saas/cases", {"scan_result_id": result_id}).json()["case"]["id"]
+
+    response = _post_json_with_csrf(client, f"/api/saas/cases/{case_id}/remediation-plan", {})
+    detail = client.get(f"/api/saas/cases/{case_id}")
+    serialized = json.dumps(response.json())
+
+    assert response.status_code == 200
+    plan = response.json()["plan"]
+    assert plan["schema_version"] == "incident-remediation-plan.v1"
+    assert plan["mode"] == "audit_only"
+    assert "preserve-scan-evidence" in {action["id"] for action in plan["actions"]}
+    assert "hold-payment-review" in {action["id"] for action in plan["actions"]}
+    assert plan["non_goals"] == [
+        "no_auto_delete",
+        "no_auto_quarantine",
+        "no_payment_authorization",
+        "no_raw_message_body_returned",
+    ]
+    assert "raw_headers" not in serialized
+    assert "body_html" not in serialized
+    assert detail.json()["case"]["events"][-1]["event_type"] == "remediation_plan.generated"
 
 
 def test_saas_simulation_results_ingest_updates_dashboard_summary(tmp_path):

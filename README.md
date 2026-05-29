@@ -77,7 +77,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   scan history.
 - Delete controls for stored scan results.
 - Lightweight incident cases tied to stored scan IDs, with status transitions,
-  assigned owner, immutable evidence events, and manual escalation state.
+  assigned owner, immutable evidence events, manual escalation state, and
+  audit-only remediation plans.
 - Plan-gated analyzers, quota checks, and locked-check reporting before paid
   API clients load.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence
@@ -93,8 +94,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Passkey/WebAuthn support for owner/admin step-up. The default `monitor` mode
   exposes policy state and registration without blocking users; `enforce`
   requires a fresh passkey step-up for team, mailbox, billing, passkey,
-  scan-deletion, incident-case, and simulation-ingest mutations when a passkey
-  exists.
+  scan-deletion, incident-case, remediation-planning, and simulation-ingest
+  mutations when a passkey exists.
 - Signed STIX/Sigma file export manifests with Ed25519 signatures and a
   validator for hashes, signatures, STIX parsing, and Sigma structure.
 - Optional TAXII 2.1 STIX push for operator CTI sharing, with safe status
@@ -104,6 +105,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Signed CTI compatibility report artifacts that validate STIX/Sigma exports,
   OpenCTI TAXII Add Objects envelopes, and Sigma backend conversion per release
   or scheduled CI run.
+- CTI freshness validation that pins ATT&CK mapping to v19.1 and checks Sigma
+  technique tags against the documented coverage matrix.
 - PayShield payment-corpus assurance reporting for redacted real-world sample
   breadth, decision balance, and channel drift coverage.
 - `/mailbox-guide` with provider-specific setup steps and direct settings links
@@ -373,6 +376,16 @@ Remote public-corpus smoke run on commit `c459237`:
 Per-sample committed eval data lives in [`eval_runs/`](eval_runs/). Larger
 generated public corpora and trained model artifacts stay ignored under `data/`
 and `models/`.
+
+Generate a compact scorecard from the latest eval summaries with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\detection_scorecard.py --output-dir reports\detection-scorecards
+```
+
+Scorecards include corpus mix, permissive/strict metrics, and deltas from the
+previous run. They intentionally omit raw message bodies, raw headers, and
+sample text.
 
 Mixed-channel evaluation uses a private JSON or JSONL manifest with `channel`,
 `label`, and either `path`, `text`, `body`, or `transcript`. The summary JSON

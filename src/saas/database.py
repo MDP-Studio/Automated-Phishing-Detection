@@ -1436,6 +1436,61 @@ class SaaSStore:
             raise RuntimeError("updated incident case could not be loaded")
         return case
 
+    def generate_incident_remediation_plan(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        case_id: str,
+    ) -> dict:
+        """Append an audit-only containment plan to a case without taking action."""
+        now = utc_now_iso()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT c.*, s.verdict, s.payment_decision, s.result_json
+                FROM incident_cases c
+                JOIN scan_results s ON s.id = c.scan_result_id AND s.org_id = c.org_id
+                WHERE c.id = ? AND c.org_id = ?
+                """,
+                (case_id, org_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("incident case not found")
+
+            plan = _build_incident_remediation_plan(row, generated_at=now)
+            self._write_case_event(
+                conn,
+                case_id=case_id,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                event_type="remediation_plan.generated",
+                from_status=row["status"],
+                to_status=row["status"],
+                note=None,
+                evidence=plan,
+                now=now,
+            )
+            conn.execute(
+                "UPDATE incident_cases SET updated_at = ? WHERE id = ? AND org_id = ?",
+                (now, case_id, org_id),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="incident_case.remediation_plan.generated",
+                target_type="incident_case",
+                target_id=case_id,
+                metadata={
+                    "scan_result_id": row["scan_result_id"],
+                    "action_count": len(plan["actions"]),
+                },
+                now=now,
+            )
+            conn.commit()
+        return plan
+
     def record_simulation_results(
         self,
         *,
@@ -2424,6 +2479,154 @@ def _scan_result_subject(raw_result_json: str | None) -> str | None:
     headers = ((result.get("iocs") or {}).get("headers") or {})
     subject = headers.get("subject") if isinstance(headers, dict) else None
     return _clean_short_text(subject, 160) or None
+
+
+def _scan_result_ioc_counts(raw_result_json: str | None) -> dict[str, int]:
+    result = _safe_json_dict(raw_result_json)
+    iocs = result.get("iocs") if isinstance(result.get("iocs"), dict) else {}
+    headers = iocs.get("headers") if isinstance(iocs.get("headers"), dict) else {}
+    file_hashes = iocs.get("file_hashes") if isinstance(iocs.get("file_hashes"), dict) else {}
+    return {
+        "malicious_urls": len(_as_list(iocs.get("malicious_urls"))),
+        "malicious_domains": len(_as_list(iocs.get("malicious_domains"))),
+        "malicious_ips": len(_as_list(iocs.get("malicious_ips"))),
+        "file_hashes": len([value for value in file_hashes.values() if value]),
+        "has_sender_header": 1 if headers.get("from_address") else 0,
+        "has_subject": 1 if headers.get("subject") else 0,
+    }
+
+
+def _as_list(value: object) -> list:
+    if isinstance(value, list):
+        return value
+    return [] if value is None else [value]
+
+
+def _build_incident_remediation_plan(row: sqlite3.Row, *, generated_at: str) -> dict:
+    verdict = str(row["verdict"] or "").upper()
+    payment_decision = str(row["payment_decision"] or "").upper()
+    ioc_counts = _scan_result_ioc_counts(row["result_json"])
+    is_payment_risk = payment_decision in {"VERIFY", "DO_NOT_PAY", "DO_NOT_PAY_UNTIL_VERIFIED"}
+    is_likely_malicious = verdict in {"LIKELY_PHISHING", "CONFIRMED_PHISHING"} or is_payment_risk
+    has_iocs = any(
+        ioc_counts[key] > 0
+        for key in ("malicious_urls", "malicious_domains", "malicious_ips", "file_hashes")
+    )
+
+    actions = [
+        _plan_action(
+            action_id="preserve-scan-evidence",
+            title="Preserve scan evidence",
+            category="evidence",
+            priority="P1",
+            rationale="Keep the scan result and case event chain intact before containment decisions.",
+            evidence_refs=["case.id", "case.scan_result_id", "case.email_id"],
+        ),
+        _plan_action(
+            action_id="search-related-messages",
+            title="Search for related messages",
+            category="containment",
+            priority="P1" if is_likely_malicious else "P2",
+            rationale="Find other recipients or repeated delivery before users continue the thread.",
+            evidence_refs=["scan.email_id", "scan.verdict", "scan.ioc_counts"],
+        ),
+        _plan_action(
+            action_id="notify-recipient-owner",
+            title="Notify the recipient owner",
+            category="communication",
+            priority="P1" if is_likely_malicious else "P2",
+            rationale="Make sure the business owner knows the case is under review and does not act on the message.",
+            evidence_refs=["case.owner_user_id", "case.severity"],
+        ),
+    ]
+
+    if is_payment_risk:
+        actions.extend([
+            _plan_action(
+                action_id="hold-payment-review",
+                title="Hold payment until independent verification",
+                category="payment_control",
+                priority="P1",
+                rationale="The PayShield decision indicates payment-specific risk that needs out-of-band verification.",
+                evidence_refs=["scan.payment_decision"],
+            ),
+            _plan_action(
+                action_id="verify-supplier-channel",
+                title="Verify supplier details through a trusted channel",
+                category="payment_control",
+                priority="P1",
+                rationale=(
+                    "Payment changes should be confirmed using known supplier contact details, "
+                    "not message-provided details."
+                ),
+                evidence_refs=["scan.payment_decision", "case.subject_present"],
+            ),
+        ])
+
+    if has_iocs:
+        actions.append(_plan_action(
+            action_id="review-blockable-indicators",
+            title="Review blockable indicators",
+            category="security_control",
+            priority="P2",
+            rationale="Threat indicators exist, but they should be reviewed before being pushed to controls.",
+            evidence_refs=["scan.ioc_counts"],
+        ))
+
+    if is_likely_malicious or ioc_counts["malicious_urls"] > 0:
+        actions.append(_plan_action(
+            action_id="credential-reset-review",
+            title="Review credential reset need",
+            category="identity",
+            priority="P2",
+            rationale=(
+                "If any user clicked or submitted credentials, identity controls may need "
+                "a reset and session review."
+            ),
+            evidence_refs=["scan.verdict", "scan.ioc_counts.malicious_urls"],
+        ))
+
+    return {
+        "schema_version": "incident-remediation-plan.v1",
+        "generated_at": generated_at,
+        "mode": "audit_only",
+        "case_id": row["id"],
+        "scan_result_id": row["scan_result_id"],
+        "email_id": row["email_id"],
+        "case_status": row["status"],
+        "case_severity": row["severity"],
+        "verdict": verdict,
+        "payment_decision": payment_decision,
+        "subject_present": bool(_scan_result_subject(row["result_json"])),
+        "ioc_counts": ioc_counts,
+        "actions": actions,
+        "non_goals": [
+            "no_auto_delete",
+            "no_auto_quarantine",
+            "no_payment_authorization",
+            "no_raw_message_body_returned",
+        ],
+    }
+
+
+def _plan_action(
+    *,
+    action_id: str,
+    title: str,
+    category: str,
+    priority: str,
+    rationale: str,
+    evidence_refs: list[str],
+) -> dict:
+    return {
+        "id": action_id,
+        "title": title,
+        "category": category,
+        "priority": priority,
+        "status": "recommended",
+        "rationale": rationale,
+        "evidence_refs": evidence_refs,
+    }
 
 
 def _normalize_simulation_result(item: dict, *, org_id: str) -> dict:

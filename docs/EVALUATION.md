@@ -134,11 +134,23 @@ python scripts/eval_inspect_failures.py \
   --manifest data/eval_corpus/manifest.jsonl \
   --projection strict \
   --output data/eval_corpus/failure_report_strict
+
+# 5. Publish a compact scorecard from the summary artifacts.
+python scripts/detection_scorecard.py \
+  --summary eval_runs/RUN_ID.summary.json \
+  --previous-summary eval_runs/PREVIOUS_RUN_ID.summary.json \
+  --output-dir reports/detection-scorecards
 ```
 
 `scripts/eval_prepare_corpus.py` writes a flat `.eml` directory, `labels.json` for `scripts/run_eval.py`, `labels.csv` for ML workflows, `manifest.jsonl` for source provenance, and `summary.json` for reproducibility. `scripts/phishing_train.py` trains the ignored generic phishing ML baseline under `models/phishing_classifier/`. `scripts/run_eval.py` writes per-sample JSONL and an aggregate `.summary.json` under `eval_runs/`.
 
 `scripts/eval_inspect_failures.py` writes JSON, CSV, and Markdown reports that rank each failure by top analyzer signal. Use the permissive report to reduce false positives and the strict report to find phishing samples stuck in `SUSPICIOUS`.
+
+`scripts/detection_scorecard.py` consumes the existing eval `.summary.json`
+and matching `.jsonl` files. It writes `detection-scorecard.v1` JSON and
+Markdown with corpus mix, permissive/strict metrics, and deltas from a previous
+run. Scorecards intentionally contain labels, channels, counts, and metrics
+only; they do not include raw message bodies, raw headers, or sample text.
 
 The generated corpus is intentionally not committed. Raw external corpora are large, carry licensing constraints, and should be rebuilt from the downloader plus the manifest instead of stored in git.
 

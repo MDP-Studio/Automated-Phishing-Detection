@@ -145,6 +145,12 @@ jobs:
             --require-sigma-converter \
             --taxii-mode "$TAXII_MODE"
 
+      - name: Validate CTI freshness pins and mappings
+        run: |
+          python scripts/validate_cti_freshness.py \
+            --cti-report reports/cti-compatibility/cti_compatibility_report.json \
+            --status-output reports/cti-compatibility/cti_freshness_status.json
+
       - name: Upload CTI compatibility artifact
         uses: actions/upload-artifact@v4
         if: always()

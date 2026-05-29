@@ -41,7 +41,7 @@ Vulnerabilities in any of these are in scope and welcome:
 - **Passkey step-up** - privileged owner/admin SaaS mutations should run with
   `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor` until passkeys are enrolled, then
   move to `enforce` for team, mailbox, billing, passkey registration/deletion,
-  scan deletion, incident case mutation, and simulation ingest actions. The
+  scan deletion, incident case mutation/remediation planning, and simulation ingest actions. The
   `/api/saas/security/policy` payload exposes the covered action matrix.
   Password-only sessions and legacy analyst tokens are not phishing-resistant.
 - **Export integrity** — shareable STIX/Sigma file exports require an Ed25519

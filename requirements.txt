@@ -38,6 +38,8 @@ numpy>=1.25
 
 # API framework
 fastapi>=0.104
+# Security: keep Starlette past PYSEC-2026-161.
+starlette>=1.0.1
 uvicorn>=0.24
 python-multipart>=0.0.9
 pydantic>=2.5

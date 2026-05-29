@@ -131,6 +131,7 @@ PRIVILEGED_STEP_UP_ACTIONS = {
     "billing.checkout",
     "billing.portal",
     "case.create",
+    "case.remediation_plan",
     "case.update",
     "mailbox.connect",
     "mailbox.delete",
@@ -2153,6 +2154,24 @@ class PhishingDetectionApp:
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return {"status": "ok", "case": case}
+
+        @app.post("/api/saas/cases/{case_id}/remediation-plan")
+        async def api_saas_case_remediation_plan(request: Request, case_id: str):
+            """Generate an audit-only containment plan for an incident case."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst"})
+            store = _get_saas_store()
+            _require_privileged_step_up(store, context, "case.remediation_plan")
+            try:
+                plan = store.generate_incident_remediation_plan(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    case_id=case_id,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            case = store.get_incident_case(org_id=context.org_id, case_id=case_id)
+            return {"status": "ok", "plan": plan, "case": case}
 
         @app.get("/api/saas/simulations/summary")
         async def api_saas_simulation_summary(request: Request, days: int = Query(90, ge=1, le=365)):
