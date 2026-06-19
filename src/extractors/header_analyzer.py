@@ -14,14 +14,6 @@ from src.utils.domains import get_root_domain
 
 logger = logging.getLogger(__name__)
 
-# Try to import DMARC/DKIM validation libraries
-try:
-    import checkdmarc
-    HAS_CHECKDMARC = True
-except ImportError:
-    HAS_CHECKDMARC = False
-    logger.warning("checkdmarc not available; DMARC validation will be limited")
-
 try:
     import dkim
     HAS_DKIMPY = True

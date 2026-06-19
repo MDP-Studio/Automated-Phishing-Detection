@@ -79,6 +79,9 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Lightweight incident cases tied to stored scan IDs, with status transitions,
   assigned owner, immutable evidence events, manual escalation state, and
   audit-only remediation plans.
+- Authenticated scan-report intake that opens or reuses the linked incident
+  case from a stored scan result, with CSRF protection and compact
+  `user_reported` evidence events.
 - Plan-gated analyzers, quota checks, and locked-check reporting before paid
   API clients load.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence

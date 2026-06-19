@@ -2068,6 +2068,30 @@ class PhishingDetectionApp:
                 "account": updated_context.to_dict(),
             }
 
+        @app.post("/api/saas/scans/{result_id}/report")
+        async def api_saas_report_scan(request: Request, result_id: str):
+            """Record a user report for a scan and open or reuse its case."""
+            context = _current_user_context(request, require_csrf=True)
+            _require_workspace_role(context, {"owner", "admin", "analyst", "viewer"})
+            store = _get_saas_store()
+            payload = await _json_object_body(request)
+            try:
+                case, created = store.report_scan_result(
+                    org_id=context.org_id,
+                    actor_user_id=context.user_id,
+                    scan_result_id=result_id,
+                    report_channel=str(payload.get("channel") or "report_button").strip(),
+                    reporter_role=context.role,
+                    note=str(payload.get("note") or "").strip() or None,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            return {
+                "status": "ok",
+                "case_created": created,
+                "case": case,
+            }
+
         @app.get("/api/saas/cases")
         async def api_saas_cases(request: Request, limit: int = Query(50, ge=1, le=100)):
             """Return lightweight incident cases tied to workspace scan results."""

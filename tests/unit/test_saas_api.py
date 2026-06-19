@@ -1524,6 +1524,46 @@ def test_saas_case_api_links_scan_and_transitions_status(tmp_path):
     assert detail.json()["case"]["events"][-1]["event_type"] == "escalated"
 
 
+def test_saas_scan_report_opens_or_reuses_case_without_raw_content(tmp_path):
+    client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
+    assert _signup(client).status_code == 200
+    assert _upload(client).status_code == 200
+    result_id = client.get("/api/saas/scans").json()["results"][0]["id"]
+
+    missing_csrf = client.post(
+        f"/api/saas/scans/{result_id}/report",
+        json={"channel": "browser_report_button"},
+    )
+    first_report = _post_json_with_csrf(
+        client,
+        f"/api/saas/scans/{result_id}/report",
+        {
+            "channel": "browser_report_button",
+            "note": "Finance user reported this after upload",
+        },
+    )
+    second_report = _post_json_with_csrf(
+        client,
+        f"/api/saas/scans/{result_id}/report",
+        {"channel": "browser_report_button"},
+    )
+    serialized = json.dumps(first_report.json())
+
+    assert missing_csrf.status_code == 403
+    assert first_report.status_code == 200
+    assert first_report.json()["case_created"] is True
+    assert first_report.json()["case"]["scan_result_id"] == result_id
+    assert first_report.json()["case"]["escalation_reason"] == "Finance user reported this after upload"
+    assert first_report.json()["case"]["events"][-1]["event_type"] == "user_reported"
+    assert first_report.json()["case"]["events"][-1]["evidence"]["report_channel"] == "browser_report_button"
+    assert second_report.status_code == 200
+    assert second_report.json()["case_created"] is False
+    assert second_report.json()["case"]["id"] == first_report.json()["case"]["id"]
+    assert "Please verify payment details" not in serialized
+    assert "raw_headers" not in serialized
+    assert "body_html" not in serialized
+
+
 def test_saas_case_remediation_plan_is_audit_only_and_redacted(tmp_path):
     client = TestClient(_build_saas_app(tmp_path, signup_enabled=True), base_url="https://testserver")
     assert _signup(client).status_code == 200

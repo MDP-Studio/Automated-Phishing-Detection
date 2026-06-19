@@ -9,7 +9,6 @@ mail-parser>=3.15
 # close CVE-2026-41066 (XXE / local-file read via default resolve_entities).
 lxml>=6.1.0
 dkimpy>=1.1
-checkdmarc>=5.0
 dnspython>=2.4
 
 # QR / Image
@@ -50,7 +49,10 @@ aiosqlite>=0.19
 
 # IOC export
 stix2>=3.0
-cryptography>=44.0.2
+# Security: keep cryptography past GHSA-537c-gmf6-5ccf.
+cryptography>=48.0.1
+# Security: keep WebAuthn's OpenSSL wrapper compatible with modern cryptography.
+pyOpenSSL>=26.3.0
 
 # Reporting
 jinja2>=3.1

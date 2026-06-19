@@ -1128,6 +1128,139 @@ class SaaSStore:
             conn.commit()
             return True
 
+    def report_scan_result(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        scan_result_id: str,
+        report_channel: str = "user_report",
+        reporter_role: str | None = None,
+        note: str | None = None,
+    ) -> tuple[dict, bool]:
+        """Record a user report and open or reuse the linked incident case."""
+        now = utc_now_iso()
+        created = False
+        with self._connect() as conn:
+            scan = conn.execute(
+                """
+                SELECT id, scan_job_id, email_id, verdict, payment_decision, result_json
+                FROM scan_results
+                WHERE id = ? AND org_id = ?
+                """,
+                (scan_result_id, org_id),
+            ).fetchone()
+            if scan is None:
+                raise ValueError("scan result not found")
+
+            case = conn.execute(
+                """
+                SELECT id, status, severity, escalated_at
+                FROM incident_cases
+                WHERE org_id = ? AND scan_result_id = ?
+                """,
+                (org_id, scan["id"]),
+            ).fetchone()
+
+            clean_channel = _clean_short_text(report_channel or "user_report", 80)
+            clean_reporter_role = _clean_short_text(reporter_role or "workspace_user", 80)
+            report_reason = _clean_short_text(note or f"Reported through {clean_channel}", 240)
+            subject = _scan_result_subject(scan["result_json"])
+
+            if case is None:
+                created = True
+                case_id = new_id("case")
+                severity = _severity_for_reported_scan(
+                    verdict=scan["verdict"],
+                    payment_decision=scan["payment_decision"],
+                )
+                case_title = _clean_short_text(
+                    f"User-reported: {subject}" if subject else f"User-reported scan {scan['email_id']}",
+                    160,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO incident_cases (
+                        id, org_id, scan_result_id, scan_job_id, email_id, title, status,
+                        severity, owner_user_id, escalated_at, escalation_reason,
+                        created_at, updated_at, closed_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                    """,
+                    (
+                        case_id,
+                        org_id,
+                        scan["id"],
+                        scan["scan_job_id"],
+                        scan["email_id"],
+                        case_title,
+                        "open",
+                        severity,
+                        actor_user_id,
+                        now,
+                        report_reason,
+                        now,
+                        now,
+                    ),
+                )
+            else:
+                case_id = case["id"]
+                severity = case["severity"]
+                conn.execute(
+                    """
+                    UPDATE incident_cases
+                    SET updated_at = ?,
+                        escalated_at = COALESCE(escalated_at, ?),
+                        escalation_reason = ?
+                    WHERE id = ? AND org_id = ?
+                    """,
+                    (now, now, report_reason, case_id, org_id),
+                )
+
+            self._write_case_event(
+                conn,
+                case_id=case_id,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                event_type="user_reported",
+                from_status=None,
+                to_status=None,
+                note=note,
+                evidence={
+                    "scan_result_id": scan["id"],
+                    "scan_job_id": scan["scan_job_id"],
+                    "email_id": scan["email_id"],
+                    "verdict": scan["verdict"],
+                    "payment_decision": scan["payment_decision"],
+                    "report_channel": clean_channel,
+                    "reporter_role": clean_reporter_role,
+                    "case_created": created,
+                    "case_severity": severity,
+                },
+                now=now,
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="scan_result.user_reported",
+                target_type="scan_result",
+                target_id=scan["id"],
+                metadata={
+                    "case_id": case_id,
+                    "case_created": created,
+                    "report_channel": clean_channel,
+                    "reporter_role": clean_reporter_role,
+                },
+                now=now,
+            )
+            conn.commit()
+
+        case_payload = self.get_incident_case(org_id=org_id, case_id=case_id)
+        if case_payload is None:
+            raise RuntimeError("reported incident case could not be loaded")
+        return case_payload, created
+
     def create_incident_case(
         self,
         *,
@@ -2627,6 +2760,18 @@ def _plan_action(
         "rationale": rationale,
         "evidence_refs": evidence_refs,
     }
+
+
+def _severity_for_reported_scan(*, verdict: str | None, payment_decision: str | None) -> str:
+    verdict_text = str(verdict or "").upper()
+    payment_text = str(payment_decision or "").upper()
+    if payment_text in {"DO_NOT_PAY", "DO_NOT_PAY_UNTIL_VERIFIED"}:
+        return "high"
+    if verdict_text in {"CONFIRMED_PHISHING", "LIKELY_PHISHING"}:
+        return "high"
+    if payment_text == "VERIFY" or verdict_text == "SUSPICIOUS":
+        return "medium"
+    return "low"
 
 
 def _normalize_simulation_result(item: dict, *, org_id: str) -> dict:

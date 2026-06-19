@@ -40,6 +40,19 @@ Content-Type: application/json
 }
 ```
 
+Record a user report for a stored scan result. This opens the linked case on
+first report, reuses it on later reports, and appends a `user_reported` event:
+
+```http
+POST /api/saas/scans/res_.../report
+Content-Type: application/json
+
+{
+  "channel": "browser_report_button",
+  "note": "Finance user reported this after upload"
+}
+```
+
 Update state, owner, severity, note, or escalation:
 
 ```http
@@ -81,6 +94,8 @@ needed. It does not perform those actions.
 - Case owners must be active members of the same workspace.
 - Owner/admin case mutations are included in the passkey step-up matrix when
   `PHISHANALYZE_PASSKEY_ENFORCEMENT=enforce` and a passkey exists.
+- User-report intake is CSRF-protected and authenticated, but does not require a
+  fresh passkey step-up so a report button remains usable during a live review.
 - Evidence events store scan identifiers, verdict, payment decision, and
   subject. They do not store raw email bodies.
 - Remediation-plan events store only summary evidence references, IOC counts,
