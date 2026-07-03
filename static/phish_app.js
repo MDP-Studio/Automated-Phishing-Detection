@@ -1365,6 +1365,7 @@ ${element.innerHTML}
         </div>
         <div class="row-actions">
           <span class="badge ${escapeHtml(verdict)}">${escapeHtml(label(item.verdict))}</span>
+          <button class="secondary-button" type="button" data-related-scan="${escapeHtml(item.id)}">Related</button>
           <button class="secondary-button" type="button" data-create-case="${escapeHtml(item.id)}">Case</button>
           <button class="secondary-button" type="button" data-delete-scan="${escapeHtml(item.id)}">Delete</button>
         </div>
@@ -1829,6 +1830,33 @@ ${element.innerHTML}
         caseButton.disabled = false;
         caseButton.textContent = "Case";
         notice(casesNotice, error.message);
+      }
+      return;
+    }
+
+    const relatedButton = event.target.closest("[data-related-scan]");
+    if (relatedButton) {
+      const resultId = relatedButton.dataset.relatedScan;
+      relatedButton.disabled = true;
+      relatedButton.textContent = "Checking";
+      try {
+        const payload = await apiJson(`/api/saas/scans/${encodeURIComponent(resultId)}/related?limit=5`);
+        const related = payload.related || [];
+        if (!related.length) {
+          notice(historyNotice, "No related workspace scans found for this report.");
+        } else {
+          const names = related
+            .slice(0, 3)
+            .map((item) => item.subject || item.email_id || "related report")
+            .join("; ");
+          notice(historyNotice, `Found ${related.length} related report${related.length === 1 ? "" : "s"}: ${names}`);
+        }
+      } catch (error) {
+        console.warn("Related scan lookup failed", error);
+        notice(historyNotice, error.message);
+      } finally {
+        relatedButton.disabled = false;
+        relatedButton.textContent = "Related";
       }
       return;
     }

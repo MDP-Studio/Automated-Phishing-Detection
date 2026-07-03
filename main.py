@@ -2068,6 +2068,25 @@ class PhishingDetectionApp:
                 "account": updated_context.to_dict(),
             }
 
+        @app.get("/api/saas/scans/{result_id}/related")
+        async def api_saas_related_scans(
+            request: Request,
+            result_id: str,
+            limit: int = Query(10, ge=1, le=25),
+        ):
+            """Return campaign-level related scans within the signed-in workspace."""
+            context = _current_user_context(request)
+            _require_workspace_role(context, {"owner", "admin", "analyst", "viewer"})
+            try:
+                related = _get_saas_store().list_related_scan_results(
+                    org_id=context.org_id,
+                    result_id=result_id,
+                    limit=limit,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            return {"account": context.to_dict(), **related}
+
         @app.post("/api/saas/scans/{result_id}/report")
         async def api_saas_report_scan(request: Request, result_id: str):
             """Record a user report for a scan and open or reuse its case."""

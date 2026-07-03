@@ -318,6 +318,44 @@ def test_saas_signup_session_plans_upload_and_history(tmp_path):
     assert history.json()["results"][0]["payment_decision"] == "VERIFY"
 
 
+def test_saas_related_scans_are_campaign_grouped_and_org_scoped(tmp_path):
+    app = _build_saas_app(tmp_path, signup_enabled=True)
+    owner = TestClient(app, base_url="https://testserver", follow_redirects=False)
+    other_org = TestClient(app, base_url="https://testserver", follow_redirects=False)
+
+    assert _signup(owner).status_code == 200
+    assert _upload(owner).status_code == 200
+    assert _upload(owner).status_code == 200
+    owner_history = owner.get("/api/saas/scans").json()["results"]
+    seed_id = owner_history[0]["id"]
+
+    assert other_org.post(
+        "/api/saas/auth/signup",
+        headers=_same_origin_headers(),
+        json={
+            "email": "other-owner@example.com",
+            "password": "correct horse battery",
+            "org_name": "Other Finance",
+        },
+    ).status_code == 200
+    assert _upload(other_org).status_code == 200
+
+    related = owner.get(f"/api/saas/scans/{seed_id}/related?limit=10")
+    missing = owner.get("/api/saas/scans/res_missing/related")
+
+    assert related.status_code == 200
+    assert related.json()["related_count"] == 1
+    assert related.json()["related"][0]["id"] == owner_history[1]["id"]
+    signal_types = {
+        item["type"]
+        for item in related.json()["related"][0]["matched_signals"]
+    }
+    assert "payment_decision" in signal_types
+    other_result_id = other_org.get("/api/saas/scans").json()["results"][0]["id"]
+    assert all(item["id"] != other_result_id for item in related.json()["related"])
+    assert missing.status_code == 404
+
+
 def test_saas_team_member_role_management_is_owner_scoped(tmp_path):
     client = TestClient(
         _build_saas_app(tmp_path, signup_enabled=True),

@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import urlparse
 
 from src.billing.entitlements import EntitlementDecision, feature_entitlement
 from src.billing.plans import get_plan
@@ -1082,6 +1083,82 @@ class SaaSStore:
                 }
                 for row in rows
             ]
+
+    def list_related_scan_results(
+        self,
+        *,
+        org_id: str,
+        result_id: str,
+        limit: int = 10,
+    ) -> dict:
+        """Return tenant-scoped scans that share campaign-level indicators."""
+        limit = max(1, min(int(limit or 10), 25))
+        with self._connect() as conn:
+            seed = conn.execute(
+                """
+                SELECT id, email_id, verdict, payment_decision, result_json, created_at
+                FROM scan_results
+                WHERE id = ? AND org_id = ?
+                """,
+                (result_id, org_id),
+            ).fetchone()
+            if seed is None:
+                raise ValueError("scan result not found")
+
+            seed_result = _safe_json_dict(seed["result_json"])
+            seed_signals = _scan_campaign_signals(seed_result, seed["payment_decision"])
+            rows = conn.execute(
+                """
+                SELECT id, email_id, verdict, payment_decision, result_json, created_at
+                FROM scan_results
+                WHERE org_id = ? AND id != ?
+                ORDER BY created_at DESC
+                LIMIT 200
+                """,
+                (org_id, result_id),
+            ).fetchall()
+
+        related: list[dict] = []
+        for row in rows:
+            result = _safe_json_dict(row["result_json"])
+            matches = _campaign_signal_matches(
+                seed_signals,
+                _scan_campaign_signals(result, row["payment_decision"]),
+            )
+            if not matches:
+                continue
+            related.append(
+                {
+                    "id": row["id"],
+                    "email_id": row["email_id"],
+                    "verdict": row["verdict"],
+                    "payment_decision": row["payment_decision"],
+                    "created_at": row["created_at"],
+                    "subject": _scan_result_subject(row["result_json"]) or row["email_id"],
+                    "matched_signals": matches[:5],
+                    "match_count": len(matches),
+                }
+            )
+            if len(related) >= limit:
+                break
+
+        return {
+            "seed": {
+                "id": seed["id"],
+                "email_id": seed["email_id"],
+                "verdict": seed["verdict"],
+                "payment_decision": seed["payment_decision"],
+                "created_at": seed["created_at"],
+                "subject": _scan_result_subject(seed["result_json"]) or seed["email_id"],
+                "signals": {
+                    key: sorted(value)
+                    for key, value in seed_signals.items()
+                    if value
+                },
+            },
+            "related": related,
+            "related_count": len(related),
+        }
 
     def delete_scan_result(self, *, org_id: str, user_id: str, result_id: str) -> bool:
         """Delete one stored scan result scoped to an organization.
@@ -2612,6 +2689,80 @@ def _scan_result_subject(raw_result_json: str | None) -> str | None:
     headers = ((result.get("iocs") or {}).get("headers") or {})
     subject = headers.get("subject") if isinstance(headers, dict) else None
     return _clean_short_text(subject, 160) or None
+
+
+def _scan_campaign_signals(result: dict, payment_decision: str | None) -> dict[str, set[str]]:
+    """Extract low-sensitivity grouping signals for related scan reports."""
+    signals: dict[str, set[str]] = {
+        "sender": set(),
+        "sender_domain": set(),
+        "url": set(),
+        "url_domain": set(),
+        "attachment_hash": set(),
+        "payment_decision": set(),
+    }
+    headers = ((result.get("iocs") or {}).get("headers") or {})
+    if isinstance(headers, dict):
+        for key in ("from", "from_address", "sender", "reply_to", "return_path"):
+            value = _normalize_campaign_signal(headers.get(key))
+            if not value:
+                continue
+            signals["sender"].add(value)
+            if "@" in value:
+                domain = value.rsplit("@", 1)[-1].strip("<> ")
+                if domain:
+                    signals["sender_domain"].add(domain)
+
+    for item in _as_list(result.get("extracted_urls")):
+        raw_url = item.get("url") if isinstance(item, dict) else item
+        normalized = _normalize_campaign_signal(raw_url)
+        if not normalized:
+            continue
+        signals["url"].add(normalized)
+        parsed = urlparse(normalized if "://" in normalized else f"https://{normalized}")
+        if parsed.hostname:
+            signals["url_domain"].add(parsed.hostname.lower())
+
+    iocs = result.get("iocs") if isinstance(result.get("iocs"), dict) else {}
+    file_hashes = iocs.get("file_hashes") if isinstance(iocs.get("file_hashes"), dict) else {}
+    hash_values: list[object] = []
+    hash_values.extend(file_hashes.values())
+    for key in ("attachment_hashes", "hashes", "sha256"):
+        hash_values.extend(_as_list(iocs.get(key)))
+    for value in hash_values:
+        normalized = _normalize_campaign_signal(value)
+        if normalized and len(normalized) >= 32:
+            signals["attachment_hash"].add(normalized)
+
+    decision = _normalize_campaign_signal(payment_decision)
+    if decision and decision not in {"not_payment_specific", "none", "null"}:
+        signals["payment_decision"].add(decision)
+    return signals
+
+
+def _campaign_signal_matches(
+    left: dict[str, set[str]],
+    right: dict[str, set[str]],
+) -> list[dict]:
+    matches: list[dict] = []
+    for key, label in (
+        ("attachment_hash", "Attachment hash"),
+        ("url", "Exact URL"),
+        ("url_domain", "URL domain"),
+        ("sender", "Sender"),
+        ("sender_domain", "Sender domain"),
+        ("payment_decision", "Payment decision"),
+    ):
+        for value in sorted(left.get(key, set()) & right.get(key, set())):
+            matches.append({"type": key, "label": label, "value": value})
+    return matches
+
+
+def _normalize_campaign_signal(value: object) -> str | None:
+    if value is None:
+        return None
+    text = " ".join(str(value).strip().lower().split())
+    return text[:512] if text else None
 
 
 def _scan_result_ioc_counts(raw_result_json: str | None) -> dict[str, int]:

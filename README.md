@@ -82,6 +82,10 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Authenticated scan-report intake that opens or reuses the linked incident
   case from a stored scan result, with CSRF protection and compact
   `user_reported` evidence events.
+- Tenant-scoped related-report lookup that groups stored scans by shared
+  sender, URL/domain, attachment hash, and payment-decision signals so repeated
+  phishing or payment-scam reports can be reviewed as a small campaign instead
+  of isolated single emails.
 - Plan-gated analyzers, quota checks, and locked-check reporting before paid
   API clients load.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence

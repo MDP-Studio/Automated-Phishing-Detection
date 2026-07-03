@@ -172,10 +172,19 @@ Ordered by severity-given-likelihood. Each one is something the project delibera
 **Description:** Compromise of `.env` leaks VT/urlscan/AbuseIPDB/Hybrid Analysis keys. Vendor abuse → reputation + quota damage, not direct compromise of operator infrastructure.
 **Compensating control:** secure vault is wired in, but `.env` is the fallback. Treat the host's filesystem as a secrets boundary.
 
-### R5 — STIX/Sigma exports are not integrity-signed
+### R5 — CTI export trust still depends on operator verification
 **Severity:** medium. **Likelihood:** low.
-**Description:** Exports are produced and then trusted by downstream consumers. There's no signing or chain-of-custody. A tampered export could insert false IOCs into someone else's blocklist.
-**Compensating control:** transport the exports over signed channels (TAXII over mTLS, signed git commits, etc.). The exporter does not own this.
+**Description:** Shareable filesystem STIX/Sigma exports now require Ed25519
+manifest signing, hash validation, STIX parsing, and Sigma structure checks
+before they should be sent to another operator. Optional TAXII 2.1 push can move
+STIX bundles into a configured collection. The remaining risk is operational:
+stdout inspection output is intentionally unsigned, signing keys can be omitted
+or mishandled, and downstream consumers may trust an export without validating
+the signed manifest or transport status.
+**Compensating control:** run `python scripts/validate_exports.py` before
+sharing filesystem exports, keep CTI signing keys outside git, use TAXII over
+TLS for transport where configured, and treat unvalidated CTI bundles as local
+inspection artifacts only.
 
 ### R6 — Cold-start sender profiling
 **Severity:** low. **Likelihood:** high on day one.
