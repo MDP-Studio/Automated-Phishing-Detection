@@ -14,6 +14,7 @@ python scripts/backup_runtime_data.py --destination backups --retention-days 14
 Backed up by default:
 - `data/results.jsonl`
 - `data/alerts.jsonl`
+- `data/operational_alerts.jsonl`
 - `data/feedback.db`
 - `data/sender_profiles.db`
 
@@ -84,6 +85,28 @@ Recommended cron:
 Cloudflare or another uptime monitor should also hit `/api/health` every
 minute from outside the host.
 
+The application also emits closed-schema operational events when an analyzer
+circuit opens, authentication failures reach the throttle threshold, a stored
+tenant scan repeats concrete campaign infrastructure, or PayShield reaches a
+high-risk payment decision. Configure delivery with:
+
+```dotenv
+OPERATIONAL_ALERT_LOG_PATH=data/operational_alerts.jsonl
+OPERATIONAL_ALERT_WEBHOOK_URL=https://alerts.example.net/hooks/security
+OPERATIONAL_ALERT_HASH_KEY=<independent-random-secret>
+OPERATIONAL_ALERT_COOLDOWN_SECONDS=900
+```
+
+When `OPERATIONAL_ALERT_WEBHOOK_URL` is empty, the dispatcher falls back to
+`ALERT_WEBHOOK_URL`. Every accepted event is written locally before webhook
+delivery. A webhook failure is logged without the payload or destination and
+does not interrupt scanning or authentication. There is no durable retry queue,
+but an unavailable receiver can add up to the configured 10-second total timeout
+to the event-triggering request. Monitor the local JSONL file and webhook
+receiver separately. Event schemas
+reject mailbox content, addresses, subjects, URLs, client IPs, raw user IDs,
+and raw tenant IDs. See `docs/operational-alerting.md` for the field contract.
+
 ## Runtime Retention
 
 Default retention is 30 days through `DATA_RETENTION_DAYS`. Run:
@@ -98,8 +121,9 @@ For a data subject erasure:
 python main.py purge --target all --by-address person@example.com
 ```
 
-Run daily in production. `--target all` includes JSONL results, alerts, analyst
-feedback, SaaS user scan rows in `data/saas.db`, and sender profiles:
+Run daily in production. `--target all` includes JSONL results, phishing alerts,
+privacy-minimized operational alerts, analyst feedback, SaaS user scan rows in
+`data/saas.db`, and sender profiles:
 
 ```cron
 37 2 * * * cd /srv/Automated-Phishing-Detection && /usr/bin/python3 main.py purge --target all >> logs/retention.log 2>&1
@@ -153,11 +177,26 @@ Production must set a high-entropy analyst token:
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Use `/admin/login` for owner browser sessions. API clients should use
-`Authorization: Bearer $ANALYST_API_TOKEN`.
+API clients should use `Authorization: Bearer $ANALYST_API_TOKEN`. The signed
+analyst session at `/admin/login` remains a compatibility path and is not
+phishing-resistant. For user-bound browser administration, configure:
+
+```dotenv
+PHISHANALYZE_ADMIN_AUTH_MODE=token_or_owner_passkey
+PHISHANALYZE_ADMIN_USER_EMAILS=platform-owner@example.com
+```
+
+The allowlist must contain only platform administrators, not every workspace
+owner. An eligible user signs in at `/settings`, registers a passkey, completes
+a fresh step-up, and then opens `/admin`. The bridge also requires the account
+to have an owner/admin organization role and uses the SaaS CSRF cookie for
+mutations. An empty allowlist disables the bridge without disabling bearer or
+analyst-session compatibility.
 
 Operational checks:
 - Rotate `ANALYST_API_TOKEN` if it has been shared in chat, logs, or tickets.
+- Review `PHISHANALYZE_ADMIN_USER_EMAILS` as a platform privilege list. Removing
+  an address blocks new bridge requests immediately.
 - Keep Cloudflare Access or Tailscale in front of the dashboard for demos.
 - If `PUBLIC_DEMO_MODE=true`, verify only `/demo` is public. It must not expose
   live analysis, mailbox data, feedback learning, paid API usage, or account

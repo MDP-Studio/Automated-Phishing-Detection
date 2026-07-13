@@ -103,6 +103,14 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   requires a fresh passkey step-up for team, mailbox, billing, passkey,
   scan-deletion, incident-case, remediation-planning, and simulation-ingest
   mutations when a passkey exists.
+- User-bound access to `/admin` for explicitly allowlisted platform
+  owner/admin accounts after a fresh passkey step-up, while bearer-token and
+  analyst-token sessions remain compatible for internal API clients and
+  rollback. Tenant owner role alone never grants global admin access.
+- Privacy-minimized operational alerts for analyzer circuits opening, repeated
+  tenant campaigns, high PayShield payment risk, and throttled login failures.
+  The closed webhook schema excludes mailbox content, addresses, subjects,
+  URLs, client IPs, raw user IDs, and raw tenant IDs.
 - Signed STIX/Sigma file export manifests with Ed25519 signatures and a
   validator for hashes, signatures, STIX parsing, and Sigma structure.
 - Optional TAXII 2.1 STIX push for operator CTI sharing, with safe status
@@ -141,10 +149,14 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - LLMs are explanation helpers, not final verdict authorities.
 - PayShield does not approve payments. It gives risk evidence and verification
   guidance.
-- Legacy analyst-token `/admin` access is not phishing-resistant. Keep it
-  internal until it is migrated to user-bound passkeys.
+- Legacy analyst-token `/admin` access remains a shared, non-phishing-resistant
+  compatibility path. Browser owners should use the user-bound passkey bridge;
+  keep the shared token internal for existing API clients while migration
+  continues.
 - Incident cases are a lightweight response tracker, not a full SOAR. They do
-  not send notifications, quarantine mail, or open external tickets.
+  not send case-specific notifications, quarantine mail, or open external
+  tickets. Operational security events are separate and never include customer
+  message content.
 - Simulation results are a feedback loop for awareness metrics, not an LMS.
   Campaign delivery, training content, and learner management stay out of
   scope.
@@ -295,6 +307,8 @@ Passkey step-up:
 
 ```bash
 PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor
+PHISHANALYZE_ADMIN_AUTH_MODE=token_or_owner_passkey
+PHISHANALYZE_ADMIN_USER_EMAILS=
 PASSKEY_RP_NAME=PhishAnalyze
 PASSKEY_RP_ID=phishanalyze.mdpstudio.com.au
 PASSKEY_ORIGIN=https://phishanalyze.mdpstudio.com.au
@@ -306,6 +320,24 @@ When enforced and a passkey exists, team management, mailbox connection,
 mailbox scan-now, mailbox deletion, billing checkout or portal access, passkey
 registration or deletion, scan deletion, incident case mutation, and simulation
 result ingest require a fresh WebAuthn assertion for owner/admin users.
+`PHISHANALYZE_ADMIN_USER_EMAILS` is a comma-separated platform-admin allowlist;
+leave it empty to disable the bridge. Do not populate it from all workspace
+owners because public signup makes each new workspace user a tenant owner.
+
+Privacy-minimized operational alerts:
+
+```bash
+OPERATIONAL_ALERT_LOG_PATH=data/operational_alerts.jsonl
+OPERATIONAL_ALERT_WEBHOOK_URL=
+OPERATIONAL_ALERT_HASH_KEY=
+OPERATIONAL_ALERT_COOLDOWN_SECONDS=900
+```
+
+The dedicated webhook takes priority and falls back to `ALERT_WEBHOOK_URL` when
+blank. Use a separate random hash key to add stable pseudonymous tenant
+references. Without that key, tenant references are omitted. See
+[`docs/operational-alerting.md`](docs/operational-alerting.md) for the event
+schema, owner passkey flow, failure semantics, and verification steps.
 
 Signed STIX/Sigma file exports:
 
@@ -481,6 +513,8 @@ store credentials, or include API keys. It only opens:
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | STRIDE threat model and residual risks. |
 | [`SECURITY.md`](SECURITY.md) | Vulnerability disclosure and hardening guidance. |
 | [`docs/production-operations.md`](docs/production-operations.md) | Backup, health, retention, alerting, and load-test runbook. |
+| [`docs/operational-alerting.md`](docs/operational-alerting.md) | Privacy-minimized event schema, webhook setup, and passkey-backed admin flow. |
+| [`docs/adr/0003-operational-alerts-and-passkey-admin-bridge.md`](docs/adr/0003-operational-alerts-and-passkey-admin-bridge.md) | Security and compatibility decision for operational alerts and owner admin auth. |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | Evaluation methodology and corpus plan. |
 | [`HISTORY.md`](HISTORY.md) | Engineering audit-cycle history. |
 | [`ROADMAP.md`](ROADMAP.md) | Planned and deferred work. |

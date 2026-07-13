@@ -47,6 +47,8 @@ At minimum, fill in:
 - `GOOGLE_SAFE_BROWSING_API_KEY`
 - `ANALYST_API_TOKEN` (generate one: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`)
 - `SAAS_SESSION_SECRET` (generate separately: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`)
+- `OPERATIONAL_ALERT_HASH_KEY` (generate separately from every session or
+  encryption key: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`)
 - `ACCOUNTS_ENCRYPTION_KEY` if you will store monitored mailbox credentials
   (generate separately: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"`).
   Set this before adding accounts and keep it stable across rebuilds. If it is
@@ -63,8 +65,18 @@ Optional public preview:
 - Keep `PHISHANALYZE_PASSKEY_ENFORCEMENT=monitor` until owner/admin users
   enroll passkeys from `/settings`. Switch to `enforce` after enrollment to
   require passkey step-up for team, mailbox, billing, and passkey deletion
-  actions. The legacy `/admin` token path remains internal and is not
-  phishing-resistant.
+  actions.
+- Set `PHISHANALYZE_ADMIN_AUTH_MODE=token_or_owner_passkey` and place only
+  platform administrators in the comma-separated
+  `PHISHANALYZE_ADMIN_USER_EMAILS` allowlist. A workspace owner is not a
+  platform administrator by default. The allowlist, owner/admin role,
+  registered passkey, and fresh step-up must all pass before a SaaS session can
+  reach `/admin`. An empty allowlist keeps this bridge disabled. The legacy
+  token path remains internal for compatibility and is not phishing-resistant.
+- Set `OPERATIONAL_ALERT_WEBHOOK_URL` to an operations receiver, or leave it
+  empty to reuse `ALERT_WEBHOOK_URL`. Alerts are always written to
+  `OPERATIONAL_ALERT_LOG_PATH` first and deliberately omit message content,
+  addresses, subjects, URLs, client IPs, and raw tenant or user identifiers.
 
 Transactional email setup:
 - Prefer Zoho Mail API direct send for password reset email: set `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNT_ID`, `ZOHO_FROM`, `ZOHO_ACCOUNTS_BASE`, `ZOHO_API_BASE`, and `ZOHO_ENABLE_DIRECT_SEND=true`.
@@ -128,7 +140,9 @@ docker exec phishing-orchestrator python -c \
 
 Visit `https://phishanalyze.mdpstudio.com.au`. You should see the PhishAnalyze product intro, with `/analyze` as the scanner app.
 Visit `https://payshield.mdpstudio.com.au`. You should see the PayShield product page.
-Use `/admin/login` with `ANALYST_API_TOKEN` for owner browser access.
+For browser admin access, prefer an allowlisted owner/admin SaaS account with a
+registered passkey and fresh step-up. `/admin/login` with
+`ANALYST_API_TOKEN` remains the compatibility and recovery path.
 If `PUBLIC_DEMO_MODE=true`, `/demo` is the only public sample page.
 
 The production stack also binds `127.0.0.1:8010:8000` on the host. This is
@@ -182,6 +196,11 @@ curl -s https://phishanalyze.mdpstudio.com.au/api/health
 ```
 
 The `build_sha` value should match `git rev-parse --short=12 HEAD`.
+
+Also verify `/trust` describes the platform-admin allowlist and operational
+alert privacy boundary. Do not generate repeated production login failures or
+customer scans merely to test alert delivery. Validate the event contract with
+the local unit tests and confirm the configured receiver separately.
 
 ## Operations
 

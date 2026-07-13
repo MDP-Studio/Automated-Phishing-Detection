@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
 from main import PhishingDetectionApp
+from src.automation.operational_alerts import OperationalAlertDispatcher
 from src.config import PipelineConfig
 from src.feedback.email_lookup import EmailLookupIndex
 from src.models import AnalyzerResult, PipelineResult, Verdict
@@ -35,6 +37,10 @@ def _build_app_with_token(
     app_wrapper.dashboard = PhishingDashboard(template_dir="./templates", route_prefix="/admin/dashboard")
     app_wrapper.token_verifier = TokenVerifier(token)
     app_wrapper.saas_session_manager = SaaSSessionManager(f"{token}-saas-session")
+    app_wrapper.operational_alerts = OperationalAlertDispatcher(
+        log_path=Path(saas_db_path).with_suffix(".operational.jsonl"),
+        cooldown_seconds=0,
+    )
     app_wrapper._saas_store = None
     app_wrapper._monitor = None
     app_wrapper._upload_results = []
@@ -700,6 +706,8 @@ def test_trust_page_opens_without_analyst_session():
     assert "Uploads are for analysis, not model training" in response.text
     assert "Each result shows analyzer status" in response.text
     assert "Public users sign in with normal workspace accounts" in response.text
+    assert "Owner admin access supports user-bound passkeys" in response.text
+    assert "Runtime alerts omit mailbox content" in response.text
     assert "PayShield" not in response.text
     assert 'href="/login">Analyst login</a>' not in response.text
     assert "/static/phish_app.css" in response.text
@@ -724,6 +732,7 @@ def test_payshield_trust_page_stays_payment_product_specific(monkeypatch):
     assert "Payment-risk scans should be explainable" in response.text
     assert "PayShield is the customer payment-risk app" in response.text
     assert "Payment scam firewall" in response.text
+    assert "Payment-risk alerts omit invoice content" in response.text
     assert "by PhishAnalyze" not in response.text
     assert "/static/product.css" in response.text
     assert 'href="/login">Analyst login</a>' not in response.text
@@ -779,6 +788,7 @@ def test_shared_controls_use_icon_theme_and_page_scoped_logout():
     script = Path("static/shared.js").read_text(encoding="utf-8")
 
     assert "function themeIcon(nextTheme)" in script
+    assert "X-User-CSRF-Token" in script
     assert "window.hardenExternalLinks = function(root)" in script
     assert "link.setAttribute('target', '_blank')" in script
     assert "noreferrer" in script
@@ -881,6 +891,7 @@ def test_login_page_links_public_demo_only_when_enabled():
     demo = demo_client.get("/admin/login")
 
     assert 'href="/analyze"' in plain.text
+    assert 'href="/settings">Use an owner passkey</a>' in plain.text
     assert 'href="/demo"' not in plain.text
     assert 'href="/demo"' in demo.text
     assert "paid API checks" in demo.text
@@ -1068,9 +1079,10 @@ def test_api_login_accepts_quoted_token_value():
     assert response.json()["status"] == "ok"
 
 
-def test_api_login_rate_limits_failed_analyst_tokens():
+def test_api_login_rate_limits_failed_analyst_tokens(tmp_path):
+    db_path = tmp_path / "saas.db"
     client = TestClient(
-        _build_app_with_token(),
+        _build_app_with_token(saas_db_path=str(db_path)),
         base_url="https://testserver",
         follow_redirects=False,
     )
@@ -1082,6 +1094,14 @@ def test_api_login_rate_limits_failed_analyst_tokens():
 
     assert statuses[:10] == [401] * 10
     assert statuses[10] == 429
+    alert = json.loads(
+        db_path.with_suffix(".operational.jsonl").read_text(encoding="utf-8")
+    )
+    serialized = json.dumps(alert, sort_keys=True)
+    assert alert["event_type"] == "auth_failure_threshold"
+    assert alert["details"]["auth_namespace"] == "analyst"
+    assert "wrong" not in serialized
+    assert "testclient" not in serialized
 
 
 def test_login_uses_non_secure_cookies_on_local_http():

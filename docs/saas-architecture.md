@@ -10,8 +10,9 @@ controls are ready.
 
 ## Product Model
 
-Use normal account login for users. Keep the analyst token only for owner/admin
-operations.
+Use normal account login for users. Prefer the user-bound passkey bridge for
+platform administrators. Keep the analyst token as an internal compatibility
+and recovery path.
 
 Recommended flow:
 
@@ -98,6 +99,17 @@ Implemented foundation:
   scan-deletion, case, and simulation-ingest mutations require a fresh passkey
   assertion when the user already has a passkey. The policy payload includes a
   privileged-action matrix so tests and clients can see the covered actions.
+- `/admin` and its protected APIs accept a SaaS browser session only when the
+  account has an owner/admin role, appears in the independent
+  `PHISHANALYZE_ADMIN_USER_EMAILS` platform-admin allowlist, has a registered
+  passkey, and has a fresh database-backed step-up. Tenant ownership alone is
+  insufficient, an empty allowlist disables the bridge, and mutations use the
+  SaaS CSRF boundary. Bearer and signed analyst-session authentication remain
+  available for compatible API clients and recovery.
+- Stored SaaS scans can emit privacy-minimized repeated-campaign and payment-risk
+  operational events. Analyzer circuit and authentication-threshold events use
+  the same closed schema. The event dispatcher rejects mailbox content and
+  direct identifiers before writing locally or posting to a webhook.
 - `/api/saas/simulations/results` ingests compact internal phishing simulation
   outcomes. `/api/saas/simulations/summary` exposes the 90-day dashboard score
   card for sample size, report rate, click rate, credential submission rate,
@@ -205,12 +217,17 @@ Safe implementation order:
    monitor/enforce mode for owner/admin privileged mutations.**
 10. Add lightweight incident cases for scan-linked response state. **Done.**
 11. Add awareness simulation result ingest and dashboard score card. **Done.**
-12. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
-13. Add tenant isolation tests before enabling live customer mailbox polling.
+12. Add a passkey-backed platform-admin bridge with an independent allowlist.
+    **Done.**
+13. Add privacy-minimized operational alerts with local retention and optional
+    webhook delivery. **Done.**
+14. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
+15. Add tenant isolation tests before enabling live customer mailbox polling.
 
-Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 13 are
+Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 15 are
 complete.
 
 Legacy analyst-token `/admin` access is not phishing-resistant because it is
-not bound to a user passkey. Keep it internal until that route is migrated to
-normal user sessions plus passkey step-up.
+not bound to a user passkey. Keep it internal for compatible clients and
+recovery. Browser operators should use the independently allowlisted passkey
+bridge; a workspace owner role by itself must never grant platform access.

@@ -84,12 +84,16 @@ class SaaSSessionManager:
         return secrets.token_urlsafe(32)
 
 
-def verify_user_csrf(request: Request) -> None:
+def verify_user_csrf(
+    request: Request,
+    *,
+    header_name: str = USER_CSRF_HEADER_NAME,
+) -> None:
     """Validate double-submit CSRF token and same-origin headers."""
     if request.method.upper() in SAFE_METHODS:
         return
 
-    header_token = request.headers.get(USER_CSRF_HEADER_NAME)
+    header_token = request.headers.get(header_name)
     cookie_token = request.cookies.get(USER_CSRF_COOKIE_NAME)
     if not header_token or not cookie_token or not hmac.compare_digest(header_token, cookie_token):
         raise HTTPException(

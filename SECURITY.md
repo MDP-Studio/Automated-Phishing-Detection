@@ -43,7 +43,14 @@ Vulnerabilities in any of these are in scope and welcome:
   move to `enforce` for team, mailbox, billing, passkey registration/deletion,
   scan deletion, incident case mutation/remediation planning, and simulation ingest actions. The
   `/api/saas/security/policy` payload exposes the covered action matrix.
+  A fresh passkey step-up can also authenticate the private admin browser
+  surface only when the owner/admin account is independently listed in
+  `PHISHANALYZE_ADMIN_USER_EMAILS`. Tenant role alone is insufficient.
   Password-only sessions and legacy analyst tokens are not phishing-resistant.
+- **Operational alert privacy** - alert payloads for analyzer outages,
+  repeated campaigns, payment-risk escalation, and login throttling must reject
+  mailbox content, addresses, subjects, URLs, client IPs, raw users, and raw
+  tenant identifiers. Schema bypasses or webhook disclosure are in scope.
 - **Export integrity** — shareable STIX/Sigma file exports require an Ed25519
   signing key and a signed manifest. Validate manifests before sharing threat
   intel externally.
@@ -65,19 +72,34 @@ These are intentionally not security issues:
 If you're running this in any non-laptop context, do at minimum:
 
 1. **The server defaults to binding `127.0.0.1`** (loopback only). To expose it elsewhere, you must set `ANALYST_API_TOKEN` to a high-entropy value AND pass `--host <addr>` explicitly. The server refuses to start with a non-loopback host if the token is unset. For internet exposure, put it behind a reverse proxy with TLS termination.
-2. **Use `/admin/login` for owner browser access.** It sets a signed session cookie plus a CSRF cookie. API clients can still use `Authorization: Bearer <ANALYST_API_TOKEN>`.
+2. **Prefer the owner passkey path for browser admin access.** Sign in at
+   `/settings`, register and verify a passkey, then open `/admin` while the
+   step-up is fresh. `/admin/login` and `Authorization: Bearer
+   <ANALYST_API_TOKEN>` remain compatibility paths for internal clients.
 3. **Treat `PUBLIC_DEMO_MODE=true` as sample-only.** It opens `/demo`, not the real dashboard, live upload analysis, mailbox monitoring, feedback learning, paid API-backed checks, or account management. Keep `ANALYST_API_TOKEN` configured.
 4. **Treat `/app` public signup as a privacy switch.** Keep `SAAS_PUBLIC_SIGNUP_ENABLED=false` until you are ready to accept visitor email uploads, set a high-entropy `SAAS_SESSION_SECRET`, and have retention/support/abuse handling in place. User signup, login, and password-reset routes require same-origin `Origin` or `Referer` headers before setting cookies.
-5. **Treat `/admin` as internal until passkey migration is complete.** The
-   legacy analyst token is useful for single-operator diagnostics, but it is
-   not user-bound or phishing-resistant.
+5. **Keep the token path internal.** Use
+   `PHISHANALYZE_ADMIN_AUTH_MODE=token_or_owner_passkey` for the user-bound
+   browser bridge and explicitly list platform administrators in
+   `PHISHANALYZE_ADMIN_USER_EMAILS`. An empty allowlist disables the bridge.
+   Never add every workspace owner. The legacy analyst token is useful for
+   diagnostics and API clients, but it is shared and not phishing-resistant.
 6. **Register Stripe webhooks only over HTTPS and keep `STRIPE_WEBHOOK_SECRET` secret.** `/api/stripe/webhook` verifies Stripe signatures before changing subscription state. Do not disable signature checks.
 7. **Run the `browser-sandbox` container on its own Docker network.** Do not give it host networking. The default `docker-compose.yml` already separates it; verify before deploying.
 8. **Treat `.env` as secret material.** Don't commit it. Don't bake it into images. Mount it at runtime.
-9. **Back up runtime data and purge it on a schedule.** Results, alerts, feedback labels, sender profiles, and SaaS scan results can all contain regulated personal data. Use `python scripts/backup_runtime_data.py` for non-secret backups and `python main.py purge --target all --dry-run` before deleting rows.
+9. **Back up runtime data and purge it on a schedule.** Results, phishing alerts, feedback labels, sender profiles, and SaaS scan results can contain regulated personal data. Operational alerts use a separate closed schema and are retained by the same command. Use `python scripts/backup_runtime_data.py` for non-secret backups and `python main.py purge --target all --dry-run` before deleting rows.
 10. **Monitor uptime and mailbox freshness.** Run `python scripts/production_health_check.py --require-monitor-running` from cron or an external monitor and send failures to a webhook.
-11. **Monitor circuit-breaker state.** If every analyzer is open-circuit, the pipeline is effectively producing CLEAN verdicts on real phishing. Alert on this.
-12. **Pin the brand reference set.** Treat `brand_references/` as detection content under change control. Anyone who can write to that directory can blind the visual similarity analyzer.
+11. **Configure operational alert delivery.** Set
+    `OPERATIONAL_ALERT_WEBHOOK_URL` and a separate
+    `OPERATIONAL_ALERT_HASH_KEY`. Circuit-open transitions, repeated campaigns,
+    high payment-risk decisions, and login throttle thresholds then reach the
+    operations channel without mailbox evidence. Review
+    `data/operational_alerts.jsonl` if the webhook is unavailable.
+12. **Install from the hash-pinned lock and keep the advisory gate green.** Use
+    `pip install --require-hashes -r requirements.lock` in production and run
+    `python -m pip_audit -r requirements.lock --disable-pip` after every lock
+    refresh. The July 2026 lock has no known vulnerabilities.
+13. **Pin the brand reference set.** Treat `brand_references/` as detection content under change control. Anyone who can write to that directory can blind the visual similarity analyzer.
 
 ## Coordinated disclosure
 

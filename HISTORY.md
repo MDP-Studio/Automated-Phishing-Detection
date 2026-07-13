@@ -28,7 +28,53 @@ Every cycle followed the same workflow:
 
 Discovered-and-deferred findings are deliberately not silently fixed in scope creep. They go to ROADMAP and become their own future cycle. This is how cycle 6 produced the BEC ordering bug that became cycle 7's headline fix.
 
-ADRs (`docs/adr/`) are written **before any code** for any cycle whose design has a non-obvious decision. The ADR's job is to surface the hard call to the front where it's cheap to change. Two ADRs exist as of cycle 8: ADR 0001 (cross-analyzer calibration, cycle 6) and ADR 0002 (persistent email_id lookup, cycle 8).
+ADRs (`docs/adr/`) are written **before any code** for any cycle whose design has a non-obvious decision. The ADR's job is to surface the hard call to the front where it's cheap to change. The current set is ADR 0001 (cross-analyzer calibration), ADR 0002 (persistent email_id lookup), and ADR 0003 (privacy-minimized operational alerts plus the passkey-backed platform-admin bridge).
+
+---
+
+## 2026-07 security alignment - operational alerts and user-bound admin access
+
+- **Commit:** (this commit)
+- **Tests:** 1,350 -> 1,369 (+19; full suite green)
+- **Security gaps closed:** privacy-minimized operational visibility, phishing-resistant browser authentication for explicitly authorized platform administrators, and 26 advisories removed from the hash-pinned runtime dependency set
+
+ADR 0003 was written before implementation. It records two boundaries that
+the code now enforces. First, operational events use a closed schema, write to a
+retained local JSONL file, and can be sent to an operations webhook without
+mailbox content, addresses, subjects, URLs, client IPs, raw user IDs, or raw
+tenant IDs. Events cover analyzer circuits opening, authentication throttle
+thresholds, repeated concrete campaign signals, and high-risk PayShield payment
+decisions. Webhook failure does not interrupt a scan or authentication attempt.
+
+Second, `/admin` can now use a normal SaaS session only after all independent
+controls pass: owner/admin organization role, explicit platform-admin email
+allowlist, registered passkey, fresh database-backed step-up, and SaaS CSRF for
+mutations. The allowlist is the critical privilege boundary. Public signup
+creates workspace owners, so treating tenant ownership as global platform
+authority would have been an elevation-of-privilege bug. An empty allowlist
+disables the bridge. Bearer and signed analyst-session authentication remain as
+internal compatibility and recovery paths.
+
+The pre-cycle gate reported that the newest detection evaluation was 86 days
+old. This change does not touch analyzers, scoring, thresholds, or verdict
+projection, so a new corpus run was deliberately not used as evidence for this
+authentication and operations cycle. The existing detection metrics remain
+unchanged and should not be read as refreshed by this work.
+
+The supply-chain gate initially found 26 current advisories across the stale
+locked versions of aiohttp, Bleach, Click, cryptography, Pillow,
+python-multipart, and Starlette. Existing dependency floors were raised to
+patched releases and `requirements.lock` was regenerated with hashes. The
+upgraded environment passed all 1,369 tests and `pip-audit` then reported no
+known vulnerabilities. Bleach's separate 6.3-only email-linkifier advisory is
+also avoided structurally because this application never enables
+`linkify(parse_email=True)`.
+
+**Discovered-and-deferred:** durable webhook retries and per-action actor
+attribution for compatibility-token feedback remain separate controls. The
+local event log is the delivery fallback, and the shared analyst principal
+remains documented as residual risk R2. Neither gap justifies weakening the
+closed alert schema or expanding a tenant role into platform authority.
 
 ---
 

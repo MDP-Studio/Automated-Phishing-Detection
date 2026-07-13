@@ -1036,7 +1036,8 @@ class SaaSStore:
         verdict: str,
         payment_decision: str | None,
         result: dict,
-    ) -> None:
+    ) -> str:
+        result_id = new_id("res")
         with self._connect() as conn:
             conn.execute(
                 """
@@ -1047,7 +1048,7 @@ class SaaSStore:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    new_id("res"),
+                    result_id,
                     org_id,
                     user_id,
                     scan_job_id,
@@ -1059,6 +1060,7 @@ class SaaSStore:
                 ),
             )
             conn.commit()
+        return result_id
 
     def list_scan_results(self, org_id: str, *, limit: int = 50) -> list[dict]:
         with self._connect() as conn:

@@ -8,6 +8,7 @@ Supports two modes:
 """
 import argparse
 import asyncio
+import hashlib
 import hmac
 import html
 import json
@@ -44,6 +45,7 @@ from src.billing.stripe_client import (
 )
 from src.config import PipelineConfig, _coerce_bool
 from src.analyzers.result_contract import normalize_analyzer_result
+from src.automation.operational_alerts import OperationalAlertDispatcher
 from src.models import EmailObject
 from src.ingestion.channel_adapter import (
     ChannelAdapterError,
@@ -359,6 +361,7 @@ class PhishingDetectionApp:
         self.token_verifier = TokenVerifier(
             getattr(self.config, "analyst_api_token", None)
         )
+        self.operational_alerts = OperationalAlertDispatcher.from_env()
         session_secret = (
             getattr(self.config, "saas_session_secret", "")
             or getattr(self.config, "analyst_api_token", "")
@@ -581,16 +584,92 @@ class PhishingDetectionApp:
         else:
             logger.warning("Static asset directory not found; dashboard vendor assets unavailable")
 
-        # Capture token verifier locally so route closures can reference it
-        # without re-reading self.token_verifier on every request.
-        require_token = self.token_verifier
+        operational_alerts = getattr(self, "operational_alerts", None)
+        if operational_alerts is None:
+            operational_alerts = OperationalAlertDispatcher.from_env()
+            self.operational_alerts = operational_alerts
+
+        def _admin_auth_mode() -> str:
+            raw = os.getenv(
+                "PHISHANALYZE_ADMIN_AUTH_MODE",
+                "token_or_owner_passkey",
+            ).strip().lower()
+            if raw in {"token_only", "token_or_owner_passkey"}:
+                return raw
+            logger.warning(
+                "Invalid PHISHANALYZE_ADMIN_AUTH_MODE=%r; using token_only",
+                raw,
+            )
+            return "token_only"
+
+        def _admin_user_email_allowlist() -> set[str]:
+            raw = os.getenv("PHISHANALYZE_ADMIN_USER_EMAILS", "")
+            return {
+                item.strip().lower()
+                for item in raw.split(",")
+                if item.strip()
+            }
+
+        def _passkey_admin_context(request: Request):
+            """Return a passkey-stepped-up owner/admin context, or None."""
+            if _admin_auth_mode() != "token_or_owner_passkey":
+                return None
+            if not self.saas_session_manager.enabled:
+                return None
+            payload = self.saas_session_manager.session_payload(
+                request.cookies.get(USER_SESSION_COOKIE_NAME)
+            )
+            if payload is None:
+                return None
+            context = _get_saas_store().get_account_context(str(payload["sub"]))
+            if context is None or context.org_id != payload.get("org_id"):
+                return None
+            if str(context.role).lower() not in {"owner", "admin"}:
+                return None
+            if str(context.email).strip().lower() not in _admin_user_email_allowlist():
+                return None
+            store = _get_saas_store()
+            if store.count_webauthn_credentials(
+                org_id=context.org_id,
+                user_id=context.user_id,
+            ) == 0:
+                return None
+            if not store.has_fresh_passkey_step_up(
+                org_id=context.org_id,
+                user_id=context.user_id,
+            ):
+                return None
+            return context
+
+        async def require_admin_access(request: Request) -> str:
+            """Accept legacy token auth or a fresh owner/admin passkey session."""
+            authorization = request.headers.get("authorization")
+            try:
+                return await self.token_verifier(request, authorization)
+            except HTTPException as token_error:
+                if authorization:
+                    raise
+                context = _passkey_admin_context(request)
+                if context is None:
+                    raise token_error
+                user_csrf_header = (
+                    "x-user-csrf-token"
+                    if request.headers.get("x-user-csrf-token")
+                    else "x-csrf-token"
+                )
+                verify_user_csrf(request, header_name=user_csrf_header)
+                request.state.admin_user_context = context
+                return "owner-passkey-session"
+
+        require_token = require_admin_access
 
         def _has_valid_html_session(request: Request) -> bool:
             if not self.token_verifier.enabled:
                 return True
-            return self.token_verifier.verify_session_cookie(
+            has_legacy_session = self.token_verifier.verify_session_cookie(
                 request.cookies.get(SESSION_COOKIE_NAME)
             )
+            return has_legacy_session or _passkey_admin_context(request) is not None
 
         def _login_redirect(request: Request) -> RedirectResponse:
             from urllib.parse import quote
@@ -1050,12 +1129,31 @@ class PhishingDetectionApp:
             namespace: str,
             subject: str,
             window_seconds: int = 15 * 60,
-        ) -> None:
+        ) -> int:
             key = _auth_failure_key(request, namespace, subject)
             now = monotonic()
             attempts = auth_failure_attempts.setdefault(key, deque())
             _prune_attempts(attempts, now=now, window_seconds=window_seconds)
             attempts.append(now)
+            return len(attempts)
+
+        async def _alert_auth_failure_threshold(
+            *,
+            namespace: str,
+            attempt_count: int,
+            window_seconds: int = 15 * 60,
+        ) -> None:
+            if attempt_count < 10:
+                return
+            await operational_alerts.dispatch(
+                "auth_failure_threshold",
+                details={
+                    "auth_namespace": namespace,
+                    "attempt_count": attempt_count,
+                    "window_seconds": window_seconds,
+                },
+                dedupe_key=f"auth-failure-threshold:{namespace}",
+            )
 
         def _clear_auth_failures(request: Request, *, namespace: str, subject: str) -> None:
             auth_failure_attempts.pop(_auth_failure_key(request, namespace, subject), None)
@@ -1171,12 +1269,17 @@ class PhishingDetectionApp:
                 ],
                 "legacy_admin_access": {
                     "phishing_resistant": False,
-                    "scope": "internal",
+                    "scope": "compatibility",
                     "note": (
-                        "Legacy analyst-token /admin access is not phishing-resistant. "
-                        "Keep it internal until it is migrated to user-bound passkeys."
+                        "Bearer and analyst-token sessions remain for internal clients. "
+                        "Owner browser access can use a fresh user-bound passkey step-up."
                     ),
                 },
+                "admin_auth_mode": _admin_auth_mode(),
+                "admin_auth_eligible": (
+                    str(context.email).strip().lower()
+                    in _admin_user_email_allowlist()
+                ),
             }
 
         def _require_privileged_step_up(store: SaaSStore, context, action: str) -> None:
@@ -1199,6 +1302,73 @@ class PhishingDetectionApp:
                     "policy": _passkey_policy_payload(store, context),
                 },
             )
+
+        async def _alert_stored_scan(
+            store: SaaSStore,
+            context,
+            *,
+            result_id: str,
+            payment_decision: str | None,
+        ) -> None:
+            """Alert on repeated campaign evidence and high payment risk."""
+            related = store.list_related_scan_results(
+                org_id=context.org_id,
+                result_id=result_id,
+                limit=25,
+            )
+            concrete_related = []
+            fingerprint_parts: list[str] = []
+            signal_types: set[str] = set()
+            for item in related["related"]:
+                concrete_matches = [
+                    match
+                    for match in item.get("matched_signals", [])
+                    if match.get("type") != "payment_decision"
+                ]
+                if not concrete_matches:
+                    continue
+                concrete_related.append(item)
+                for match in concrete_matches:
+                    signal_type = str(match.get("type") or "")
+                    signal_value = str(match.get("value") or "")
+                    if signal_type:
+                        signal_types.add(signal_type)
+                    if signal_type and signal_value:
+                        fingerprint_parts.append(f"{signal_type}:{signal_value}")
+
+            normalized_decision = str(payment_decision or "").strip().upper()
+            high_payment_risk = normalized_decision in {
+                "DO_NOT_PAY",
+                "DO_NOT_PAY_UNTIL_VERIFIED",
+            }
+            if concrete_related:
+                campaign_fingerprint = hashlib.sha256(
+                    "\n".join(sorted(set(fingerprint_parts))).encode("utf-8")
+                ).hexdigest()[:24]
+                await operational_alerts.dispatch(
+                    "tenant_campaign_repeated",
+                    details={
+                        "related_count": len(concrete_related),
+                        "signal_types": sorted(signal_types),
+                        "payment_risk": high_payment_risk,
+                    },
+                    tenant_id=context.org_id,
+                    dedupe_key=(
+                        f"tenant-campaign:{context.org_id}:{campaign_fingerprint}"
+                    ),
+                )
+            if high_payment_risk:
+                await operational_alerts.dispatch(
+                    "payment_risk_escalation",
+                    details={
+                        "decision": normalized_decision,
+                        "related_count": len(concrete_related),
+                    },
+                    tenant_id=context.org_id,
+                    dedupe_key=(
+                        f"payment-risk:{context.org_id}:{normalized_decision}"
+                    ),
+                )
 
         def _saas_session_payload(request: Request) -> dict:
             if not self.saas_session_manager.enabled:
@@ -1466,14 +1636,23 @@ class PhishingDetectionApp:
                     response_payload["source"] = "mailbox_scan"
                     response_payload["mail_account_id"] = mailbox.id
                     payment = response_payload.get("payment_protection") or {}
-                    store.record_scan_result(
+                    payment_decision = (
+                        payment.get("decision") if isinstance(payment, dict) else None
+                    )
+                    result_id = store.record_scan_result(
                         org_id=context.org_id,
                         user_id=context.user_id,
                         scan_job_id=scan_job_id,
                         email_id=result.email_id,
                         verdict=result.verdict.value,
-                        payment_decision=payment.get("decision") if isinstance(payment, dict) else None,
+                        payment_decision=payment_decision,
                         result=response_payload,
+                    )
+                    await _alert_stored_scan(
+                        store,
+                        context,
+                        result_id=result_id,
+                        payment_decision=payment_decision,
                     )
                     store.complete_scan_job(scan_job_id, "completed")
                     analyzed.append({
@@ -1700,10 +1879,14 @@ class PhishingDetectionApp:
                 not self.token_verifier.enabled
                 or not hmac.compare_digest(token, expected_token)
             ):
-                _record_auth_failure(
+                attempt_count = _record_auth_failure(
                     request,
                     namespace="analyst",
                     subject="browser-token",
+                )
+                await _alert_auth_failure_threshold(
+                    namespace="analyst",
+                    attempt_count=attempt_count,
                 )
                 return _render_login(next_path, "Invalid analyst token")
             _clear_auth_failures(
@@ -1729,10 +1912,14 @@ class PhishingDetectionApp:
                 not self.token_verifier.enabled
                 or not hmac.compare_digest(token, expected_token)
             ):
-                _record_auth_failure(
+                attempt_count = _record_auth_failure(
                     request,
                     namespace="analyst",
                     subject="api-token",
+                )
+                await _alert_auth_failure_threshold(
+                    namespace="analyst",
+                    attempt_count=attempt_count,
                 )
                 raise HTTPException(status_code=401, detail="Invalid analyst token")
             _clear_auth_failures(
@@ -1744,11 +1931,15 @@ class PhishingDetectionApp:
             _set_auth_cookies(response, request)
             return response
 
-        @app.post("/api/auth/logout", dependencies=[Depends(require_token)])
-        async def api_logout():
+        @app.post("/api/auth/logout")
+        async def api_logout(auth_method: str = Depends(require_token)):
             response = JSONResponse({"status": "ok"})
-            response.delete_cookie(SESSION_COOKIE_NAME)
-            response.delete_cookie(CSRF_COOKIE_NAME)
+            if auth_method == "owner-passkey-session":
+                response.delete_cookie(USER_SESSION_COOKIE_NAME)
+                response.delete_cookie(USER_CSRF_COOKIE_NAME)
+            else:
+                response.delete_cookie(SESSION_COOKIE_NAME)
+                response.delete_cookie(CSRF_COOKIE_NAME)
             return response
 
         @app.get("/api/auth/session")
@@ -1758,6 +1949,7 @@ class PhishingDetectionApp:
                 return {
                     "auth_enabled": False,
                     "authenticated": True,
+                    "auth_method": "local-insecure",
                     "expires_at": None,
                     "max_age_seconds": SESSION_MAX_AGE_SECONDS,
                     "public_demo_mode": _demo_enabled(),
@@ -1765,9 +1957,28 @@ class PhishingDetectionApp:
             payload = self.token_verifier.session_payload(
                 request.cookies.get(SESSION_COOKIE_NAME)
             )
+            passkey_context = _passkey_admin_context(request) if payload is None else None
+            if passkey_context is not None:
+                user_payload = self.saas_session_manager.session_payload(
+                    request.cookies.get(USER_SESSION_COOKIE_NAME)
+                )
+                step_up = _get_saas_store().get_passkey_step_up(
+                    org_id=passkey_context.org_id,
+                    user_id=passkey_context.user_id,
+                )
+                return {
+                    "auth_enabled": True,
+                    "authenticated": True,
+                    "auth_method": "owner-passkey-session",
+                    "expires_at": user_payload.get("exp") if user_payload else None,
+                    "step_up_expires_at": step_up.get("expires_at") if step_up else None,
+                    "max_age_seconds": USER_SESSION_MAX_AGE_SECONDS,
+                    "public_demo_mode": _demo_enabled(),
+                }
             return {
                 "auth_enabled": True,
                 "authenticated": payload is not None,
+                "auth_method": "analyst-token-session" if payload else None,
                 "expires_at": payload.get("exp") if payload else None,
                 "max_age_seconds": SESSION_MAX_AGE_SECONDS,
                 "public_demo_mode": _demo_enabled(),
@@ -1920,10 +2131,14 @@ class PhishingDetectionApp:
                     str(payload.get("password", "")),
                 )
             except InvalidCredentialsError:
-                _record_auth_failure(
+                attempt_count = _record_auth_failure(
                     request,
                     namespace="saas-user",
                     subject=email,
+                )
+                await _alert_auth_failure_threshold(
+                    namespace="saas-user",
+                    attempt_count=attempt_count,
                 )
                 raise HTTPException(status_code=401, detail="Invalid email or password")
             _clear_auth_failures(
@@ -2897,14 +3112,23 @@ class PhishingDetectionApp:
                     quantity=1,
                     idempotency_key=scan_job_id,
                 )
-                store.record_scan_result(
+                payment_decision = (
+                    payment.get("decision") if isinstance(payment, dict) else None
+                )
+                result_id = store.record_scan_result(
                     org_id=context.org_id,
                     user_id=context.user_id,
                     scan_job_id=scan_job_id,
                     email_id=result.email_id,
                     verdict=result.verdict.value,
-                    payment_decision=payment.get("decision") if isinstance(payment, dict) else None,
+                    payment_decision=payment_decision,
                     result=response_payload,
+                )
+                await _alert_stored_scan(
+                    store,
+                    context,
+                    result_id=result_id,
+                    payment_decision=payment_decision,
                 )
                 store.complete_scan_job(scan_job_id, "completed")
             except Exception:
@@ -2970,14 +3194,23 @@ class PhishingDetectionApp:
                     quantity=1,
                     idempotency_key=scan_job_id,
                 )
-                store.record_scan_result(
+                payment_decision = (
+                    payment.get("decision") if isinstance(payment, dict) else None
+                )
+                result_id = store.record_scan_result(
                     org_id=context.org_id,
                     user_id=context.user_id,
                     scan_job_id=scan_job_id,
                     email_id=result.email_id,
                     verdict=result.verdict.value,
-                    payment_decision=payment.get("decision") if isinstance(payment, dict) else None,
+                    payment_decision=payment_decision,
                     result=response_payload,
+                )
+                await _alert_stored_scan(
+                    store,
+                    context,
+                    result_id=result_id,
+                    payment_decision=payment_decision,
                 )
                 store.complete_scan_job(scan_job_id, "completed")
             except Exception:
@@ -4600,7 +4833,15 @@ Quick Start:
     )
     purge_parser.add_argument(
         "--target",
-        choices=["jsonl", "alerts", "feedback", "saas", "sender-profiles", "all"],
+        choices=[
+            "jsonl",
+            "alerts",
+            "operational-alerts",
+            "feedback",
+            "saas",
+            "sender-profiles",
+            "all",
+        ],
         default="jsonl",
         help="Data store to purge. Default preserves the legacy JSONL-only behavior.",
     )
@@ -4625,6 +4866,11 @@ Quick Start:
         "--alerts-path",
         default="data/alerts.jsonl",
         help="Path to the alert JSONL file to purge.",
+    )
+    purge_parser.add_argument(
+        "--operational-alerts-path",
+        default="data/operational_alerts.jsonl",
+        help="Path to the privacy-minimized operational alert JSONL file.",
     )
     purge_parser.add_argument(
         "--saas-db",
@@ -4864,6 +5110,50 @@ Quick Start:
                 print(f"  kept:        {alert_stats.kept}")
                 print(f"  dropped:     {alert_stats.dropped}")
                 print(f"  unparseable: {alert_stats.unparseable}")
+
+        if args.target in ("operational-alerts", "all"):
+            if args.dry_run:
+                import shutil, tempfile
+                src_path = Path(args.operational_alerts_path)
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=".jsonl",
+                    delete=False,
+                ) as tmp:
+                    tmp_path = Path(tmp.name)
+                if src_path.exists():
+                    shutil.copy2(src_path, tmp_path)
+                try:
+                    operational_stats = purge_alerts_jsonl(
+                        tmp_path,
+                        max_age_days=max_age,
+                        keep_unparseable=not args.strict,
+                    )
+                    print(
+                        f"[DRY RUN] {args.operational_alerts_path} "
+                        "(no changes written)"
+                    )
+                    print(f"  cutoff:      {operational_stats.cutoff.isoformat()}")
+                    print(f"  would keep:  {operational_stats.kept}")
+                    print(f"  would drop:  {operational_stats.dropped}")
+                    print(
+                        "  unparseable: "
+                        f"{operational_stats.unparseable} "
+                        f"({'kept' if not args.strict else 'dropped'})"
+                    )
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+            else:
+                operational_stats = purge_alerts_jsonl(
+                    args.operational_alerts_path,
+                    max_age_days=max_age,
+                    keep_unparseable=not args.strict,
+                )
+                print(f"Purged operational alerts {operational_stats.path}")
+                print(f"  cutoff:      {operational_stats.cutoff.isoformat()}")
+                print(f"  kept:        {operational_stats.kept}")
+                print(f"  dropped:     {operational_stats.dropped}")
+                print(f"  unparseable: {operational_stats.unparseable}")
 
         if args.target in ("feedback", "all"):
             feedback_stats = asyncio.run(purge_feedback_db(

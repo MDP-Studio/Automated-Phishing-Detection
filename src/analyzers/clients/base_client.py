@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import aiohttp
 from asyncio_throttle import Throttler as AsyncThrottle
 
+from src.automation.operational_alerts import OperationalAlertDispatcher
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,15 +37,19 @@ class CircuitBreaker:
         self.failure_count = 0
         self.state = "closed"
 
-    def record_failure(self) -> None:
-        """Record a failed request."""
+    def record_failure(self) -> bool:
+        """Record a failed request and report a transition into open state."""
+        was_open = self.state == "open"
         self.failure_count += 1
         self.last_failure_time = time.time()
         if self.failure_count >= self.failure_threshold:
             self.state = "open"
-            logger.warning(
-                f"Circuit breaker opened after {self.failure_count} failures"
-            )
+            if not was_open:
+                logger.warning(
+                    f"Circuit breaker opened after {self.failure_count} failures"
+                )
+                return True
+        return False
 
     def can_attempt(self) -> bool:
         """Check if we can attempt a request."""
@@ -117,6 +123,7 @@ class BaseAPIClient(ABC):
         base_url: str,
         rate_limit: Tuple[int, int] = (10, 60),
         cache_ttl: int = 3600,
+        operational_alert_dispatcher: Optional[OperationalAlertDispatcher] = None,
     ):
         """
         Initialize the API client.
@@ -137,6 +144,9 @@ class BaseAPIClient(ABC):
 
         # Circuit breaker
         self.circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=300)
+        self.operational_alerts = (
+            operational_alert_dispatcher or OperationalAlertDispatcher.from_env()
+        )
 
         # Session management
         self._session: Optional[aiohttp.ClientSession] = None
@@ -224,7 +234,7 @@ class BaseAPIClient(ABC):
                                 logger.debug(f"404 not found: {error_msg[:120]}")
                             else:
                                 logger.error(error_msg)
-                                self.circuit_breaker.record_failure()
+                                await self._record_request_failure()
                             raise Exception(error_msg)
 
                         # Handle server errors with retry
@@ -241,7 +251,7 @@ class BaseAPIClient(ABC):
                                 text = await response.text()
                                 error_msg = f"Server error {response.status}: {text}"
                                 logger.error(error_msg)
-                                self.circuit_breaker.record_failure()
+                                await self._record_request_failure()
                                 raise Exception(error_msg)
 
                         # Success
@@ -264,7 +274,7 @@ class BaseAPIClient(ABC):
                         await asyncio.sleep(wait_time)
                     else:
                         logger.error(f"Request timeout after {max_retries} attempts")
-                        self.circuit_breaker.record_failure()
+                        await self._record_request_failure()
                         raise
 
                 except aiohttp.ClientError as e:
@@ -277,10 +287,25 @@ class BaseAPIClient(ABC):
                         await asyncio.sleep(wait_time)
                     else:
                         logger.error(f"Network error after {max_retries} attempts: {e}")
-                        self.circuit_breaker.record_failure()
+                        await self._record_request_failure()
                         raise
 
         raise Exception(f"Request failed after {max_retries} attempts")
+
+    async def _record_request_failure(self) -> None:
+        """Record a vendor failure and alert once when its circuit opens."""
+        opened = self.circuit_breaker.record_failure()
+        if not opened:
+            return
+        await self.operational_alerts.dispatch(
+            "analyzer_circuit_open",
+            details={
+                "analyzer": self.__class__.__name__,
+                "failure_count": self.circuit_breaker.failure_count,
+                "recovery_timeout_seconds": self.circuit_breaker.recovery_timeout,
+            },
+            dedupe_key=f"analyzer-circuit:{self.__class__.__name__}",
+        )
 
     def _get_cache_key(self, *args: str) -> str:
         """Generate cache key from arguments."""

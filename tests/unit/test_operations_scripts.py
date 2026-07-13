@@ -24,6 +24,10 @@ def test_backup_runtime_data_excludes_secret_files_by_default(tmp_path, monkeypa
     data.mkdir()
     (data / "results.jsonl").write_text('{"email_id":"one"}\n', encoding="utf-8")
     (data / "alerts.jsonl").write_text('{"email_id":"one"}\n', encoding="utf-8")
+    (data / "operational_alerts.jsonl").write_text(
+        '{"event_type":"auth_failure_threshold"}\n',
+        encoding="utf-8",
+    )
     (data / "accounts.json").write_text('{"secret":"token"}\n', encoding="utf-8")
 
     backup_script = _load_script("backup_runtime_data.py")
@@ -32,6 +36,7 @@ def test_backup_runtime_data_excludes_secret_files_by_default(tmp_path, monkeypa
     backup_path = Path(manifest["backup_path"])
     assert backup_path.exists()
     assert "data/results.jsonl" in manifest["files"]
+    assert "data/operational_alerts.jsonl" in manifest["files"]
     assert "data/accounts.json" not in manifest["files"]
 
     with zipfile.ZipFile(backup_path) as archive:

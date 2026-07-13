@@ -13,16 +13,21 @@ from fastapi.testclient import TestClient
 import main as app_main
 from main import PhishingDetectionApp
 from src.billing.entitlements import locked_analyzer_result
+from src.automation.operational_alerts import OperationalAlertDispatcher
 from src.config import PipelineConfig
 from src.feedback.email_lookup import EmailLookupIndex
 from src.models import AnalyzerResult, PipelineResult, Verdict
 from src.reporting.dashboard import PhishingDashboard
-from src.saas.auth import SaaSSessionManager, USER_CSRF_COOKIE_NAME
+from src.saas.auth import (
+    SaaSSessionManager,
+    USER_CSRF_COOKIE_NAME,
+    USER_SESSION_COOKIE_NAME,
+)
 from src.saas.database import SaaSStore
 from src.security.web_security import TokenVerifier
 
 
-def _build_saas_app(tmp_path, *, signup_enabled: bool):
+def _build_saas_app(tmp_path, *, signup_enabled: bool, analyze_side_effect=None):
     app_wrapper = PhishingDetectionApp.__new__(PhishingDetectionApp)
     app_wrapper.config = PipelineConfig(
         analyst_api_token="analyst-secret",
@@ -31,7 +36,7 @@ def _build_saas_app(tmp_path, *, signup_enabled: bool):
         saas_public_signup_enabled=signup_enabled,
     )
     app_wrapper.pipeline = MagicMock()
-    app_wrapper.pipeline.analyze.side_effect = _fake_analyze
+    app_wrapper.pipeline.analyze.side_effect = analyze_side_effect or _fake_analyze
     app_wrapper.report_gen = MagicMock()
     app_wrapper.ioc_exporter = MagicMock()
     app_wrapper.sigma_exporter = MagicMock()
@@ -41,6 +46,11 @@ def _build_saas_app(tmp_path, *, signup_enabled: bool):
     )
     app_wrapper.token_verifier = TokenVerifier("analyst-secret")
     app_wrapper.saas_session_manager = SaaSSessionManager("saas-secret-for-tests")
+    app_wrapper.operational_alerts = OperationalAlertDispatcher(
+        log_path=tmp_path / "operational_alerts.jsonl",
+        hash_key="test-alert-hash-key",
+        cooldown_seconds=0,
+    )
     app_wrapper._saas_store = None
     app_wrapper._monitor = None
     app_wrapper._upload_results = []
@@ -70,6 +80,31 @@ async def _fake_analyze(email, feature_gate=None):
         extracted_urls=[],
         iocs={"headers": {}},
         reasoning="test reasoning",
+        timestamp=datetime.now(timezone.utc),
+    )
+
+
+async def _fake_high_payment_risk_analyze(email, feature_gate=None):
+    feature_gate("url_reputation")
+    return PipelineResult(
+        email_id=email.email_id,
+        verdict=Verdict.LIKELY_PHISHING,
+        overall_score=0.91,
+        overall_confidence=0.9,
+        analyzer_results={
+            "payment_fraud": AnalyzerResult(
+                analyzer_name="payment_fraud",
+                risk_score=0.95,
+                confidence=0.95,
+                details={
+                    "decision": "DO_NOT_PAY",
+                    "risk_score": 0.95,
+                },
+            ),
+        },
+        extracted_urls=[],
+        iocs={"headers": {}},
+        reasoning="high payment risk test",
         timestamp=datetime.now(timezone.utc),
     )
 
@@ -354,6 +389,62 @@ def test_saas_related_scans_are_campaign_grouped_and_org_scoped(tmp_path):
     other_result_id = other_org.get("/api/saas/scans").json()["results"][0]["id"]
     assert all(item["id"] != other_result_id for item in related.json()["related"])
     assert missing.status_code == 404
+
+
+def test_repeated_campaign_alert_excludes_mailbox_and_tenant_content(tmp_path):
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    signup = _signup(client)
+    account = signup.json()["account"]
+
+    assert _upload(client).status_code == 200
+    assert _upload(client).status_code == 200
+
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "operational_alerts.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    alert = next(row for row in rows if row["event_type"] == "tenant_campaign_repeated")
+    serialized = json.dumps(alert, sort_keys=True)
+    assert alert["details"]["related_count"] == 1
+    assert "sender" in alert["details"]["signal_types"]
+    assert alert["tenant_ref"].startswith("tenant_")
+    assert "vendor@example.com" not in serialized
+    assert "Invoice update" not in serialized
+    assert account["org_id"] not in serialized
+    assert "https://" not in serialized
+
+
+def test_high_payment_risk_alert_excludes_invoice_content(tmp_path):
+    client = TestClient(
+        _build_saas_app(
+            tmp_path,
+            signup_enabled=True,
+            analyze_side_effect=_fake_high_payment_risk_analyze,
+        ),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    signup = _signup(client)
+    account = signup.json()["account"]
+
+    response = _upload(client)
+
+    assert response.status_code == 200
+    alert = json.loads(
+        (tmp_path / "operational_alerts.jsonl").read_text(encoding="utf-8")
+    )
+    serialized = json.dumps(alert, sort_keys=True)
+    assert alert["event_type"] == "payment_risk_escalation"
+    assert alert["details"] == {"decision": "DO_NOT_PAY", "related_count": 0}
+    assert "vendor@example.com" not in serialized
+    assert "Invoice update" not in serialized
+    assert account["org_id"] not in serialized
 
 
 def test_saas_team_member_role_management_is_owner_scoped(tmp_path):
@@ -962,6 +1053,14 @@ def test_saas_login_is_rate_limited_after_failed_attempts(tmp_path):
 
     assert statuses[:10] == [401] * 10
     assert statuses[10] == 429
+    alert = json.loads(
+        (tmp_path / "operational_alerts.jsonl").read_text(encoding="utf-8")
+    )
+    serialized = json.dumps(alert, sort_keys=True)
+    assert alert["event_type"] == "auth_failure_threshold"
+    assert alert["details"]["auth_namespace"] == "saas-user"
+    assert "owner@example.com" not in serialized
+    assert "testclient" not in serialized
 
 
 def test_saas_password_reset_request_and_confirm(tmp_path, monkeypatch):
@@ -1430,6 +1529,204 @@ def test_passkey_enforce_allows_privileged_mutation_after_step_up(tmp_path, monk
 
     assert response.status_code == 200
     assert response.json()["member"]["email"] == "analyst@example.com"
+
+
+def test_owner_passkey_session_can_open_admin_without_shared_token(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_AUTH_MODE",
+        "token_or_owner_passkey",
+    )
+    monkeypatch.setenv("PHISHANALYZE_ADMIN_USER_EMAILS", "owner@example.com")
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    account = _signup(client).json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="owner-admin-credential",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+    store.record_passkey_step_up(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+    )
+
+    page = client.get("/admin/status")
+    overview = client.get("/admin/api/overview")
+    session = client.get("/api/auth/session")
+
+    assert page.status_code == 200
+    assert overview.status_code == 200
+    assert session.status_code == 200
+    assert session.json()["auth_method"] == "owner-passkey-session"
+    assert session.json()["step_up_expires_at"]
+
+
+def test_unallowlisted_tenant_owner_cannot_use_passkey_admin_bridge(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_AUTH_MODE",
+        "token_or_owner_passkey",
+    )
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_USER_EMAILS",
+        "platform-owner@example.test",
+    )
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    account = _signup(client).json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="tenant-owner-credential",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+    store.record_passkey_step_up(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+    )
+
+    page = client.get("/admin/status")
+    overview = client.get("/admin/api/overview")
+
+    assert page.status_code == 303
+    assert overview.status_code == 401
+
+
+def test_owner_session_without_fresh_step_up_cannot_open_admin(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_AUTH_MODE",
+        "token_or_owner_passkey",
+    )
+    monkeypatch.setenv("PHISHANALYZE_ADMIN_USER_EMAILS", "owner@example.com")
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    account = _signup(client).json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="owner-admin-credential",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+
+    page = client.get("/admin/status")
+    overview = client.get("/admin/api/overview")
+
+    assert page.status_code == 303
+    assert page.headers["location"].startswith("/admin/login?next=")
+    assert overview.status_code == 401
+
+
+def test_owner_passkey_admin_mutation_requires_user_csrf(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_AUTH_MODE",
+        "token_or_owner_passkey",
+    )
+    monkeypatch.setenv("PHISHANALYZE_ADMIN_USER_EMAILS", "owner@example.com")
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    account = _signup(client).json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.add_webauthn_credential(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        credential_id="owner-admin-credential",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+    store.record_passkey_step_up(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+    )
+
+    blocked = client.post("/api/auth/logout")
+    csrf = client.cookies.get(USER_CSRF_COOKIE_NAME)
+    client.cookies.set("phishdetect_csrf", "stale-legacy-csrf")
+    allowed = client.post(
+        "/api/auth/logout",
+        headers={
+            "x-csrf-token": "stale-legacy-csrf",
+            "x-user-csrf-token": csrf,
+            "origin": "https://testserver",
+        },
+    )
+
+    assert blocked.status_code == 403
+    assert allowed.status_code == 200
+    assert client.cookies.get(USER_SESSION_COOKIE_NAME) is None
+
+
+def test_analyst_role_cannot_use_passkey_admin_bridge(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_AUTH_MODE",
+        "token_or_owner_passkey",
+    )
+    monkeypatch.setenv(
+        "PHISHANALYZE_ADMIN_USER_EMAILS",
+        "owner@example.com,analyst@example.com",
+    )
+    app = _build_saas_app(tmp_path, signup_enabled=True)
+    owner_client = TestClient(
+        app,
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    owner = _signup(owner_client).json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    analyst = store.add_org_member(
+        org_id=owner["org_id"],
+        actor_user_id=owner["user_id"],
+        email="analyst@example.com",
+        password="correct horse analyst",
+        role="analyst",
+    )
+    store.add_webauthn_credential(
+        org_id=owner["org_id"],
+        user_id=analyst.user_id,
+        credential_id="analyst-credential",
+        public_key_b64="public-key-test",
+        sign_count=0,
+    )
+    store.record_passkey_step_up(
+        org_id=owner["org_id"],
+        user_id=analyst.user_id,
+    )
+    analyst_client = TestClient(
+        app,
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    login = analyst_client.post(
+        "/api/saas/auth/login",
+        headers=_same_origin_headers(),
+        json={
+            "email": "analyst@example.com",
+            "password": "correct horse analyst",
+        },
+    )
+
+    page = analyst_client.get("/admin/status")
+
+    assert login.status_code == 200
+    assert page.status_code == 303
+    assert page.headers["location"].startswith("/admin/login?next=")
 
 
 def test_passkey_enforce_blocks_every_registered_privileged_mutation(tmp_path, monkeypatch):

@@ -1,5 +1,6 @@
 # Core
-aiohttp>=3.9
+# Security: keep async HTTP handling past the 2026 request/parser advisories.
+aiohttp>=3.14.1
 asyncio-throttle>=1.0
 python-dotenv>=1.0
 
@@ -14,7 +15,8 @@ dnspython>=2.4
 # QR / Image
 pyzbar>=0.1.9
 opencv-python-headless>=4.8
-Pillow>=10.0
+# Security: keep image parsing past the 2026 Pillow advisories.
+Pillow>=12.3.0
 PyMuPDF>=1.23
 python-docx>=1.0
 
@@ -37,10 +39,13 @@ numpy>=1.25
 
 # API framework
 fastapi>=0.104
-# Security: keep Starlette past PYSEC-2026-161.
-starlette>=1.0.1
+# Security: keep Starlette past PYSEC-2026-248 and PYSEC-2026-249.
+starlette>=1.3.1
 uvicorn>=0.24
-python-multipart>=0.0.9
+# Security: reject vulnerable multipart parser releases through CVE-2026-53540.
+python-multipart>=0.0.31
+# Security: keep CLI parsing past PYSEC-2026-2132.
+click>=8.3.3
 pydantic>=2.5
 
 # Storage
@@ -65,7 +70,9 @@ pyyaml>=6.0
 
 # Security: HTML sanitization for body_html rendering (defense in depth
 # alongside the sandboxed iframe). See src/security/html_sanitizer.py.
-bleach>=6.0
+# Security: keep URI sanitization past the 6.4.0 fixes. The application never
+# enables the advisory-specific parse_email=True linkifier path.
+bleach>=6.4.0
 webauthn>=2.7
 
 # Testing

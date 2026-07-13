@@ -68,10 +68,12 @@
       </article>
       <article>
         <span>Authentication</span>
-        <h2>User accounts are separate from analyst admin</h2>
+        <h2>Owner admin access supports user-bound passkeys</h2>
         <p>
           Customer workspaces use email and password login with CSRF-protected
-          actions. Owner admin tools stay separate from the public product flow.
+          actions. Only an explicitly allowlisted platform owner/admin can enter
+          private admin routes after a fresh passkey step-up. Tenant owner role
+          alone is not enough. Internal bearer clients remain compatible.
         </p>
       </article>
       <article>
@@ -90,6 +92,15 @@
           Live analysis, billing, stored history, feedback learning, and mailbox
           monitoring stay behind normal user authentication or private analyst
           authentication, depending on the surface.
+        </p>
+      </article>
+      <article>
+        <span>Operations</span>
+        <h2>Payment-risk alerts omit invoice content</h2>
+        <p>
+          High-risk decisions, repeated campaigns, analyzer outages, and login
+          throttling can notify operators without email addresses, subjects,
+          URLs, message content, client IPs, or raw workspace identifiers.
         </p>
       </article>
     </section>

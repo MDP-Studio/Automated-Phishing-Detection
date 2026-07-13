@@ -72,11 +72,12 @@
       </article>
       <article>
         <span>Authentication</span>
-        <h2>User accounts are separate from owner admin tools</h2>
+        <h2>Owner admin access supports user-bound passkeys</h2>
         <p>
-          Public users sign in with normal workspace accounts. Owner-only admin
-          monitoring stays on private admin routes and is not part of the public
-          workflow.
+          Public users sign in with normal workspace accounts. Only an
+          explicitly allowlisted platform owner/admin can enter private admin
+          routes after a fresh passkey step-up. Tenant owner role alone is not
+          enough. The legacy analyst token remains for internal API compatibility.
         </p>
       </article>
       <article>
@@ -94,6 +95,15 @@
         <p>
           URL reputation, domain intelligence, sandbox, browser, and LLM checks
           are shown as included or locked so users know what happened.
+        </p>
+      </article>
+      <article>
+        <span>Operations</span>
+        <h2>Runtime alerts omit mailbox content</h2>
+        <p>
+          Analyzer outages, repeated campaigns, high payment risk, and login
+          throttling can notify operators without email addresses, subjects,
+          URLs, message content, client IPs, or raw workspace identifiers.
         </p>
       </article>
     </section>

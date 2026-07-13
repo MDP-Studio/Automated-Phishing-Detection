@@ -84,7 +84,7 @@
 <body>
   <main class="login-panel">
     <h1>Analyst login</h1>
-    <p>Internal PhishAnalyze tools require the owner analyst token.</p>
+    <p>Internal PhishAnalyze tools accept a fresh allowlisted platform owner/admin passkey step-up or the compatibility analyst token.</p>
     <form method="post" action="/admin/login">
       <input type="hidden" name="next" value="{{NEXT_PATH}}">
       <label for="token">Analyst token</label>
@@ -95,6 +95,10 @@
     <div class="demo-entry">
       <a href="/analyze">Open PhishAnalyze</a>
       <span>Use email/password login for the public product. Owner system tools stay under /admin.</span>
+    </div>
+    <div class="demo-entry">
+      <a href="/settings">Use an owner passkey</a>
+      <span>Sign in to the workspace, register or verify a passkey, then return to the admin route.</span>
     </div>
     {{DEMO_LINK}}
   </main>

@@ -69,12 +69,20 @@
         opts.headers = opts.headers || {};
         var method = (opts.method || 'GET').toUpperCase();
         if (!isSaasApi && method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && !hasHeader(opts.headers, 'x-csrf-token')) {
-          var csrf = readCookie('phishdetect_csrf');
+          var csrf = readCookie('phishdetect_csrf') || readCookie('phishdetect_user_csrf');
+          var userCsrf = readCookie('phishdetect_user_csrf');
           if (csrf) {
             if (opts.headers instanceof Headers) {
               opts.headers.set('X-CSRF-Token', csrf);
             } else {
               opts.headers['X-CSRF-Token'] = csrf;
+            }
+          }
+          if (userCsrf && !hasHeader(opts.headers, 'x-user-csrf-token')) {
+            if (opts.headers instanceof Headers) {
+              opts.headers.set('X-User-CSRF-Token', userCsrf);
+            } else {
+              opts.headers['X-User-CSRF-Token'] = userCsrf;
             }
           }
         }

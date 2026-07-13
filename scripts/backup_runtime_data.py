@@ -13,6 +13,7 @@ from pathlib import Path
 DEFAULT_RUNTIME_PATHS = (
     "data/results.jsonl",
     "data/alerts.jsonl",
+    "data/operational_alerts.jsonl",
     "data/feedback.db",
     "data/saas.db",
     "data/sender_profiles.db",
