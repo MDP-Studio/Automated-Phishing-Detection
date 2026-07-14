@@ -395,7 +395,7 @@
       pricingTitle.textContent = isHighestPlan ? "Plan coverage" : "Upgrade options";
       pricingDescription.textContent = isHighestPlan
         ? "You are already on the highest plan. Lower tiers are included here for comparison."
-        : "Open this when you need more scans, mailbox monitoring, or external reputation checks.";
+        : "Open this when you need more scans, connected-mailbox scan now, or external reputation checks.";
     }
     lastPlansPayload = payload;
     planGrid.innerHTML = "";
@@ -724,8 +724,8 @@ ${element.innerHTML}
     const locked = !entitlement.available;
     mailboxQuota.textContent = `${quota.used} / ${quota.limit} mailboxes`;
     mailboxLockText.textContent = locked
-      ? `${entitlement.reason || "Mailbox monitoring is locked on this plan."} Manual scans still work.`
-      : "Connect the inbox that receives supplier invoices, remittance updates, or bank-detail changes.";
+      ? `${entitlement.reason || "Connected-mailbox scan now is locked on this plan."} Manual file scans still work.`
+      : "Connect the inbox that receives supplier invoices, then select Scan now when you want it checked. Automatic polling is not included.";
     mailboxSubmitButton.textContent = locked ? `${entitlement.required_plan_name || "Pro"} required` : "Connect mailbox";
     mailboxForm.querySelectorAll("input, select, button[type='submit']").forEach((control) => {
       control.disabled = locked;
@@ -740,7 +740,7 @@ ${element.innerHTML}
       empty.innerHTML = `
         <div>
           <strong>No connected mailbox</strong>
-          <span>${escapeHtml(locked ? "Upgrade to Pro to connect mailbox monitoring." : "Connect an inbox to prepare automatic monitoring.")}</span>
+          <span>${escapeHtml(locked ? "Upgrade to Pro for connected-mailbox scan now." : "Connect an inbox, then start each scan yourself. Automatic polling is not included.")}</span>
         </div>
       `;
       mailboxList.appendChild(empty);
@@ -1513,7 +1513,7 @@ ${element.innerHTML}
       showNotice(mailboxNotice, response.message || "Mailbox saved for this workspace.");
     } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
       if (error.status === 402) {
-        showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect mailbox monitoring.`);
+        showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect a mailbox for on-demand scans.`);
         openUpgradePanel();
         restoreSubmitButton = false;
         await loadMailboxes();

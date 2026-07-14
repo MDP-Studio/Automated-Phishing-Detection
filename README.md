@@ -22,7 +22,7 @@ MDP Studio project pages:
 
 | Area | Routes | Purpose |
 | --- | --- | --- |
-| PhishAnalyze | `/product`, `/analyze`, `/dashboard`, `/monitor`, `/settings`, `/trust` | Introduce the scanner, upload suspicious `.eml` files, review private scan history, connect monitored mailboxes, manage simple settings, and read the PhishAnalyze trust page. |
+| PhishAnalyze | `/product`, `/analyze`, `/dashboard`, `/monitor`, `/settings`, `/trust` | Introduce the scanner, upload suspicious `.eml` files, review private scan history, connect mailboxes for user-triggered scans, manage simple settings, and read the PhishAnalyze trust page. |
 | PayShield | `/product`, `/app`, `/trust` | Analyze invoice and payment-related emails, see payment-risk evidence, and use PayShield-specific trust copy. |
 | Search readiness | `/robots.txt`, `/sitemap.xml` | Serve host-aware crawl instructions and sitemaps for `phishanalyze.mdpstudio.com.au` and `payshield.mdpstudio.com.au`. |
 | Public growth guides | `/guides/*` | Host-aware phishing and payment-scam guide pages that link into the scanner or PayShield app. |
@@ -91,6 +91,8 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence
   display, renewal-date display, and webhook sync.
 - Encrypted mailbox credential storage and gated on-demand mailbox scan now.
+- Continuous customer mailbox polling is not included in any paid plan yet.
+  Connected mailboxes are scanned only after a signed-in user selects Scan now.
 - PayShield mailbox scans run a cheap payment-relevance gate first. Clear
   non-payment emails are skipped without being stored as deep scan results;
   invoice, payment request, bank-detail change, receipt, billing, and uncertain
@@ -359,10 +361,15 @@ bundle with:
 ## Plans And Cost Gates
 
 Plan behavior is enforced before paid analyzers or mailbox features run.
+The historical internal entitlement slug `mailbox_monitoring` currently gates
+only encrypted mailbox connection and user-triggered Scan now. It must not be
+used to claim automatic polling until the tenant-isolated worker and production
+Postgres migration are implemented and verified.
 
 - Free: 5 manual scans/month, local checks only.
 - Starter: URL/domain intelligence style checks.
-- Pro: LLM explanation, monitoring, attachment/browser-backed checks.
+- Pro: LLM explanation, on-demand connected-mailbox scans, and
+  attachment/browser-backed checks.
 - Business: higher limits, team/audit-oriented usage, and broader operating
   room.
 

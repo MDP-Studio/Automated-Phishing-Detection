@@ -136,8 +136,12 @@ checks, and Stripe webhook handlers share one catalog.
 
 Free includes manual scans, header checks, payment rules, and account-scoped
 history. Starter unlocks reputation, domain, brand, and sender-profile checks.
-Pro unlocks mailbox monitoring, LLM BEC reasoning, attachment sandboxing, and browser URL
-detonation. Business adds team audit controls and higher budgets.
+Pro unlocks encrypted mailbox connection with user-triggered Scan now, LLM BEC
+reasoning, attachment sandboxing, and browser URL detonation. Business adds
+team audit controls and higher budgets. No current plan includes automatic
+mailbox polling. The historical `mailbox_monitoring` entitlement slug is kept
+for API and persisted-row compatibility, but currently represents only the
+on-demand connection and Scan now capability.
 
 ## Database Tables
 

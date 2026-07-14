@@ -434,8 +434,9 @@ def mailbox_guide_payload(provider: str | None = "all") -> dict[str, Any]:
         "schema_version": "1.0",
         "provider": normalized,
         "summary": (
-            "Mailbox monitoring currently uses secure IMAP with app-specific "
-            "passwords where the provider allows it. Manual .eml upload remains "
+            "Connected-mailbox Scan now uses secure IMAP with app-specific "
+            "passwords where the provider allows it. It runs only when requested; "
+            "automatic polling is not included. Manual .eml upload remains "
             "the safest fallback, especially for Microsoft, work, school, and "
             "university accounts that require OAuth or admin approval."
         ),

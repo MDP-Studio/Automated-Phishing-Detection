@@ -67,7 +67,7 @@
         <div>
           <span class="eyebrow" id="orgLabel">Workspace</span>
           <h1>PayShield workspace</h1>
-          <p>Scan payment-risk emails first, then use mailbox monitoring later when your workspace is ready.</p>
+          <p>Scan payment-risk emails manually or run an on-demand scan from a connected workspace mailbox.</p>
         </div>
         <button type="button" id="logoutButton">Logout</button>
       </header>
@@ -114,7 +114,7 @@
         <div class="section-heading pricing-heading">
           <div>
             <h2 id="pricingTitle">Plan options</h2>
-            <p id="pricingDescription">Open this when you need more scans, mailbox monitoring, or external reputation checks.</p>
+            <p id="pricingDescription">Open this when you need more scans, connected-mailbox scan now, or external reputation checks.</p>
           </div>
           <div class="pricing-actions">
             <div class="billing-cycle" id="billingCycle" aria-label="Billing cadence">
@@ -237,12 +237,12 @@
         </article>
       </section>
 
-      <section class="mailbox-section" id="mailboxSection" aria-label="Mailbox monitoring">
+      <section class="mailbox-section" id="mailboxSection" aria-label="Connected mailbox scan now">
         <div class="section-heading">
           <div>
             <span class="eyebrow">Mailbox workflow</span>
-            <h2>Connect payment inboxes later</h2>
-            <p>Manual scanning comes first. PayShield keeps mailbox credentials encrypted per workspace when monitoring is unlocked.</p>
+            <h2>Connect a payment inbox for scan now</h2>
+            <p>PayShield encrypts mailbox credentials per workspace and scans only when a signed-in user selects Scan now. Automatic polling is not included yet.</p>
           </div>
           <div class="mailbox-quota" id="mailboxQuota">0 / 0 mailboxes</div>
         </div>
@@ -250,7 +250,7 @@
         <div class="mailbox-grid">
           <article class="mailbox-card">
             <h3>Mailbox connection</h3>
-            <p id="mailboxLockText">Mailbox monitoring unlocks on Pro.</p>
+            <p id="mailboxLockText">Connected-mailbox scan now unlocks on Pro. Automatic polling is not included.</p>
             <form class="mailbox-form" id="mailboxForm">
               <label>Provider
                 <select name="provider" id="mailboxProvider">

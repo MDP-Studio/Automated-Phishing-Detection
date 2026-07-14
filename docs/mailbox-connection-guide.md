@@ -56,7 +56,8 @@ Use this in the product:
 
 ```text
 Start with manual .eml upload if you are unsure.
-Mailbox monitoring needs an app-specific password, not your normal mailbox password.
+Connected-mailbox Scan now needs an app-specific password, not your normal mailbox password.
+Scans run only when a signed-in user selects Scan now. Automatic polling is not included.
 Microsoft, work, school, and university accounts may need admin approval.
 ```
 

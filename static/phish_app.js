@@ -74,8 +74,8 @@
       summary: "Manual scans with URL reputation, domain context, and stored history.",
     },
     pro: {
-      best_for: "Teams that monitor shared inboxes",
-      summary: "Mailbox monitoring plus LLM, attachment, and browser-backed analysis.",
+      best_for: "Teams that review shared payment inboxes",
+      summary: "Connected-mailbox scan now plus LLM, attachment, and browser-backed analysis.",
     },
     business: {
       best_for: "Security teams and agencies",
@@ -875,7 +875,7 @@ ${element.innerHTML}
       pricingTitle.textContent = isHighestPlan ? "Plan coverage" : "Upgrade options";
       pricingDescription.textContent = isHighestPlan
         ? "You are already on the highest plan. The lower tiers are shown for comparison."
-        : "Open this when you need more scans, mailbox monitoring, or external reputation checks.";
+        : "Open this when you need more scans, connected-mailbox scan now, or external reputation checks.";
     }
     planGrid.innerHTML = "";
     (payload.plans || []).forEach((plan) => {
@@ -1497,8 +1497,8 @@ ${element.innerHTML}
       control.disabled = locked;
     });
     mailboxStatus.textContent = locked
-      ? `${entitlement.reason || "Mailbox monitoring is locked on this plan."} Use Upgrade to review plans.`
-      : "Mailbox connections are stored per workspace.";
+      ? `${entitlement.reason || "Connected-mailbox scan now is locked on this plan."} Use Upgrade to review plans.`
+      : "Mailbox connections are stored per workspace. Scans run only when you select Scan now; automatic polling is not included.";
     mailboxList.innerHTML = "";
     if (!mailboxes.length) {
       mailboxList.innerHTML = '<article class="mailbox-row"><div><strong>No connected mailbox</strong><span>Connect an inbox when monitoring is available on your plan.</span></div></article>';
@@ -1534,7 +1534,7 @@ ${element.innerHTML}
       "settingsMailboxHeading",
       mailboxes.length
         ? `${mailboxes.length} connected mailbox${mailboxes.length === 1 ? "" : "es"}`
-        : "Mailbox monitoring"
+        : "Mailbox scan now"
     );
   }
 
@@ -1930,7 +1930,7 @@ ${element.innerHTML}
     } catch (error) {
       console.warn("Mailbox save failed", error);
       if (error.status === 402) {
-        showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect mailbox monitoring.`);
+        showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to connect a mailbox for on-demand scans.`);
         openPricingPanel();
       } else {
         notice(mailboxNotice, error.message);

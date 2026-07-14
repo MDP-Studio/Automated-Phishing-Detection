@@ -2,7 +2,9 @@ import pytest
 
 from src.billing.entitlements import feature_entitlement, locked_analyzer_result
 from src.billing.plans import (
+    CONTINUOUS_MAILBOX_POLLING_AVAILABLE,
     FEATURE_CATALOG,
+    MAILBOX_AUTOMATION_STATUS,
     PLAN_CATALOG,
     minimum_plan_for_feature,
     plan_allows_feature,
@@ -79,6 +81,28 @@ def test_pro_plan_payload_unlocks_pro_but_not_business_features():
     assert features["url_detonation"]["available"] is True
     assert features["mailbox_monitoring"]["available"] is True
     assert features["team_audit"]["available"] is False
+
+
+def test_paid_catalog_does_not_claim_unimplemented_continuous_mailbox_polling():
+    payload = plan_payload(current_plan="business")
+    mailbox_feature = next(
+        feature for feature in payload["features"] if feature["slug"] == "mailbox_monitoring"
+    )
+    public_catalog_text = " ".join(
+        [
+            *(plan["summary"] for plan in payload["plans"]),
+            mailbox_feature["name"],
+            mailbox_feature["description"],
+        ]
+    ).lower()
+
+    assert MAILBOX_AUTOMATION_STATUS == "scan_now_only"
+    assert CONTINUOUS_MAILBOX_POLLING_AVAILABLE is False
+    assert payload["mailbox_automation"]["continuous_polling_available"] is False
+    assert "scan now" in public_catalog_text or "on-demand" in public_catalog_text
+    assert "automatic polling is not included" in public_catalog_text
+    assert "continuous user-owned mailbox polling" not in public_catalog_text
+    assert "mailbox monitoring plus" not in public_catalog_text
 
 
 def test_plan_allows_feature_uses_catalog_order():

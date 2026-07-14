@@ -12,6 +12,18 @@ from dataclasses import asdict, dataclass
 
 logger = logging.getLogger(__name__)
 
+# Keep the historical ``mailbox_monitoring`` slug stable because it is already
+# used by API gates and persisted feature-lock rows. Public catalog copy must
+# describe the capability that actually exists today: encrypted mailbox
+# connection plus a user-triggered scan. Continuous polling stays unavailable
+# until the tenant-isolated worker and production Postgres migration exist.
+MAILBOX_AUTOMATION_STATUS = "scan_now_only"
+CONTINUOUS_MAILBOX_POLLING_AVAILABLE = False
+MAILBOX_AUTOMATION_NOTICE = (
+    "Connected mailboxes can be scanned on demand. Automatic polling is not "
+    "included yet."
+)
+
 
 @dataclass(frozen=True)
 class Plan:
@@ -73,7 +85,7 @@ PLAN_CATALOG: tuple[Plan, ...] = (
         mailbox_quota=3,
         stripe_price_env="STRIPE_PRICE_PRO",
         stripe_yearly_price_env="STRIPE_PRICE_PRO_YEARLY",
-        summary="Mailbox monitoring plus LLM and browser-backed analysis.",
+        summary="On-demand connected-mailbox scans plus LLM and browser-backed analysis.",
         best_for="SMEs that receive invoices by email",
     ),
     Plan(
@@ -166,8 +178,11 @@ FEATURE_CATALOG: tuple[Feature, ...] = (
     ),
     Feature(
         slug="mailbox_monitoring",
-        name="Mailbox monitoring",
-        description="Continuous user-owned mailbox polling with per-user result isolation.",
+        name="Connected mailbox scan now",
+        description=(
+            "Connect a workspace-owned mailbox and start an encrypted, "
+            "tenant-scoped scan on demand. Automatic polling is not included yet."
+        ),
         minimum_plan="pro",
         category="Mailbox automation",
         expensive=True,
@@ -278,5 +293,10 @@ def plan_payload(current_plan: str = "free") -> dict:
         "current_plan": current_plan,
         "plans": plans,
         "features": features,
+        "mailbox_automation": {
+            "status": MAILBOX_AUTOMATION_STATUS,
+            "continuous_polling_available": CONTINUOUS_MAILBOX_POLLING_AVAILABLE,
+            "notice": MAILBOX_AUTOMATION_NOTICE,
+        },
         "billing_recommendation": "Stripe Billing + Checkout Sessions + Customer Portal",
     }
