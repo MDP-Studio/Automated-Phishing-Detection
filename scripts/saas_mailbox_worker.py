@@ -66,6 +66,10 @@ async def _run(config: PipelineConfig, *, once: bool) -> None:
         run_worker_loop,
     )
 
+    # Opening the store applies additive schema migrations. Do this before the
+    # service flag check so a fail-closed standby deployment is fully prepared
+    # without waiting for monitoring to be enabled.
+    store = SaaSStore(config.saas_db_path)
     if not config.saas_continuous_monitoring_enabled:
         heartbeat_path = Path(config.saas_mailbox_worker_heartbeat_path)
         disabled_stats = WorkerRunStats()
@@ -77,7 +81,6 @@ async def _run(config: PipelineConfig, *, once: bool) -> None:
             await asyncio.sleep(max(1, config.saas_mailbox_worker_idle_seconds))
             _write_heartbeat(heartbeat_path, disabled_stats)
     application = PhishingDetectionApp()
-    store = SaaSStore(config.saas_db_path)
 
     async def scan_one(*, context, mailbox, max_results: int) -> dict:
         return await scan_mailbox(
