@@ -10,7 +10,6 @@ Setup:
         --user you@yahoo.com
 """
 import logging
-from typing import Optional
 
 from src.config import IMAPConfig
 from src.ingestion.email_provider import EmailProvider, FetchedEmail
@@ -66,7 +65,9 @@ class IMAPProvider(EmailProvider):
 
         for uid in uids:
             conn = self._fetcher._ensure_connected()
-            status, data = conn.uid("fetch", uid, "(RFC822)")
+            # PEEK keeps the message unread until the tenant scan has either
+            # stored a result or recorded an explicit skip receipt.
+            status, data = conn.uid("fetch", uid, "(BODY.PEEK[])")
             if status != "OK" or not data or data[0] is None:
                 continue
 
@@ -91,7 +92,10 @@ class IMAPProvider(EmailProvider):
             conn = self._fetcher._ensure_connected()
             # Need writable access
             conn.select(self._config.folder, readonly=False)
-            conn.uid("store", provider_id, "+FLAGS", "\\Seen")
+            status, _data = conn.uid("store", provider_id, "+FLAGS", "\\Seen")
+            if status != "OK":
+                logger.warning("IMAP provider refused the mark-as-read update")
+                return False
             return True
         except Exception as e:
             logger.error(f"IMAP mark_as_read failed: {e}")

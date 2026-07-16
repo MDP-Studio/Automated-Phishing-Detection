@@ -90,9 +90,12 @@ confirmed" or `DO_NOT_PAY_UNTIL_VERIFIED`.
   API clients load.
 - Stripe Checkout, Customer Portal, yearly/monthly pricing, billing-cadence
   display, renewal-date display, and webhook sync.
-- Encrypted mailbox credential storage and gated on-demand mailbox scan now.
-- Continuous customer mailbox polling is not included in any paid plan yet.
-  Connected mailboxes are scanned only after a signed-in user selects Scan now.
+- Encrypted mailbox credential storage and gated on-demand mailbox Scan now.
+- Explicit opt-in continuous polling for Pro and Business mailboxes. The worker
+  revalidates tenant membership and entitlement before every poll, uses leased
+  claims and duplicate-message receipts, and applies bounded retry backoff.
+  Connecting a mailbox never enables polling by itself. Completed mailbox
+  analyses consume the same monthly scan budget shown in the workspace.
 - PayShield mailbox scans run a cheap payment-relevance gate first. Clear
   non-payment emails are skipped without being stored as deep scan results;
   invoice, payment request, bank-detail change, receipt, billing, and uncertain
@@ -362,13 +365,15 @@ bundle with:
 
 Plan behavior is enforced before paid analyzers or mailbox features run.
 The historical internal entitlement slug `mailbox_monitoring` currently gates
-only encrypted mailbox connection and user-triggered Scan now. It must not be
-used to claim automatic polling until the tenant-isolated worker and production
-Postgres migration are implemented and verified.
+encrypted mailbox connection and user-triggered Scan now. Continuous polling is
+separately gated by `continuous_mailbox_monitoring` and requires an owner/admin
+opt-in for each mailbox plus the deployment-level worker flag. The production
+service currently uses a hardened single-host SQLite lease queue. PostgreSQL is
+still required before multi-host or high-availability worker scaling.
 
 - Free: 5 manual scans/month, local checks only.
 - Starter: URL/domain intelligence style checks.
-- Pro: LLM explanation, on-demand connected-mailbox scans, and
+- Pro: LLM explanation, on-demand or opt-in continuous connected-mailbox scans, and
   attachment/browser-backed checks.
 - Business: higher limits, team/audit-oriented usage, and broader operating
   room.
@@ -381,7 +386,7 @@ what would be unlocked without burning API quota.
 Current collected test suite:
 
 ```text
-1343 tests across 78 test modules
+1384 tests in the current suite
 ```
 
 Run all tests:

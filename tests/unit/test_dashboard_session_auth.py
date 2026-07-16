@@ -332,9 +332,9 @@ def test_saas_app_mailbox_workflow_is_first_class_and_plan_gated():
 
     assert response.status_code == 200
     assert 'id="mailboxSection"' in response.text
-    assert "Connect a payment inbox for scan now" in response.text
+    assert "Connect a payment inbox" in response.text
     assert "Customer monitoring separate from the internal PhishAnalyze analyst console" not in response.text
-    assert "scans only when a signed-in user selects Scan now" in response.text
+    assert "explicitly opt in to continuous monitoring on Pro and Business" in response.text
     assert 'id="mailboxForm"' in response.text
     assert 'id="mailboxList"' in response.text
     assert 'id="mailboxNotice" hidden' in response.text
@@ -346,8 +346,10 @@ def test_saas_app_mailbox_workflow_is_first_class_and_plan_gated():
     assert "imap.zoho.com" in js
     assert "Proton Bridge password" in js
     assert "data-delete-mailbox" in js
-    assert "Connected-mailbox scan now unlocks on Pro" in response.text
-    assert "Automatic polling is not included" in response.text
+    assert "data-automation-mailbox" in js
+    assert "/automation" in js
+    assert "Connected-mailbox scan now and opt-in monitoring unlock on Pro" in response.text
+    assert "explicitly opt in to continuous monitoring" in response.text
     assert ".mailbox-grid" in css
     assert ".mailbox-row" in css
 

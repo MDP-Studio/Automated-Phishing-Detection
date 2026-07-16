@@ -27,13 +27,20 @@ from src.saas.database import SaaSStore
 from src.security.web_security import TokenVerifier
 
 
-def _build_saas_app(tmp_path, *, signup_enabled: bool, analyze_side_effect=None):
+def _build_saas_app(
+    tmp_path,
+    *,
+    signup_enabled: bool,
+    analyze_side_effect=None,
+    continuous_monitoring_enabled: bool = False,
+):
     app_wrapper = PhishingDetectionApp.__new__(PhishingDetectionApp)
     app_wrapper.config = PipelineConfig(
         analyst_api_token="analyst-secret",
         saas_db_path=str(tmp_path / "saas.db"),
         saas_session_secret="saas-secret-for-tests",
         saas_public_signup_enabled=signup_enabled,
+        saas_continuous_monitoring_enabled=continuous_monitoring_enabled,
     )
     app_wrapper.pipeline = MagicMock()
     app_wrapper.pipeline.analyze.side_effect = analyze_side_effect or _fake_analyze
@@ -539,6 +546,9 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
                 )
             ]
 
+        def mark_as_read(self, _provider_id):
+            return True
+
         def disconnect(self):
             FakeIMAPProvider.disconnected = True
 
@@ -568,6 +578,11 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
         f"/api/saas/mailboxes/{mailbox_id}/scan-now",
         {"max_results": 2},
     )
+    duplicate = _post_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{mailbox_id}/scan-now",
+        {"max_results": 2},
+    )
     history = client.get("/api/saas/scans")
     serialized = json.dumps(response.json())
 
@@ -577,7 +592,11 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
     assert response.json()["skipped_non_payment"] == 0
     assert response.json()["results"][0]["subject"] == "Invoice INV-100"
     assert response.json()["mailbox"]["credential_saved"] is True
-    assert history.json()["results"][0]["email_id"]
+    assert response.json()["account"]["monthly_scan_used"] == 1
+    assert duplicate.status_code == 200
+    assert duplicate.json()["duplicates"] == 1
+    assert duplicate.json()["analyzed"] == 0
+    assert len(history.json()["results"]) == 1
     assert FakeIMAPProvider.config_seen.host == "imap.zoho.com"
     assert FakeIMAPProvider.config_seen.port == 993
     assert FakeIMAPProvider.config_seen.user == "owner@example.com"
@@ -585,6 +604,50 @@ def test_mailbox_scan_now_fetches_unread_and_stores_result(tmp_path, monkeypatch
     assert "Private mailbox body" not in serialized
     assert "secret app password" not in serialized
     assert "encrypted_token_ref" not in serialized
+
+
+def test_mailbox_scan_now_enforces_monthly_scan_budget_before_imap(tmp_path, monkeypatch):
+    monkeypatch.setenv("ACCOUNTS_ENCRYPTION_KEY", "test-mailbox-encryption-key-for-unit-tests")
+    import src.ingestion.imap_provider as imap_provider_module
+
+    class UnexpectedIMAPProvider:
+        def __init__(self, _config):
+            raise AssertionError("IMAP must not start after the monthly scan budget is exhausted")
+
+    monkeypatch.setattr(imap_provider_module, "IMAPProvider", UnexpectedIMAPProvider)
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=account["org_id"], plan_slug="pro")
+    mailbox = store.register_mail_account(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        provider="imap",
+        external_account_id="owner@example.com",
+        encrypted_token_ref="encrypted",
+        status="active",
+    )
+    store.record_usage_event(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        feature_slug="manual_scan",
+        quantity=1000,
+        idempotency_key="quota-fixture",
+    )
+
+    response = _post_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{mailbox.id}/scan-now",
+        {"max_results": 1},
+    )
+
+    assert response.status_code == 402
+    assert "scan" in response.json()["detail"].lower()
 
 
 def test_mailbox_scan_now_skips_clear_non_payment_mail(tmp_path, monkeypatch):
@@ -626,6 +689,9 @@ def test_mailbox_scan_now_skips_clear_non_payment_mail(tmp_path, monkeypatch):
                     metadata={},
                 ),
             ]
+
+        def mark_as_read(self, _provider_id):
+            return True
 
         def disconnect(self):
             pass
@@ -820,6 +886,136 @@ def test_saas_mailbox_connection_encrypts_and_lists_masked_metadata(tmp_path, mo
     assert delete.status_code == 200
     assert delete.json()["deleted"] is True
     assert after_delete.json()["mailboxes"] == []
+
+
+def test_mailbox_automation_is_explicit_and_tenant_scoped(tmp_path):
+    client = TestClient(
+        _build_saas_app(
+            tmp_path,
+            signup_enabled=True,
+            continuous_monitoring_enabled=True,
+        ),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    signup = _signup(client)
+    first = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=first["org_id"], plan_slug="pro")
+    first_mailbox = store.register_mail_account(
+        org_id=first["org_id"],
+        user_id=first["user_id"],
+        provider="gmail",
+        external_account_id="first@example.com",
+        encrypted_token_ref="encrypted-first",
+        status="active",
+    )
+    second = store.create_user_with_org(
+        email="second@example.com",
+        password="correct horse battery",
+        org_name="Second workspace",
+    )
+    store.set_subscription(org_id=second.org_id, plan_slug="pro")
+    second_mailbox = store.register_mail_account(
+        org_id=second.org_id,
+        user_id=second.user_id,
+        provider="gmail",
+        external_account_id="second@example.com",
+        encrypted_token_ref="encrypted-second",
+        status="active",
+    )
+
+    cross_tenant = _patch_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{second_mailbox.id}/automation",
+        {"enabled": True},
+    )
+    enabled = _patch_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{first_mailbox.id}/automation",
+        {"enabled": True},
+    )
+    listing = client.get("/api/saas/mailboxes")
+    store.set_subscription(org_id=first["org_id"], plan_slug="free")
+    disabled_after_downgrade = _patch_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{first_mailbox.id}/automation",
+        {"enabled": False},
+    )
+
+    assert cross_tenant.status_code == 404
+    assert enabled.status_code == 200
+    assert enabled.json()["mailbox"]["automation_enabled"] is True
+    assert enabled.json()["automation"]["enabled_mailboxes"] == 1
+    assert listing.status_code == 200
+    assert [item["id"] for item in listing.json()["mailboxes"]] == [first_mailbox.id]
+    assert listing.json()["workflow"]["status"] == "monitoring"
+    assert disabled_after_downgrade.status_code == 200
+    assert disabled_after_downgrade.json()["mailbox"]["automation_enabled"] is False
+
+
+def test_mailbox_automation_enable_fails_when_worker_service_is_disabled(tmp_path):
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=account["org_id"], plan_slug="pro")
+    mailbox = store.register_mail_account(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        provider="gmail",
+        external_account_id="owner@example.com",
+        encrypted_token_ref="encrypted",
+        status="active",
+    )
+
+    response = _patch_json_with_csrf(
+        client,
+        f"/api/saas/mailboxes/{mailbox.id}/automation",
+        {"enabled": True},
+    )
+
+    assert response.status_code == 503
+    assert "not enabled" in response.json()["detail"]
+
+
+def test_mailbox_delete_is_blocked_while_a_scan_lease_is_active(tmp_path):
+    client = TestClient(
+        _build_saas_app(tmp_path, signup_enabled=True),
+        base_url="https://testserver",
+        follow_redirects=False,
+    )
+    signup = _signup(client)
+    account = signup.json()["account"]
+    store = SaaSStore(tmp_path / "saas.db")
+    store.set_subscription(org_id=account["org_id"], plan_slug="pro")
+    mailbox = store.register_mail_account(
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        provider="gmail",
+        external_account_id="owner@example.com",
+        encrypted_token_ref="encrypted",
+        status="active",
+    )
+    assert store.claim_mailbox_for_scan(
+        org_id=account["org_id"],
+        mail_account_id=mailbox.id,
+        lease_owner="worker-test",
+        lease_seconds=300,
+    )
+
+    response = _delete_with_csrf(client, f"/api/saas/mailboxes/{mailbox.id}")
+
+    assert response.status_code == 409
+    assert "scan is in progress" in response.json()["detail"]
+    assert store.get_mail_account(
+        org_id=account["org_id"],
+        mail_account_id=mailbox.id,
+    ) is not None
 
 
 def test_saas_mailbox_connection_rejects_bad_credentials_without_storing(tmp_path, monkeypatch):

@@ -173,6 +173,8 @@ def test_mailbox_guide_is_easy_to_find_and_privacy_bounded():
     assert 'name="port"' in payshield
     assert "/mailbox-guide" in phish
     assert "/mailbox-guide" in payshield
+    assert "Connecting a mailbox does not enable background polling" in docs
+    assert "turn it off at any time" in guide
 
 
 def test_external_template_links_open_in_new_tab_safely():

@@ -19,6 +19,11 @@ return the raw app password, encrypted token material, or full mailbox body in
 API responses. Users can delete a mailbox connection from the app. They should
 also revoke the app password inside the email provider account settings.
 
+Connecting a mailbox does not start background polling. Pro and Business owners
+or admins can explicitly enable continuous monitoring for one mailbox in the
+app, see its current state, and turn it off at any time. Scan now remains
+available independently.
+
 ## Provider Quick Guide
 
 | Provider | Current path | IMAP host | Password to use | Notes |
@@ -57,7 +62,8 @@ Use this in the product:
 ```text
 Start with manual .eml upload if you are unsure.
 Connected-mailbox Scan now needs an app-specific password, not your normal mailbox password.
-Scans run only when a signed-in user selects Scan now. Automatic polling is not included.
+Connecting a mailbox does not enable background polling.
+On Pro and Business, an owner or admin can explicitly turn continuous monitoring on or off per mailbox.
 Microsoft, work, school, and university accounts may need admin approval.
 ```
 

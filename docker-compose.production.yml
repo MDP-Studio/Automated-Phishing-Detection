@@ -71,6 +71,51 @@ services:
       - tunnel
       - browser-sandbox
 
+  saas-mailbox-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_BUILD_SHA: ${APP_BUILD_SHA:-unknown}
+        INSTALL_PLAYWRIGHT_BROWSER: "0"
+    container_name: phishing-saas-mailbox-worker
+    command: ["python", "scripts/saas_mailbox_worker.py"]
+    init: true
+    depends_on:
+      browser-sandbox:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    env_file:
+      - path: ${APP_ENV_FILE:-.env}
+        required: true
+        format: raw
+    environment:
+      - LOG_LEVEL=WARNING
+      - MAX_CONCURRENT_ANALYZERS=5
+      - ANALYSIS_PIPELINE_TIMEOUT_SECONDS=90
+      - URL_DETONATION_TIMEOUT_SECONDS=12
+      - PLAYWRIGHT_WS_ENDPOINT=ws://browser-sandbox:3000/
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./eval_runs:/app/eval_runs
+      - ./models:/app/models
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "scripts/saas_mailbox_worker.py", "--healthcheck"]
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 6
+    networks:
+      - browser-sandbox
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared-tunnel
@@ -83,9 +128,12 @@ services:
         condition: service_healthy
     networks:
       - tunnel
+      - mdp-tunnel
 
 networks:
   tunnel:
     driver: bridge
   browser-sandbox:
     driver: bridge
+  mdp-tunnel:
+    external: true

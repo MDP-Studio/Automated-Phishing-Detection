@@ -16,6 +16,7 @@ Backed up by default:
 - `data/alerts.jsonl`
 - `data/operational_alerts.jsonl`
 - `data/feedback.db`
+- `data/saas.db`
 - `data/sender_profiles.db`
 
 Credentials are excluded by default. If you must back up account tokens, run:
@@ -106,6 +107,37 @@ to the event-triggering request. Monitor the local JSONL file and webhook
 receiver separately. Event schemas
 reject mailbox content, addresses, subjects, URLs, client IPs, raw user IDs,
 and raw tenant IDs. See `docs/operational-alerting.md` for the field contract.
+
+## SaaS Mailbox Worker
+
+The `phishing-saas-mailbox-worker` container is a separate customer polling
+process. It starts in healthy standby when this flag is false:
+
+```dotenv
+SAAS_CONTINUOUS_MONITORING_ENABLED=false
+```
+
+Before setting it to `true` in production:
+
+1. Back up `data/saas.db` and verify the archive manifest includes it.
+2. Deploy the worker and confirm both app and worker health checks are green.
+3. Confirm every existing `mail_accounts.automation_enabled` value is `0`.
+4. Set the flag to `true`, redeploy, and verify the aggregate heartbeat only.
+5. Let each Pro or Business owner/admin opt in individual mailboxes in the app.
+
+Useful checks that do not expose tenant or mailbox identifiers:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' phishing-saas-mailbox-worker
+docker exec phishing-saas-mailbox-worker python scripts/saas_mailbox_worker.py --healthcheck
+docker exec phishing-saas-mailbox-worker python scripts/saas_mailbox_worker.py --once
+```
+
+The worker uses SQLite WAL, serialized claims, expiring leases, current tenant
+and entitlement checks, duplicate-message receipts, and failure backoff. This is
+a single-host operating model. Do not run multiple database hosts or claim high
+availability until the PostgreSQL migration is complete. Completed mailbox
+analyses reserve and consume the same monthly scan budget shown to the workspace.
 
 ## Runtime Retention
 
@@ -224,7 +256,9 @@ bash scripts/docker_deploy.sh
 ```
 
 That script fast-forwards git, rebuilds the production stack, removes orphaned
-old containers, and waits for `phishing-orchestrator` to become healthy.
+old containers, creates the shared `mdp-tunnel` network when needed, and waits
+for both `phishing-orchestrator` and `phishing-saas-mailbox-worker` to become
+healthy before declaring success.
 
 ## Load And Error Probe
 

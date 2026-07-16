@@ -1489,7 +1489,11 @@ ${element.innerHTML}
     }
     const quota = payload.quota || { used: 0, limit: 0 };
     const entitlement = payload.entitlement || {};
+    const automation = payload.automation || {};
+    const automationEntitlement = automation.entitlement || {};
+    const account = payload.account || {};
     const locked = !entitlement.available;
+    const canManageAutomation = account.role === "owner" || account.role === "admin";
     renderSettingsMailboxes(payload);
     mailboxQuota.textContent = `${quota.used} / ${quota.limit} mailboxes`;
     mailboxButton.textContent = locked ? `${entitlement.required_plan_name || "Pro"} required` : "Connect mailbox";
@@ -1498,7 +1502,7 @@ ${element.innerHTML}
     });
     mailboxStatus.textContent = locked
       ? `${entitlement.reason || "Connected-mailbox scan now is locked on this plan."} Use Upgrade to review plans.`
-      : "Mailbox connections are stored per workspace. Scans run only when you select Scan now; automatic polling is not included.";
+      : "Mailbox connections are stored per workspace. Use Scan now, or explicitly enable continuous monitoring on Pro and Business.";
     mailboxList.innerHTML = "";
     if (!mailboxes.length) {
       mailboxList.innerHTML = '<article class="mailbox-row"><div><strong>No connected mailbox</strong><span>Connect an inbox when monitoring is available on your plan.</span></div></article>';
@@ -1507,14 +1511,27 @@ ${element.innerHTML}
     mailboxes.forEach((item) => {
       const row = document.createElement("article");
       row.className = "mailbox-row";
+      const automationAvailable = Boolean(automation.service_enabled && automationEntitlement.available);
+      const automationDisabled = !item.automation_enabled && (!automationAvailable || !canManageAutomation || item.status !== "active");
+      const automationText = item.automation_enabled
+        ? "Turn off monitoring"
+        : !automation.service_enabled
+          ? "Monitoring unavailable"
+          : automationAvailable
+            ? "Enable monitoring"
+            : `${automationEntitlement.required_plan_name || "Pro"} monitoring`;
+      const monitoringDetail = item.automation_enabled
+        ? `monitoring every ${Math.max(1, Math.round(Number(item.poll_interval_seconds || 300) / 60))} minutes`
+        : "monitoring off";
       row.innerHTML = `
         <div>
           <strong>${escapeHtml(item.external_account_id || "Mailbox")}</strong>
-          <span>${escapeHtml(label(item.provider))} &middot; ${escapeHtml(item.credential_saved ? "credential encrypted" : "credential missing")}</span>
+          <span>${escapeHtml(label(item.provider))} &middot; ${escapeHtml(item.credential_saved ? "credential encrypted" : "credential missing")} &middot; ${escapeHtml(monitoringDetail)}</span>
         </div>
         <div class="row-actions">
           <span class="status-pill ${escapeHtml(item.status || "locked")}">${escapeHtml(mailboxStatusLabel(item.status))}</span>
           <button class="secondary-button" type="button" data-scan-mailbox="${escapeHtml(item.id)}">Scan now</button>
+          ${canManageAutomation ? `<button class="secondary-button" type="button" data-automation-mailbox="${escapeHtml(item.id)}" data-automation-enabled="${item.automation_enabled ? "true" : "false"}"${automationDisabled ? " disabled" : ""}>${escapeHtml(automationText)}</button>` : ""}
           <button class="secondary-button" type="button" data-delete-mailbox="${escapeHtml(item.id)}">Delete</button>
         </div>
       `;
@@ -1947,6 +1964,38 @@ ${element.innerHTML}
   });
 
   mailboxList.addEventListener("click", async (event) => {
+    const automationButton = event.target.closest("[data-automation-mailbox]");
+    if (automationButton) {
+      const mailboxId = automationButton.dataset.automationMailbox;
+      const enabled = automationButton.dataset.automationEnabled === "true";
+      automationButton.disabled = true;
+      automationButton.textContent = enabled ? "Turning off" : "Enabling";
+      try {
+        await apiJson(`/api/saas/mailboxes/${encodeURIComponent(mailboxId)}/automation`, {
+          method: "PATCH",
+          body: JSON.stringify({ enabled: !enabled }),
+        });
+        await loadMailboxes();
+        notice(
+          mailboxNotice,
+          enabled
+            ? "Continuous monitoring is off for this mailbox."
+            : "Continuous monitoring is on for this mailbox and can be turned off at any time."
+        );
+      } catch (error) {
+        console.warn("Mailbox automation update failed", error);
+        automationButton.disabled = false;
+        automationButton.textContent = enabled ? "Turn off monitoring" : "Enable monitoring";
+        if (error.status === 402) {
+          showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to enable continuous monitoring.`);
+          openPricingPanel();
+        } else {
+          notice(mailboxNotice, error.message);
+        }
+      }
+      return;
+    }
+
     const scanButton = event.target.closest("[data-scan-mailbox]");
     if (scanButton) {
       const mailboxId = scanButton.dataset.scanMailbox;

@@ -63,6 +63,39 @@ services:
       start_period: 45s
       retries: 6
 
+  saas-mailbox-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: phishing-saas-mailbox-worker
+    command: ["python", "scripts/saas_mailbox_worker.py"]
+    init: true
+    depends_on:
+      browser-sandbox:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_CONCURRENT_ANALYZERS=${MAX_CONCURRENT_ANALYZERS:-10}
+      - ANALYSIS_PIPELINE_TIMEOUT_SECONDS=${ANALYSIS_PIPELINE_TIMEOUT_SECONDS:-120}
+      - PLAYWRIGHT_WS_ENDPOINT=ws://browser-sandbox:3000/
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+    networks:
+      - browser-sandbox
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "scripts/saas_mailbox_worker.py", "--healthcheck"]
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 6
+
 networks:
   browser-sandbox:
     driver: bridge

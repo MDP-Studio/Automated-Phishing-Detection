@@ -117,6 +117,13 @@ class PipelineConfig:
     saas_db_path: str = "data/saas.db"
     saas_session_secret: str = ""
     saas_public_signup_enabled: bool = False
+    saas_continuous_monitoring_enabled: bool = False
+    saas_mailbox_poll_interval_seconds: int = 300
+    saas_mailbox_worker_idle_seconds: int = 10
+    saas_mailbox_worker_lease_seconds: int = 1200
+    saas_mailbox_worker_batch_size: int = 5
+    saas_mailbox_worker_max_results: int = 10
+    saas_mailbox_worker_heartbeat_path: str = "data/saas_mailbox_worker_heartbeat.json"
     password_reset_token_ttl_minutes: int = 30
     max_concurrent_browser: int = 3
     # Privacy / data retention. Stored email metadata in
@@ -214,6 +221,29 @@ class PipelineConfig:
             saas_public_signup_enabled=_coerce_bool(
                 os.getenv("SAAS_PUBLIC_SIGNUP_ENABLED"),
                 False,
+            ),
+            saas_continuous_monitoring_enabled=_coerce_bool(
+                os.getenv("SAAS_CONTINUOUS_MONITORING_ENABLED"),
+                False,
+            ),
+            saas_mailbox_poll_interval_seconds=int(
+                os.getenv("SAAS_MAILBOX_POLL_INTERVAL_SECONDS", "300")
+            ),
+            saas_mailbox_worker_idle_seconds=int(
+                os.getenv("SAAS_MAILBOX_WORKER_IDLE_SECONDS", "10")
+            ),
+            saas_mailbox_worker_lease_seconds=int(
+                os.getenv("SAAS_MAILBOX_WORKER_LEASE_SECONDS", "1200")
+            ),
+            saas_mailbox_worker_batch_size=int(
+                os.getenv("SAAS_MAILBOX_WORKER_BATCH_SIZE", "5")
+            ),
+            saas_mailbox_worker_max_results=int(
+                os.getenv("SAAS_MAILBOX_WORKER_MAX_RESULTS", "10")
+            ),
+            saas_mailbox_worker_heartbeat_path=os.getenv(
+                "SAAS_MAILBOX_WORKER_HEARTBEAT_PATH",
+                "data/saas_mailbox_worker_heartbeat.json",
             ),
             password_reset_token_ttl_minutes=int(os.getenv("PASSWORD_RESET_TOKEN_TTL_MINUTES", "30")),
             max_concurrent_browser=3,
@@ -352,6 +382,48 @@ class PipelineConfig:
                 "SAAS_PUBLIC_SIGNUP_ENABLED",
                 False,
             )),
+            saas_continuous_monitoring_enabled=_coerce_bool(_get(
+                pipeline_data,
+                "saas_continuous_monitoring_enabled",
+                "SAAS_CONTINUOUS_MONITORING_ENABLED",
+                False,
+            )),
+            saas_mailbox_poll_interval_seconds=int(_get(
+                pipeline_data,
+                "saas_mailbox_poll_interval_seconds",
+                "SAAS_MAILBOX_POLL_INTERVAL_SECONDS",
+                300,
+            )),
+            saas_mailbox_worker_idle_seconds=int(_get(
+                pipeline_data,
+                "saas_mailbox_worker_idle_seconds",
+                "SAAS_MAILBOX_WORKER_IDLE_SECONDS",
+                10,
+            )),
+            saas_mailbox_worker_lease_seconds=int(_get(
+                pipeline_data,
+                "saas_mailbox_worker_lease_seconds",
+                "SAAS_MAILBOX_WORKER_LEASE_SECONDS",
+                1200,
+            )),
+            saas_mailbox_worker_batch_size=int(_get(
+                pipeline_data,
+                "saas_mailbox_worker_batch_size",
+                "SAAS_MAILBOX_WORKER_BATCH_SIZE",
+                5,
+            )),
+            saas_mailbox_worker_max_results=int(_get(
+                pipeline_data,
+                "saas_mailbox_worker_max_results",
+                "SAAS_MAILBOX_WORKER_MAX_RESULTS",
+                10,
+            )),
+            saas_mailbox_worker_heartbeat_path=_get(
+                pipeline_data,
+                "saas_mailbox_worker_heartbeat_path",
+                "SAAS_MAILBOX_WORKER_HEARTBEAT_PATH",
+                "data/saas_mailbox_worker_heartbeat.json",
+            ),
             password_reset_token_ttl_minutes=int(_get(
                 pipeline_data,
                 "password_reset_token_ttl_minutes",

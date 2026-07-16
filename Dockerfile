@@ -46,7 +46,8 @@ COPY scripts/ scripts/
 COPY tests/ tests/
 COPY config.yaml .
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Create non-root user. The data/logs dirs are NOT created here — the
 # entrypoint script creates them and chown's to the runtime UID after the

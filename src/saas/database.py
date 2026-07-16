@@ -63,6 +63,10 @@ class PasswordResetTokenError(ValueError):
     """Raised when a password reset token is invalid, used, or expired."""
 
 
+class MailboxLeaseConflictError(ValueError):
+    """Raised when a mailbox mutation would race an active scan lease."""
+
+
 @dataclass(frozen=True)
 class AccountContext:
     user_id: str
@@ -95,6 +99,12 @@ class MailAccountRecord:
     encrypted_token_ref: str | None
     status: str
     created_at: str
+    automation_enabled: bool
+    poll_interval_seconds: int
+    next_poll_at: str | None
+    last_polled_at: str | None
+    failure_count: int
+    last_error_code: str | None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -107,6 +117,12 @@ class MailAccountRecord:
             "status": self.status,
             "created_at": self.created_at,
             "credential_saved": bool(self.encrypted_token_ref),
+            "automation_enabled": self.automation_enabled,
+            "poll_interval_seconds": self.poll_interval_seconds,
+            "next_poll_at": self.next_poll_at,
+            "last_polled_at": self.last_polled_at,
+            "failure_count": self.failure_count,
+            "last_error_code": self.last_error_code,
         }
 
 
@@ -183,9 +199,11 @@ class SaaSStore:
 
     def initialize(self) -> None:
         with self._connect() as conn:
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
             conn.executescript(SCHEMA_SQL)
             self._ensure_schema(conn)
-            conn.execute("PRAGMA user_version = 1")
+            conn.execute("PRAGMA user_version = 2")
             conn.commit()
 
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
@@ -199,6 +217,27 @@ class SaaSStore:
                 "ALTER TABLE subscriptions "
                 "ADD COLUMN billing_interval TEXT NOT NULL DEFAULT 'monthly'"
             )
+        mail_account_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(mail_accounts)").fetchall()
+        }
+        additive_columns = {
+            "automation_enabled": "INTEGER NOT NULL DEFAULT 0",
+            "poll_interval_seconds": "INTEGER NOT NULL DEFAULT 300",
+            "next_poll_at": "TEXT",
+            "last_polled_at": "TEXT",
+            "lease_owner": "TEXT",
+            "lease_expires_at": "TEXT",
+            "failure_count": "INTEGER NOT NULL DEFAULT 0",
+            "last_error_code": "TEXT",
+        }
+        for column, definition in additive_columns.items():
+            if column not in mail_account_columns:
+                conn.execute(f"ALTER TABLE mail_accounts ADD COLUMN {column} {definition}")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_mail_accounts_poll_due "
+            "ON mail_accounts(automation_enabled, status, next_poll_at, lease_expires_at)"
+        )
 
     def create_user_with_org(
         self,
@@ -440,6 +479,57 @@ class SaaSStore:
                 "manual_scan",
                 conn=conn,
             )
+            return AccountContext(
+                user_id=row["user_id"],
+                email=row["email"],
+                org_id=row["org_id"],
+                org_name=row["org_name"],
+                role=row["role"],
+                plan_slug=plan.slug,
+                plan_name=plan.name,
+                subscription_status=row["subscription_status"],
+                stripe_customer_id=row["stripe_customer_id"],
+                stripe_subscription_id=row["stripe_subscription_id"],
+                billing_interval=normalize_billing_interval(row["billing_interval"]),
+                current_period_end=row["current_period_end"],
+                monthly_scan_quota=plan.scan_quota,
+                monthly_scan_used=used,
+                monthly_scan_remaining=max(plan.scan_quota - used, 0),
+            )
+
+    def get_account_context_for_org(self, *, user_id: str, org_id: str) -> AccountContext | None:
+        """Return one explicit membership context for a background tenant task."""
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    u.id AS user_id,
+                    u.email,
+                    o.id AS org_id,
+                    o.name AS org_name,
+                    o.stripe_customer_id,
+                    m.role,
+                    COALESCE(s.plan_slug, 'free') AS plan_slug,
+                    COALESCE(s.status, 'active') AS subscription_status,
+                    s.stripe_subscription_id,
+                    COALESCE(s.billing_interval, 'monthly') AS billing_interval,
+                    s.current_period_end
+                FROM users u
+                JOIN memberships m ON m.user_id = u.id
+                JOIN organizations o ON o.id = m.org_id
+                LEFT JOIN subscriptions s ON s.org_id = o.id
+                WHERE u.id = ? AND o.id = ? AND u.disabled_at IS NULL
+                LIMIT 1
+                """,
+                (user_id, org_id),
+            ).fetchone()
+            if row is None:
+                return None
+            plan_slug = row["plan_slug"] or "free"
+            if row["subscription_status"] not in ACTIVE_SUBSCRIPTION_STATUSES and plan_slug != "free":
+                plan_slug = "free"
+            plan = get_plan(plan_slug)
+            used = self.monthly_usage_count(org_id, "manual_scan", conn=conn)
             return AccountContext(
                 user_id=row["user_id"],
                 email=row["email"],
@@ -813,6 +903,111 @@ class SaaSStore:
             )
             conn.commit()
 
+    def reserve_scan_quota(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        idempotency_key: str,
+        audit_lock: bool = False,
+    ) -> EntitlementDecision:
+        """Atomically reserve one monthly scan before expensive analysis."""
+        if not idempotency_key.strip():
+            raise ValueError("idempotency key is required")
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                """
+                SELECT org_id, user_id
+                FROM usage_events
+                WHERE feature_slug = 'manual_scan' AND idempotency_key = ?
+                """,
+                (idempotency_key,),
+            ).fetchone()
+            plan_slug = self._org_plan_slug(org_id, conn)
+            used = self.monthly_usage_count(org_id, "manual_scan", conn=conn)
+            if existing is not None:
+                if existing["org_id"] != org_id or existing["user_id"] != user_id:
+                    conn.rollback()
+                    raise ValueError("scan reservation belongs to another account")
+                decision = feature_entitlement(
+                    plan_slug,
+                    "manual_scan",
+                    monthly_scan_used=max(used - 1, 0),
+                    enforce_scan_quota=True,
+                )
+                conn.commit()
+                return decision
+
+            decision = feature_entitlement(
+                plan_slug,
+                "manual_scan",
+                monthly_scan_used=used,
+                enforce_scan_quota=True,
+            )
+            if not decision.available:
+                if audit_lock:
+                    now = utc_now_iso()
+                    conn.execute(
+                        """
+                        INSERT INTO feature_locks (
+                            id, org_id, user_id, feature_slug, required_plan, reason, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_id("lock"),
+                            org_id,
+                            user_id,
+                            decision.feature_slug,
+                            decision.required_plan,
+                            decision.reason,
+                            now,
+                        ),
+                    )
+                    self._write_audit(
+                        conn,
+                        org_id=org_id,
+                        actor_user_id=user_id,
+                        action="feature.locked",
+                        target_type="feature",
+                        target_id=decision.feature_slug,
+                        metadata=decision.to_dict(),
+                        now=now,
+                    )
+                conn.commit()
+                return decision
+
+            conn.execute(
+                """
+                INSERT INTO usage_events (
+                    id, org_id, user_id, feature_slug, quantity, occurred_at, idempotency_key
+                ) VALUES (?, ?, ?, 'manual_scan', 1, ?, ?)
+                """,
+                (new_id("use"), org_id, user_id, utc_now_iso(), idempotency_key),
+            )
+            conn.commit()
+            return decision
+
+    def release_scan_quota_reservation(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        idempotency_key: str,
+    ) -> bool:
+        """Release a failed scan's exact quota reservation."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM usage_events
+                WHERE org_id = ? AND user_id = ?
+                  AND feature_slug = 'manual_scan' AND idempotency_key = ?
+                """,
+                (org_id, user_id, idempotency_key),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
     def create_scan_job(
         self,
         *,
@@ -823,6 +1018,13 @@ class SaaSStore:
     ) -> str:
         scan_job_id = new_id("scan")
         with self._connect() as conn:
+            if mail_account_id is not None:
+                mailbox = conn.execute(
+                    "SELECT 1 FROM mail_accounts WHERE id = ? AND org_id = ?",
+                    (mail_account_id, org_id),
+                ).fetchone()
+                if mailbox is None:
+                    raise ValueError("mail account not found for organization")
             conn.execute(
                 """
                 INSERT INTO scan_jobs (
@@ -893,6 +1095,31 @@ class SaaSStore:
             encrypted_token_ref=encrypted_token_ref,
             status=status,
             created_at=now,
+            automation_enabled=False,
+            poll_interval_seconds=300,
+            next_poll_at=None,
+            last_polled_at=None,
+            failure_count=0,
+            last_error_code=None,
+        )
+
+    @staticmethod
+    def _mail_account_record(row: sqlite3.Row) -> MailAccountRecord:
+        return MailAccountRecord(
+            id=row["id"],
+            org_id=row["org_id"],
+            user_id=row["user_id"],
+            provider=row["provider"],
+            external_account_id=row["external_account_id"],
+            encrypted_token_ref=row["encrypted_token_ref"],
+            status=row["status"],
+            created_at=row["created_at"],
+            automation_enabled=bool(row["automation_enabled"]),
+            poll_interval_seconds=int(row["poll_interval_seconds"]),
+            next_poll_at=row["next_poll_at"],
+            last_polled_at=row["last_polled_at"],
+            failure_count=int(row["failure_count"]),
+            last_error_code=row["last_error_code"],
         )
 
     def list_mail_accounts(self, org_id: str) -> list[MailAccountRecord]:
@@ -900,33 +1127,25 @@ class SaaSStore:
             rows = conn.execute(
                 """
                 SELECT id, org_id, user_id, provider, external_account_id,
-                       encrypted_token_ref, status, created_at
+                       encrypted_token_ref, status, created_at,
+                       automation_enabled, poll_interval_seconds, next_poll_at,
+                       last_polled_at, failure_count, last_error_code
                 FROM mail_accounts
                 WHERE org_id = ?
                 ORDER BY created_at DESC
                 """,
                 (org_id,),
             ).fetchall()
-            return [
-                MailAccountRecord(
-                    id=row["id"],
-                    org_id=row["org_id"],
-                    user_id=row["user_id"],
-                    provider=row["provider"],
-                    external_account_id=row["external_account_id"],
-                    encrypted_token_ref=row["encrypted_token_ref"],
-                    status=row["status"],
-                    created_at=row["created_at"],
-                )
-                for row in rows
-            ]
+            return [self._mail_account_record(row) for row in rows]
 
     def get_mail_account(self, *, org_id: str, mail_account_id: str) -> MailAccountRecord | None:
         with self._connect() as conn:
             row = conn.execute(
                 """
                 SELECT id, org_id, user_id, provider, external_account_id,
-                       encrypted_token_ref, status, created_at
+                       encrypted_token_ref, status, created_at,
+                       automation_enabled, poll_interval_seconds, next_poll_at,
+                       last_polled_at, failure_count, last_error_code
                 FROM mail_accounts
                 WHERE org_id = ? AND id = ?
                 """,
@@ -934,16 +1153,7 @@ class SaaSStore:
             ).fetchone()
             if row is None:
                 return None
-            return MailAccountRecord(
-                id=row["id"],
-                org_id=row["org_id"],
-                user_id=row["user_id"],
-                provider=row["provider"],
-                external_account_id=row["external_account_id"],
-                encrypted_token_ref=row["encrypted_token_ref"],
-                status=row["status"],
-                created_at=row["created_at"],
-            )
+            return self._mail_account_record(row)
 
     def set_mail_account_status(
         self,
@@ -979,6 +1189,297 @@ class SaaSStore:
             )
             conn.commit()
 
+    def set_mailbox_automation(
+        self,
+        *,
+        org_id: str,
+        actor_user_id: str,
+        mail_account_id: str,
+        enabled: bool,
+        poll_interval_seconds: int = 300,
+    ) -> MailAccountRecord:
+        interval = int(poll_interval_seconds)
+        if interval < 60 or interval > 86400:
+            raise ValueError("poll interval must be between 60 and 86400 seconds")
+        now = utc_now_iso()
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT status, encrypted_token_ref
+                FROM mail_accounts
+                WHERE id = ? AND org_id = ?
+                """,
+                (mail_account_id, org_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("mail account not found for organization")
+            if enabled and (row["status"] != "active" or not row["encrypted_token_ref"]):
+                raise ValueError("mailbox must be active with a saved credential before automation")
+            conn.execute(
+                """
+                UPDATE mail_accounts
+                SET automation_enabled = ?,
+                    poll_interval_seconds = ?,
+                    next_poll_at = ?,
+                    failure_count = CASE WHEN ? THEN 0 ELSE failure_count END,
+                    last_error_code = CASE WHEN ? THEN NULL ELSE last_error_code END
+                WHERE id = ? AND org_id = ?
+                """,
+                (
+                    int(enabled),
+                    interval,
+                    now if enabled else None,
+                    int(enabled),
+                    int(enabled),
+                    mail_account_id,
+                    org_id,
+                ),
+            )
+            self._write_audit(
+                conn,
+                org_id=org_id,
+                actor_user_id=actor_user_id,
+                action="mail_account.automation_enabled" if enabled else "mail_account.automation_disabled",
+                target_type="mail_account",
+                target_id=mail_account_id,
+                metadata={"poll_interval_seconds": interval},
+                now=now,
+            )
+            conn.commit()
+        updated = self.get_mail_account(org_id=org_id, mail_account_id=mail_account_id)
+        if updated is None:
+            raise ValueError("mail account not found for organization")
+        return updated
+
+    def claim_mailbox_for_scan(
+        self,
+        *,
+        org_id: str,
+        mail_account_id: str,
+        lease_owner: str,
+        lease_seconds: int = 300,
+        now: datetime | None = None,
+    ) -> bool:
+        if not lease_owner.strip():
+            raise ValueError("lease owner is required")
+        now_dt = _as_utc_datetime(now)
+        lease_expires_at = (now_dt + timedelta(seconds=max(30, int(lease_seconds)))).isoformat()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            cursor = conn.execute(
+                """
+                UPDATE mail_accounts
+                SET lease_owner = ?, lease_expires_at = ?
+                WHERE id = ? AND org_id = ? AND status = 'active'
+                  AND (lease_owner IS NULL OR lease_expires_at IS NULL OR lease_expires_at <= ?)
+                """,
+                (
+                    lease_owner,
+                    lease_expires_at,
+                    mail_account_id,
+                    org_id,
+                    now_dt.isoformat(),
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
+    def claim_due_mailboxes(
+        self,
+        *,
+        lease_owner: str,
+        limit: int = 5,
+        lease_seconds: int = 300,
+        now: datetime | None = None,
+    ) -> list[MailAccountRecord]:
+        if not lease_owner.strip():
+            raise ValueError("lease owner is required")
+        now_dt = _as_utc_datetime(now)
+        now_iso = now_dt.isoformat()
+        lease_expires_at = (now_dt + timedelta(seconds=max(30, int(lease_seconds)))).isoformat()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                """
+                SELECT id, org_id, user_id, provider, external_account_id,
+                       encrypted_token_ref, status, created_at,
+                       automation_enabled, poll_interval_seconds, next_poll_at,
+                       last_polled_at, failure_count, last_error_code
+                FROM mail_accounts
+                WHERE automation_enabled = 1 AND status = 'active'
+                  AND (next_poll_at IS NULL OR next_poll_at <= ?)
+                  AND (lease_owner IS NULL OR lease_expires_at IS NULL OR lease_expires_at <= ?)
+                ORDER BY COALESCE(next_poll_at, created_at) ASC
+                LIMIT ?
+                """,
+                (now_iso, now_iso, max(1, min(int(limit), 100))),
+            ).fetchall()
+            for row in rows:
+                conn.execute(
+                    """
+                    UPDATE mail_accounts
+                    SET lease_owner = ?, lease_expires_at = ?
+                    WHERE id = ? AND org_id = ?
+                    """,
+                    (lease_owner, lease_expires_at, row["id"], row["org_id"]),
+                )
+            conn.commit()
+            return [self._mail_account_record(row) for row in rows]
+
+    def release_mailbox_lease(
+        self,
+        *,
+        org_id: str,
+        mail_account_id: str,
+        lease_owner: str,
+    ) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE mail_accounts
+                SET lease_owner = NULL, lease_expires_at = NULL
+                WHERE id = ? AND org_id = ? AND lease_owner = ?
+                """,
+                (mail_account_id, org_id, lease_owner),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
+    def complete_mailbox_poll(
+        self,
+        *,
+        org_id: str,
+        mail_account_id: str,
+        lease_owner: str,
+        success: bool,
+        error_code: str | None = None,
+        disable_automation: bool = False,
+        mark_mailbox_error: bool = False,
+        now: datetime | None = None,
+    ) -> bool:
+        safe_error_code = _safe_error_code(error_code)
+        now_dt = _as_utc_datetime(now)
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT poll_interval_seconds, failure_count, status, automation_enabled
+                FROM mail_accounts
+                WHERE id = ? AND org_id = ? AND lease_owner = ?
+                """,
+                (mail_account_id, org_id, lease_owner),
+            ).fetchone()
+            if row is None:
+                conn.rollback()
+                return False
+            failures = 0 if success else int(row["failure_count"]) + 1
+            interval = int(row["poll_interval_seconds"])
+            automation_enabled = bool(row["automation_enabled"]) and not disable_automation
+            if success:
+                delay_seconds = interval
+            else:
+                delay_seconds = min(interval * (2 ** min(failures, 5)), 21600)
+            next_poll_at = (
+                (now_dt + timedelta(seconds=delay_seconds)).isoformat()
+                if automation_enabled
+                else None
+            )
+            status = "active" if success else ("error" if mark_mailbox_error else row["status"])
+            cursor = conn.execute(
+                """
+                UPDATE mail_accounts
+                SET automation_enabled = ?, status = ?, next_poll_at = ?,
+                    last_polled_at = ?, failure_count = ?, last_error_code = ?,
+                    lease_owner = NULL, lease_expires_at = NULL
+                WHERE id = ? AND org_id = ? AND lease_owner = ?
+                """,
+                (
+                    int(automation_enabled),
+                    status,
+                    next_poll_at,
+                    now_dt.isoformat(),
+                    failures,
+                    None if success else safe_error_code,
+                    mail_account_id,
+                    org_id,
+                    lease_owner,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
+    @staticmethod
+    def mailbox_message_key(mail_account_id: str, provider_message_id: str) -> str:
+        return hashlib.sha256(
+            f"{mail_account_id}:{provider_message_id}".encode("utf-8")
+        ).hexdigest()
+
+    def has_mailbox_message_receipt(
+        self,
+        *,
+        org_id: str,
+        mail_account_id: str,
+        provider_message_id: str,
+    ) -> bool:
+        message_key = self.mailbox_message_key(mail_account_id, provider_message_id)
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT 1
+                FROM mailbox_message_receipts r
+                JOIN mail_accounts m ON m.id = r.mail_account_id AND m.org_id = r.org_id
+                WHERE r.org_id = ? AND r.mail_account_id = ? AND r.message_key = ?
+                """,
+                (org_id, mail_account_id, message_key),
+            ).fetchone()
+            return row is not None
+
+    def record_mailbox_message_receipt(
+        self,
+        *,
+        org_id: str,
+        mail_account_id: str,
+        provider_message_id: str,
+        outcome: str,
+        scan_result_id: str | None = None,
+    ) -> bool:
+        if outcome not in {"analyzed", "skipped", "parse_failed"}:
+            raise ValueError("invalid mailbox receipt outcome")
+        message_key = self.mailbox_message_key(mail_account_id, provider_message_id)
+        with self._connect() as conn:
+            mailbox = conn.execute(
+                "SELECT 1 FROM mail_accounts WHERE id = ? AND org_id = ?",
+                (mail_account_id, org_id),
+            ).fetchone()
+            if mailbox is None:
+                raise ValueError("mail account not found for organization")
+            if scan_result_id is not None:
+                result = conn.execute(
+                    "SELECT 1 FROM scan_results WHERE id = ? AND org_id = ?",
+                    (scan_result_id, org_id),
+                ).fetchone()
+                if result is None:
+                    raise ValueError("scan result not found for organization")
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO mailbox_message_receipts (
+                    id, org_id, mail_account_id, message_key, outcome,
+                    scan_result_id, processed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_id("receipt"),
+                    org_id,
+                    mail_account_id,
+                    message_key,
+                    outcome,
+                    scan_result_id,
+                    utc_now_iso(),
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
     def delete_mail_account(
         self,
         *,
@@ -990,7 +1491,7 @@ class SaaSStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, provider, external_account_id
+                SELECT id, provider, external_account_id, lease_owner, lease_expires_at
                 FROM mail_accounts
                 WHERE id = ? AND org_id = ?
                 """,
@@ -998,6 +1499,14 @@ class SaaSStore:
             ).fetchone()
             if row is None:
                 return False
+            if (
+                row["lease_owner"]
+                and row["lease_expires_at"]
+                and row["lease_expires_at"] > now
+            ):
+                raise MailboxLeaseConflictError(
+                    "Mailbox scan is in progress. Try again after it completes."
+                )
             conn.execute(
                 "DELETE FROM mail_accounts WHERE id = ? AND org_id = ?",
                 (mail_account_id, org_id),
@@ -1018,12 +1527,22 @@ class SaaSStore:
             conn.commit()
             return True
 
-    def complete_scan_job(self, scan_job_id: str, status: str = "completed") -> None:
+    def complete_scan_job(
+        self,
+        *,
+        org_id: str,
+        scan_job_id: str,
+        status: str = "completed",
+    ) -> None:
+        if status not in {"completed", "failed"}:
+            raise ValueError("scan job status must be completed or failed")
         with self._connect() as conn:
-            conn.execute(
-                "UPDATE scan_jobs SET status = ?, completed_at = ? WHERE id = ?",
-                (status, utc_now_iso(), scan_job_id),
+            cursor = conn.execute(
+                "UPDATE scan_jobs SET status = ?, completed_at = ? WHERE id = ? AND org_id = ?",
+                (status, utc_now_iso(), scan_job_id, org_id),
             )
+            if cursor.rowcount == 0:
+                raise ValueError("scan job not found for organization")
             conn.commit()
 
     def record_scan_result(
@@ -1039,6 +1558,12 @@ class SaaSStore:
     ) -> str:
         result_id = new_id("res")
         with self._connect() as conn:
+            job = conn.execute(
+                "SELECT 1 FROM scan_jobs WHERE id = ? AND org_id = ? AND user_id = ?",
+                (scan_job_id, org_id, user_id),
+            ).fetchone()
+            if job is None:
+                raise ValueError("scan job not found for organization and user")
             conn.execute(
                 """
                 INSERT INTO scan_results (
@@ -1057,6 +1582,96 @@ class SaaSStore:
                     payment_decision,
                     json.dumps(result, default=str),
                     utc_now_iso(),
+                ),
+            )
+            conn.commit()
+        return result_id
+
+    def record_mailbox_scan_completion(
+        self,
+        *,
+        org_id: str,
+        user_id: str,
+        scan_job_id: str,
+        mail_account_id: str,
+        provider_message_id: str,
+        email_id: str,
+        verdict: str,
+        payment_decision: str | None,
+        result: dict,
+    ) -> str:
+        """Atomically persist a mailbox result, receipt, job state, and usage."""
+        result_id = new_id("res")
+        message_key = self.mailbox_message_key(mail_account_id, provider_message_id)
+        now = utc_now_iso()
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            job = conn.execute(
+                """
+                SELECT 1
+                FROM scan_jobs
+                WHERE id = ? AND org_id = ? AND user_id = ? AND mail_account_id = ?
+                """,
+                (scan_job_id, org_id, user_id, mail_account_id),
+            ).fetchone()
+            if job is None:
+                conn.rollback()
+                raise ValueError("mailbox scan job not found for organization and user")
+            conn.execute(
+                """
+                INSERT INTO scan_results (
+                    id, org_id, user_id, scan_job_id, email_id, verdict,
+                    payment_decision, result_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    result_id,
+                    org_id,
+                    user_id,
+                    scan_job_id,
+                    email_id,
+                    verdict,
+                    payment_decision,
+                    json.dumps(result, default=str),
+                    now,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO mailbox_message_receipts (
+                    id, org_id, mail_account_id, message_key, outcome,
+                    scan_result_id, processed_at
+                ) VALUES (?, ?, ?, ?, 'analyzed', ?, ?)
+                """,
+                (
+                    new_id("receipt"),
+                    org_id,
+                    mail_account_id,
+                    message_key,
+                    result_id,
+                    now,
+                ),
+            )
+            conn.execute(
+                """
+                UPDATE scan_jobs
+                SET status = 'completed', completed_at = ?
+                WHERE id = ? AND org_id = ?
+                """,
+                (now, scan_job_id, org_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO usage_events (
+                    id, org_id, user_id, feature_slug, quantity, occurred_at, idempotency_key
+                ) VALUES (?, ?, ?, 'mailbox_monitoring', 1, ?, ?)
+                """,
+                (
+                    new_id("use"),
+                    org_id,
+                    user_id,
+                    now,
+                    f"mailbox:{scan_job_id}",
                 ),
             )
             conn.commit()
@@ -2555,9 +3170,10 @@ class SaaSStore:
             conn.close()
 
     def _open(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 30000")
         return conn
 
 
@@ -2612,6 +3228,22 @@ def new_id(prefix: str) -> str:
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _as_utc_datetime(value: datetime | None) -> datetime:
+    current = value or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        return current.replace(tzinfo=timezone.utc)
+    return current.astimezone(timezone.utc)
+
+
+def _safe_error_code(value: str | None) -> str | None:
+    if value is None:
+        return None
+    code = str(value).strip().lower()[:64]
+    if not code or any(not (character.isalnum() or character in {"_", "-"}) for character in code):
+        raise ValueError("mailbox error code must contain only letters, numbers, underscores, or hyphens")
+    return code
 
 
 def month_start_iso() -> str:
@@ -3040,7 +3672,15 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
     external_account_id TEXT,
     encrypted_token_ref TEXT,
     status TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    automation_enabled INTEGER NOT NULL DEFAULT 0,
+    poll_interval_seconds INTEGER NOT NULL DEFAULT 300,
+    next_poll_at TEXT,
+    last_polled_at TEXT,
+    lease_owner TEXT,
+    lease_expires_at TEXT,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_error_code TEXT
 );
 
 CREATE TABLE IF NOT EXISTS scan_jobs (
@@ -3064,6 +3704,17 @@ CREATE TABLE IF NOT EXISTS scan_results (
     payment_decision TEXT,
     result_json TEXT NOT NULL,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mailbox_message_receipts (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    mail_account_id TEXT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+    message_key TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    scan_result_id TEXT REFERENCES scan_results(id) ON DELETE SET NULL,
+    processed_at TEXT NOT NULL,
+    UNIQUE(org_id, mail_account_id, message_key)
 );
 
 CREATE TABLE IF NOT EXISTS incident_cases (

@@ -11,7 +11,7 @@ set -euo pipefail
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.production.yml}"
 APP_ENV_FILE="${APP_ENV_FILE:-.env}"
-SERVICES=(phishing-browser-sandbox phishing-orchestrator cloudflared-tunnel)
+SERVICES=(phishing-browser-sandbox phishing-orchestrator phishing-saas-mailbox-worker cloudflared-tunnel)
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=compose_env.sh

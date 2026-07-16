@@ -83,7 +83,7 @@ def test_pro_plan_payload_unlocks_pro_but_not_business_features():
     assert features["team_audit"]["available"] is False
 
 
-def test_paid_catalog_does_not_claim_unimplemented_continuous_mailbox_polling():
+def test_paid_catalog_describes_explicit_opt_in_continuous_mailbox_polling():
     payload = plan_payload(current_plan="business")
     mailbox_feature = next(
         feature for feature in payload["features"] if feature["slug"] == "mailbox_monitoring"
@@ -96,13 +96,19 @@ def test_paid_catalog_does_not_claim_unimplemented_continuous_mailbox_polling():
         ]
     ).lower()
 
-    assert MAILBOX_AUTOMATION_STATUS == "scan_now_only"
-    assert CONTINUOUS_MAILBOX_POLLING_AVAILABLE is False
-    assert payload["mailbox_automation"]["continuous_polling_available"] is False
-    assert "scan now" in public_catalog_text or "on-demand" in public_catalog_text
-    assert "automatic polling is not included" in public_catalog_text
-    assert "continuous user-owned mailbox polling" not in public_catalog_text
-    assert "mailbox monitoring plus" not in public_catalog_text
+    automation_feature = next(
+        feature
+        for feature in payload["features"]
+        if feature["slug"] == "continuous_mailbox_monitoring"
+    )
+
+    assert MAILBOX_AUTOMATION_STATUS == "continuous_opt_in"
+    assert CONTINUOUS_MAILBOX_POLLING_AVAILABLE is True
+    assert payload["mailbox_automation"]["continuous_polling_available"] is True
+    assert "opt-in" in public_catalog_text
+    assert "explicitly enable" in payload["mailbox_automation"]["notice"].lower()
+    assert automation_feature["available"] is True
+    assert automation_feature["required_plan_name"] == "Pro"
 
 
 def test_plan_allows_feature_uses_catalog_order():

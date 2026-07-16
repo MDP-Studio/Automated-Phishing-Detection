@@ -114,5 +114,12 @@ pipeline:
   saas_db_path: "data/saas.db"         # env: SAAS_DB_PATH
   saas_session_secret: ""             # env: SAAS_SESSION_SECRET
   saas_public_signup_enabled: false    # env: SAAS_PUBLIC_SIGNUP_ENABLED
+  saas_continuous_monitoring_enabled: false # env: SAAS_CONTINUOUS_MONITORING_ENABLED
+  saas_mailbox_poll_interval_seconds: 300   # env: SAAS_MAILBOX_POLL_INTERVAL_SECONDS
+  saas_mailbox_worker_idle_seconds: 10      # env: SAAS_MAILBOX_WORKER_IDLE_SECONDS
+  saas_mailbox_worker_lease_seconds: 1200   # env: SAAS_MAILBOX_WORKER_LEASE_SECONDS
+  saas_mailbox_worker_batch_size: 5         # env: SAAS_MAILBOX_WORKER_BATCH_SIZE
+  saas_mailbox_worker_max_results: 10       # env: SAAS_MAILBOX_WORKER_MAX_RESULTS
+  saas_mailbox_worker_heartbeat_path: "data/saas_mailbox_worker_heartbeat.json"
   password_reset_token_ttl_minutes: 30  # env: PASSWORD_RESET_TOKEN_TTL_MINUTES
   max_concurrent_browser: 3

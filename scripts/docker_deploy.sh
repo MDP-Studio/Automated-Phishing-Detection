@@ -8,6 +8,7 @@ COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.production.yml}"
 APP_ENV_FILE="${APP_ENV_FILE:-.env}"
 HEALTH_WAIT_SECONDS="${HEALTH_WAIT_SECONDS:-180}"
 APP_CONTAINER="${APP_CONTAINER:-phishing-orchestrator}"
+WORKER_CONTAINER="${WORKER_CONTAINER:-phishing-saas-mailbox-worker}"
 TUNNEL_CONTAINER="${TUNNEL_CONTAINER:-cloudflared-tunnel}"
 REQUIRE_TUNNEL="${REQUIRE_TUNNEL:-1}"
 TUNNEL_STABLE_SECONDS="${TUNNEL_STABLE_SECONDS:-10}"
@@ -102,6 +103,11 @@ fi
 export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}"
 export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-1}"
 
+if ! docker network inspect mdp-tunnel >/dev/null 2>&1; then
+    docker network create mdp-tunnel >/dev/null
+    echo "[deploy] created shared mdp-tunnel network"
+fi
+
 compose pull browser-sandbox cloudflared || true
 compose up -d --build --remove-orphans
 connect_cti_network
@@ -110,9 +116,14 @@ deadline=$((SECONDS + HEALTH_WAIT_SECONDS))
 while [ "$SECONDS" -lt "$deadline" ]; do
     health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$APP_CONTAINER" 2>/dev/null || true)"
     if [ "$health" = "healthy" ]; then
+        worker_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$WORKER_CONTAINER" 2>/dev/null || true)"
+        if [ "$worker_health" != "healthy" ]; then
+            sleep 5
+            continue
+        fi
         if [ "$REQUIRE_TUNNEL" != "1" ]; then
             compose ps
-            echo "[deploy] $APP_CONTAINER is healthy"
+            echo "[deploy] $APP_CONTAINER and $WORKER_CONTAINER are healthy"
             exit 0
         fi
 
@@ -122,7 +133,7 @@ while [ "$SECONDS" -lt "$deadline" ]; do
             tunnel_status="$(docker inspect --format '{{.State.Status}}' "$TUNNEL_CONTAINER" 2>/dev/null || true)"
             if [ "$tunnel_status" = "running" ]; then
                 compose ps
-                echo "[deploy] $APP_CONTAINER is healthy and $TUNNEL_CONTAINER is running"
+                echo "[deploy] app and mailbox worker are healthy; $TUNNEL_CONTAINER is running"
                 exit 0
             fi
         fi
@@ -132,10 +143,11 @@ done
 
 compose ps >&2 || true
 docker logs "$APP_CONTAINER" --tail 120 >&2 || true
+docker logs "$WORKER_CONTAINER" --tail 120 >&2 || true
 if [ "$REQUIRE_TUNNEL" = "1" ]; then
     docker logs "$TUNNEL_CONTAINER" --tail 120 >&2 || true
     tunnel_status="$(docker inspect --format '{{.State.Status}}' "$TUNNEL_CONTAINER" 2>/dev/null || true)"
-    echo "[deploy] $APP_CONTAINER health=$health; $TUNNEL_CONTAINER status=${tunnel_status:-missing}" >&2
+    echo "[deploy] app health=$health; worker health=${worker_health:-missing}; tunnel status=${tunnel_status:-missing}" >&2
 fi
 echo "[deploy] production stack did not become ready within ${HEALTH_WAIT_SECONDS}s" >&2
 exit 1

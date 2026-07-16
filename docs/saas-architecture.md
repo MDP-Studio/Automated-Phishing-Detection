@@ -118,9 +118,24 @@ Implemented foundation:
 Not implemented yet:
 
 - Production Postgres migrations.
-- Customer mailbox polling worker that reads the SaaS `mail_accounts` table and
-  writes tenant-scoped scan jobs/results.
 - Role-based customer access to dashboard and monitor views.
+
+Implemented for the current single-host production deployment:
+
+- A dedicated SaaS mailbox worker that claims only explicitly enabled mailboxes.
+- Serialized SQLite `BEGIN IMMEDIATE` claims, expiring owner leases, bounded
+  backoff, duplicate-message receipts, and tenant-scoped job/result writes.
+- Tenant membership and `continuous_mailbox_monitoring` entitlement revalidation
+  immediately before each IMAP poll. Revoked entitlements disable automation.
+- Atomic monthly scan-budget reservations before deep analysis. Completed
+  mailbox analyses consume the same visible workspace scan budget; exhausted
+  mailboxes stay opted in but back off without calling IMAP paid analyzers.
+- A separate healthy-standby worker process. The deployment flag can stop all
+  polling without changing per-mailbox consent state.
+
+SQLite WAL plus serialized claims is suitable for this single-host deployment.
+Do not run multiple database hosts or advertise high availability until the
+PostgreSQL migration and distributed locking design are complete.
 
 ## Initial Plans
 
@@ -136,12 +151,12 @@ checks, and Stripe webhook handlers share one catalog.
 
 Free includes manual scans, header checks, payment rules, and account-scoped
 history. Starter unlocks reputation, domain, brand, and sender-profile checks.
-Pro unlocks encrypted mailbox connection with user-triggered Scan now, LLM BEC
-reasoning, attachment sandboxing, and browser URL detonation. Business adds
-team audit controls and higher budgets. No current plan includes automatic
-mailbox polling. The historical `mailbox_monitoring` entitlement slug is kept
-for API and persisted-row compatibility, but currently represents only the
-on-demand connection and Scan now capability.
+Pro unlocks encrypted mailbox connection with user-triggered Scan now, explicit
+per-mailbox continuous monitoring, LLM BEC reasoning, attachment sandboxing,
+and browser URL detonation. Business adds team audit controls and higher
+budgets. The historical `mailbox_monitoring` entitlement slug is kept for API
+and persisted-row compatibility and represents connection plus Scan now.
+Continuous polling uses the separate `continuous_mailbox_monitoring` entitlement.
 
 ## Database Tables
 
@@ -155,7 +170,8 @@ development and single-operator demos.
 | `organizations` | Billing and tenant boundary | `id`, `name`, `stripe_customer_id`, `created_at` |
 | `memberships` | User to org mapping | `user_id`, `org_id`, `role` |
 | `subscriptions` | Stripe mirror | `org_id`, `stripe_subscription_id`, `plan_slug`, `status`, `current_period_end` |
-| `mail_accounts` | User-owned mailbox config | `org_id`, `user_id`, `provider`, encrypted token refs, `status` |
+| `mail_accounts` | User-owned mailbox config and worker lease | `org_id`, `user_id`, encrypted token refs, `status`, `automation_enabled`, poll schedule, lease owner/expiry |
+| `mailbox_message_receipts` | Duplicate-safe mailbox processing receipt | `org_id`, `mail_account_id`, hashed message key, outcome, optional result ref, `processed_at` |
 | `scan_jobs` | Queued or completed scan requests | `org_id`, `user_id`, `mail_account_id`, `status`, `source`, `created_at` |
 | `scan_results` | Private analysis output | `org_id`, `scan_job_id`, `email_id`, `verdict`, `payment_decision`, `result_json` |
 | `incident_cases` | Lightweight response state | `org_id`, `scan_result_id`, `status`, `severity`, `owner_user_id`, `escalated_at` |
@@ -226,10 +242,13 @@ Safe implementation order:
 13. Add privacy-minimized operational alerts with local retention and optional
     webhook delivery. **Done.**
 14. Add the SaaS mailbox polling worker and tenant-isolated monitor views.
+    **Done for the customer mailbox worker and app controls.**
 15. Add tenant isolation tests before enabling live customer mailbox polling.
+    **Done for worker claims, mailbox receipts, scan jobs, results, and API opt-in.**
 
-Do not enable live customer mailbox polling until steps 1, 2, 4, 8, and 15 are
-complete.
+Production enablement still requires a fresh backup, a healthy worker heartbeat,
+zero implicit mailbox enrolments, and verification that all existing mailbox
+rows remain opted out after migration.
 
 Legacy analyst-token `/admin` access is not phishing-resistant because it is
 not bound to a user passkey. Keep it internal for compatible clients and

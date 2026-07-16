@@ -102,7 +102,7 @@ def feature_entitlement(
                 required_plan=upgrade_plan.slug,
                 required_plan_name=upgrade_plan.name,
                 reason=(
-                    f"{current.name} includes {quota} manual scans/month. "
+                    f"{current.name} includes {quota} completed analyses/month. "
                     f"Upgrade to {upgrade_plan.name} for a higher scan budget."
                 ),
                 quota=quota,

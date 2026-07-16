@@ -14,14 +14,13 @@ logger = logging.getLogger(__name__)
 
 # Keep the historical ``mailbox_monitoring`` slug stable because it is already
 # used by API gates and persisted feature-lock rows. Public catalog copy must
-# describe the capability that actually exists today: encrypted mailbox
-# connection plus a user-triggered scan. Continuous polling stays unavailable
-# until the tenant-isolated worker and production Postgres migration exist.
-MAILBOX_AUTOMATION_STATUS = "scan_now_only"
-CONTINUOUS_MAILBOX_POLLING_AVAILABLE = False
+# describe the on-demand capability. Continuous polling has its own entitlement
+# so connection, manual scans, and explicit opt-in automation stay separable.
+MAILBOX_AUTOMATION_STATUS = "continuous_opt_in"
+CONTINUOUS_MAILBOX_POLLING_AVAILABLE = True
 MAILBOX_AUTOMATION_NOTICE = (
-    "Connected mailboxes can be scanned on demand. Automatic polling is not "
-    "included yet."
+    "Pro and Business workspaces can explicitly enable tenant-scoped polling "
+    "for each connected mailbox and turn it off at any time."
 )
 
 
@@ -85,7 +84,7 @@ PLAN_CATALOG: tuple[Plan, ...] = (
         mailbox_quota=3,
         stripe_price_env="STRIPE_PRICE_PRO",
         stripe_yearly_price_env="STRIPE_PRICE_PRO_YEARLY",
-        summary="On-demand connected-mailbox scans plus LLM and browser-backed analysis.",
+        summary="Opt-in connected-mailbox monitoring plus LLM and browser-backed analysis.",
         best_for="SMEs that receive invoices by email",
     ),
     Plan(
@@ -97,7 +96,7 @@ PLAN_CATALOG: tuple[Plan, ...] = (
         mailbox_quota=10,
         stripe_price_env="STRIPE_PRICE_BUSINESS",
         stripe_yearly_price_env="STRIPE_PRICE_BUSINESS_YEARLY",
-        summary="Team controls, audit logs, and higher mailbox/API budgets.",
+        summary="Team controls, opt-in mailbox monitoring, audit logs, and higher budgets.",
         best_for="Finance teams and agencies",
     ),
 )
@@ -181,7 +180,18 @@ FEATURE_CATALOG: tuple[Feature, ...] = (
         name="Connected mailbox scan now",
         description=(
             "Connect a workspace-owned mailbox and start an encrypted, "
-            "tenant-scoped scan on demand. Automatic polling is not included yet."
+            "tenant-scoped scan on demand."
+        ),
+        minimum_plan="pro",
+        category="Mailbox automation",
+        expensive=True,
+    ),
+    Feature(
+        slug="continuous_mailbox_monitoring",
+        name="Opt-in continuous mailbox monitoring",
+        description=(
+            "Poll an explicitly enabled workspace mailbox with tenant-scoped "
+            "leases, duplicate-message receipts, and automatic backoff."
         ),
         minimum_plan="pro",
         category="Mailbox automation",

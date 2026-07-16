@@ -671,6 +671,41 @@ class TestSaaSRetention:
         assert stats.dropped == 2
         assert len(store.list_scan_results(context.org_id)) == 1
 
+    def test_purges_old_mailbox_message_receipts(self, tmp_path):
+        db_path = tmp_path / "saas.db"
+        store = SaaSStore(db_path)
+        context = store.create_user_with_org(email="owner@example.com", password="long-password-1")
+        now = datetime(2026, 5, 1, tzinfo=timezone.utc)
+        mailbox = store.register_mail_account(
+            org_id=context.org_id,
+            user_id=context.user_id,
+            provider="imap",
+            external_account_id="finance@example.com",
+            encrypted_token_ref="encrypted",
+            status="active",
+        )
+        assert store.record_mailbox_message_receipt(
+            org_id=context.org_id,
+            mail_account_id=mailbox.id,
+            provider_message_id="old-message",
+            outcome="skipped",
+        )
+        with sqlite3.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE mailbox_message_receipts SET processed_at = ?",
+                ((now - timedelta(days=45)).isoformat(),),
+            )
+            conn.commit()
+
+        stats = purge_saas_db(db_path, max_age_days=30, now=now)
+
+        assert stats.dropped == 1
+        assert not store.has_mailbox_message_receipt(
+            org_id=context.org_id,
+            mail_account_id=mailbox.id,
+            provider_message_id="old-message",
+        )
+
     def test_erases_subject_from_saas_scan_results(self, tmp_path):
         db_path = tmp_path / "saas.db"
         store = SaaSStore(db_path)

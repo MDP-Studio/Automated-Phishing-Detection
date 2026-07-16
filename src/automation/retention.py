@@ -612,6 +612,7 @@ def purge_saas_db(
 
     cutoff_text = cutoff.isoformat()
     specs = [
+        ("mailbox_message_receipts", "processed_at"),
         ("scan_results", "created_at"),
         ("scan_jobs", "created_at"),
         ("usage_events", "occurred_at"),

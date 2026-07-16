@@ -266,7 +266,10 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      let message = payload.detail || payload.reason || `Request failed with ${response.status}`;
+      let message = payload.detail
+        || payload.reason
+        || (payload.locked && payload.locked.reason)
+        || `Request failed with ${response.status}`;
       if (message && typeof message === "object") {
         message = message.message || message.reason || JSON.stringify(message);
       }
@@ -721,11 +724,15 @@ ${element.innerHTML}
     }
     const quota = payload.quota || { used: 0, limit: 0, remaining: 0 };
     const entitlement = payload.entitlement || {};
+    const automation = payload.automation || {};
+    const automationEntitlement = automation.entitlement || {};
+    const account = payload.account || {};
     const locked = !entitlement.available;
+    const canManageAutomation = account.role === "owner" || account.role === "admin";
     mailboxQuota.textContent = `${quota.used} / ${quota.limit} mailboxes`;
     mailboxLockText.textContent = locked
       ? `${entitlement.reason || "Connected-mailbox scan now is locked on this plan."} Manual file scans still work.`
-      : "Connect the inbox that receives supplier invoices, then select Scan now when you want it checked. Automatic polling is not included.";
+      : "Connect the inbox that receives supplier invoices. Use Scan now, or explicitly enable continuous monitoring on Pro and Business.";
     mailboxSubmitButton.textContent = locked ? `${entitlement.required_plan_name || "Pro"} required` : "Connect mailbox";
     mailboxForm.querySelectorAll("input, select, button[type='submit']").forEach((control) => {
       control.disabled = locked;
@@ -740,7 +747,7 @@ ${element.innerHTML}
       empty.innerHTML = `
         <div>
           <strong>No connected mailbox</strong>
-          <span>${escapeHtml(locked ? "Upgrade to Pro for connected-mailbox scan now." : "Connect an inbox, then start each scan yourself. Automatic polling is not included.")}</span>
+          <span>${escapeHtml(locked ? "Upgrade to Pro for connected-mailbox scan now." : "Connect an inbox, then choose Scan now or opt in to continuous monitoring.")}</span>
         </div>
       `;
       mailboxList.appendChild(empty);
@@ -749,14 +756,27 @@ ${element.innerHTML}
     mailboxes.forEach((item) => {
       const row = document.createElement("article");
       row.className = "mailbox-row";
+      const automationAvailable = Boolean(automation.service_enabled && automationEntitlement.available);
+      const automationDisabled = !item.automation_enabled && (!automationAvailable || !canManageAutomation || item.status !== "active");
+      const automationText = item.automation_enabled
+        ? "Turn off monitoring"
+        : !automation.service_enabled
+          ? "Monitoring unavailable"
+          : automationAvailable
+            ? "Enable monitoring"
+            : `${automationEntitlement.required_plan_name || "Pro"} monitoring`;
+      const monitoringDetail = item.automation_enabled
+        ? `Continuous monitoring on every ${Math.max(1, Math.round(Number(item.poll_interval_seconds || 300) / 60))} minutes`
+        : "Continuous monitoring off";
       row.innerHTML = `
         <div>
           <strong>${escapeHtml(item.external_account_id || "Mailbox")}</strong>
-          <span>${escapeHtml(formatLabel(item.provider))} - ${escapeHtml(item.credential_saved ? "encrypted credential saved" : "credential missing")}</span>
+          <span>${escapeHtml(formatLabel(item.provider))} - ${escapeHtml(item.credential_saved ? "encrypted credential saved" : "credential missing")} - ${escapeHtml(monitoringDetail)}</span>
         </div>
         <div class="mailbox-actions">
           <span class="mailbox-status ${escapeHtml(item.status || "pending")}">${escapeHtml(mailboxStatusLabel(item.status))}</span>
           <button class="subtle-button mailbox-scan" type="button" data-scan-mailbox="${escapeHtml(item.id)}">Scan now</button>
+          ${canManageAutomation ? `<button class="subtle-button mailbox-automation" type="button" data-automation-mailbox="${escapeHtml(item.id)}" data-automation-enabled="${item.automation_enabled ? "true" : "false"}"${automationDisabled ? " disabled" : ""}>${escapeHtml(automationText)}</button>` : ""}
           <button class="subtle-button mailbox-delete" type="button" data-delete-mailbox="${escapeHtml(item.id)}">Delete</button>
         </div>
       `;
@@ -1529,6 +1549,43 @@ ${element.innerHTML}
   });
 
   mailboxList.addEventListener("click", async (event) => {
+    const automationButton = event.target.closest("button[data-automation-mailbox]");
+    if (automationButton) {
+      event.preventDefault();
+      const mailboxId = automationButton.getAttribute("data-automation-mailbox") || "";
+      const enabled = automationButton.getAttribute("data-automation-enabled") === "true";
+      if (!mailboxId) {
+        return;
+      }
+      hideNotice(mailboxNotice);
+      const originalText = automationButton.textContent;
+      automationButton.disabled = true;
+      automationButton.textContent = enabled ? "Turning off" : "Enabling";
+      try {
+        const response = await apiJson(`/api/saas/mailboxes/${encodeURIComponent(mailboxId)}/automation`, {
+          method: "PATCH",
+          body: JSON.stringify({ enabled: !enabled }),
+        });
+        renderMailboxes(response);
+        showNotice(
+          mailboxNotice,
+          enabled
+            ? "Continuous monitoring is off for this mailbox."
+            : "Continuous monitoring is on for this mailbox and can be turned off at any time."
+        );
+      } catch (error) { console.debug("Suppressed exception in static/saas.js", error);
+        automationButton.disabled = false;
+        automationButton.textContent = originalText;
+        if (error.status === 402) {
+          showUpgradeNotice(mailboxNotice, `${error.message} Upgrade to enable continuous monitoring.`);
+          openUpgradePanel();
+        } else {
+          showNotice(mailboxNotice, error.message || "Could not update continuous monitoring.");
+        }
+      }
+      return;
+    }
+
     const scanButton = event.target.closest("button[data-scan-mailbox]");
     if (scanButton) {
       event.preventDefault();
