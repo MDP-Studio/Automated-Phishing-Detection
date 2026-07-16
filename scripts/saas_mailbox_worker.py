@@ -7,10 +7,12 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import signal
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 
@@ -18,15 +20,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env", override=True)
 
-from main import PhishingDetectionApp, _api_payload_from_pipeline  # noqa: E402  # agent-quality: allow dotenv first
-from src.config import PipelineConfig  # noqa: E402  # agent-quality: allow dotenv first
-from src.saas.database import SaaSStore  # noqa: E402  # agent-quality: allow dotenv first
-from src.saas.mailbox_scanner import scan_mailbox  # noqa: E402  # agent-quality: allow dotenv first
-from src.saas.mailbox_worker import (  # noqa: E402  # agent-quality: allow dotenv first
-    SaaSMailboxWorker,
-    WorkerRunStats,
-    run_worker_loop,
-)
+if TYPE_CHECKING:
+    from src.config import PipelineConfig
+    from src.saas.mailbox_worker import WorkerRunStats
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +54,18 @@ def _healthcheck(path: Path, *, max_age_seconds: int) -> int:
 
 
 async def _run(config: PipelineConfig, *, once: bool) -> None:
+    # Keep these imports out of the health-check path. Loading the full analysis
+    # pipeline can take several seconds on a cold production host, while the
+    # heartbeat check only needs the standard library and environment values.
+    from main import PhishingDetectionApp, _api_payload_from_pipeline
+    from src.saas.database import SaaSStore
+    from src.saas.mailbox_scanner import scan_mailbox
+    from src.saas.mailbox_worker import (
+        SaaSMailboxWorker,
+        WorkerRunStats,
+        run_worker_loop,
+    )
+
     if not config.saas_continuous_monitoring_enabled:
         heartbeat_path = Path(config.saas_mailbox_worker_heartbeat_path)
         disabled_stats = WorkerRunStats()
@@ -119,15 +127,29 @@ def main() -> int:
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--healthcheck", action="store_true")
     args = parser.parse_args()
-    config = PipelineConfig.from_env()
-    heartbeat_path = Path(config.saas_mailbox_worker_heartbeat_path)
     if args.healthcheck:
-        max_age = max(
-            120,
-            config.saas_mailbox_worker_idle_seconds * 4,
-            config.saas_mailbox_worker_lease_seconds * 2,
+        heartbeat_path = Path(
+            os.getenv(
+                "SAAS_MAILBOX_WORKER_HEARTBEAT_PATH",
+                "data/saas_mailbox_worker_heartbeat.json",
+            )
         )
+        try:
+            idle_seconds = int(
+                os.getenv("SAAS_MAILBOX_WORKER_IDLE_SECONDS", "10")
+            )
+            lease_seconds = int(
+                os.getenv("SAAS_MAILBOX_WORKER_LEASE_SECONDS", "1200")
+            )
+        except ValueError:
+            logger.error("SaaS mailbox worker health-check timing is invalid")
+            return 1
+        max_age = max(120, idle_seconds * 4, lease_seconds * 2)
         return _healthcheck(heartbeat_path, max_age_seconds=max_age)
+
+    from src.config import PipelineConfig
+
+    config = PipelineConfig.from_env()
     asyncio.run(_run(config, once=args.once))
     return 0
 
